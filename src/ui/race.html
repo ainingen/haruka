@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>レース — ハルカのセッティングノート</title>
+<style>
+/* ===========================================================================
+   レース画面（docs/設計/レース方式.md）
+   コースは線、車は点。物理演算はしない。
+   =========================================================================== */
+:root {
+  --paper:   #f2efe6;
+  --paper-2: #e9e5d9;
+  --ink:     #23211c;
+  --ink-2:   #6b665c;
+  --ink-3:   #9a9488;
+  --rule:    #3a372f;
+  --car:     #c0392b;   /* 自車＝赤 */
+  --ai:      #1b4f9c;   /* 他車＝青 */
+  --straight:    #6b665c;
+  --fast-corner: #2f6b3a;
+  --slow-corner: #8a6d1f;
+  --lock-bg: #e2ded1;
+  --field:   #fbf9f3;
+  --bad:     #9c3b2e;
+  --shadow:  rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:   #14171c;
+    --paper-2: #1a1e25;
+    --ink:     #d6dde6;
+    --ink-2:   #8b96a4;
+    --ink-3:   #5d6673;
+    --rule:    #7f8b9a;
+    --car:     #e8604f;
+    --ai:      #6aa6ff;
+    --straight:    #8b96a4;
+    --fast-corner: #74c98a;
+    --slow-corner: #d2b357;
+    --lock-bg: #1f242c;
+    --field:   #11141a;
+    --bad:     #e08878;
+    --shadow:  rgba(0,0,0,.4);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%; padding: 8px;
+}
+.sheet { max-width: 900px; margin: 0 auto; border: 2px solid var(--rule); padding: 4px; background: var(--paper); }
+.sheet-inner { border: 1px solid var(--rule); background: var(--paper-2); padding: 10px; }
+
+.titleblock {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
+  border-bottom: 1px solid var(--rule); padding-bottom: 8px; margin-bottom: 8px;
+}
+.titleblock .k { font-size: 10px; letter-spacing: .12em; color: var(--ink-2); }
+.titleblock .course { font-size: 17px; font-weight: 700; }
+.titleblock .prof { font-size: 11px; color: var(--ink-2); }
+.lapcount { text-align: right; border: 1px solid var(--ink-3); padding: 3px 8px; line-height: 1.3; white-space: nowrap; }
+.lapcount b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
+.lapcount span { font-size: 9px; letter-spacing: .14em; color: var(--ink-2); }
+
+/* --- コースと順位表：広い画面では横並び、モバイルでは縦 ------------------- */
+.arena { display: grid; grid-template-columns: 1fr; gap: 10px; }
+@media (min-width: 660px) { .arena { grid-template-columns: 1fr 260px; } }
+
+.track { border: 1px solid var(--rule); background: var(--field); }
+.track svg { width: 100%; height: auto; display: block; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--ink-2); padding: 5px 7px; border-top: 1px solid var(--ink-3); }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 3px; }
+.legend b.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
+
+/* --- 順位表 --------------------------------------------------------------- */
+.standings { border: 1px solid var(--rule); background: var(--field); align-self: start; }
+.standings h3 {
+  margin: 0; font-size: 10px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
+  padding: 5px 7px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
+}
+.row {
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 6px; align-items: baseline;
+  padding: 4px 7px; border-bottom: 1px solid var(--ink-3); font-size: 11.5px;
+}
+.row:last-child { border-bottom: 0; }
+.row.me { background: var(--lock-bg); font-weight: 700; }
+.row.out { color: var(--ink-3); }
+.row .pos { font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; }
+.row .nm { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.row .nm b { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .rt { text-align: right; font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ink-2); }
+.row .rt b { display: block; font-size: 11.5px; color: var(--ink); font-weight: 600; }
+
+/* --- 操作 ----------------------------------------------------------------- */
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.controls button {
+  font: inherit; font-size: 12px; padding: 7px 14px; cursor: pointer; letter-spacing: .06em;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--rule);
+}
+.controls button.on { background: var(--car); color: #fff; }
+.controls button.primary { background: var(--car); color: #fff; font-weight: 700; }
+.controls .spacer { margin-left: auto; }
+.controls a {
+  font-size: 11px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--ink-3);
+}
+
+/* --- 結果 ----------------------------------------------------------------- */
+.result { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
+.result h3 {
+  margin: 0; font-size: 10px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
+  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
+}
+.rrow {
+  display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: baseline;
+  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
+}
+.rrow:last-child { border-bottom: 0; }
+.rrow.me { background: var(--lock-bg); }
+.rrow .pos { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+.rrow .sub { font-size: 10px; color: var(--ink-2); }
+.rrow .t { text-align: right; font-variant-numeric: tabular-nums; }
+.rrow .t b { font-size: 13px; }
+.err { border: 1px solid var(--bad); color: var(--bad); padding: 10px; font-size: 12px; margin-bottom: 8px; }
+
+@media (max-width: 400px) {
+  body { padding: 4px; }
+  .sheet-inner { padding: 7px; }
+  .controls button { padding: 8px 11px; font-size: 11.5px; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet"><div class="sheet-inner">
+
+  <div class="titleblock">
+    <div>
+      <div class="k">COURSE</div>
+      <div class="course" id="courseName">—</div>
+      <div class="prof" id="courseProf">—</div>
+    </div>
+    <div class="lapcount"><span>LAP</span><b id="lapNow">—</b></div>
+  </div>
+
+  <div class="arena">
+    <div class="track">
+      <svg id="track" viewBox="0 0 400 300" role="img" aria-label="コース図と走行中の車"></svg>
+      <div class="legend">
+        <span><i style="background:var(--straight)"></i>ストレート</span>
+        <span><i style="background:var(--fast-corner)"></i>高速コーナー</span>
+        <span><i style="background:var(--slow-corner)"></i>低速コーナー</span>
+        <span><b class="dot" style="background:var(--car)"></b>自車</span>
+        <span><b class="dot" style="background:var(--ai)"></b>他車</span>
+      </div>
+    </div>
+
+    <div class="standings">
+      <h3>順位表</h3>
+      <div id="standings"></div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button type="button" id="btn1" class="on">1倍</button>
+    <button type="button" id="btn4">4倍</button>
+    <button type="button" id="btnSkip">スキップ</button>
+    <button type="button" id="btnPause">一時停止</button>
+    <span class="spacer"></span>
+    <a href="setup.html" id="backLink">セッティングへ戻る</a>
+  </div>
+
+  <div id="resultWrap"></div>
+
+</div></div>
+
+<script type="module">
+import {
+  buildPerformance, effectiveStats, sectorSpeed, driverTimeFactor,
+  createTireState, advanceTire, createBrakeState, advanceBrakes, courseLoad,
+  tireGripLoss, brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
+} from '../engine/race.js';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const el = (id) => document.getElementById(id);
+const svgEl = (name, attrs = {}) => {
+  const n = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+};
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+// ---------------------------------------------------------------------------
+// URL パラメータ（setup.html から渡ってくる）
+//   course / laps / cls / tier / parts(カンマ区切りの id) / tp / rh / bb / seed
+//   ブラウザストレージは使わない（PLiCy の制約）
+// ---------------------------------------------------------------------------
+const Q = new URLSearchParams(location.search);
+const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
+const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型' };
+
+const json = (p) => fetch(new URL(p, import.meta.url)).then((r) => {
+  if (!r.ok) throw new Error(`${p}: ${r.status}`);
+  return r.json();
+});
+
+// ---------------------------------------------------------------------------
+// コース形状：セクター列から閉じたループを起こす
+//   コーナーは type ごとの係数で曲がり角を配り、合計がちょうど 360° になるよう正規化する。
+//   それでも始点と終点は微妙にずれるので、ずれを走行距離に比例して配って閉じる。
+// ---------------------------------------------------------------------------
+const TURN_WEIGHT = { straight: 0, fast_corner: 1.0, slow_corner: 3.2 };
+
+function buildGeometry(course) {
+  const raw = course.sectors.map((s) => s.length * TURN_WEIGHT[s.type]);
+  const rawSum = raw.reduce((a, b) => a + b, 0) || 1;
+  const k = (Math.PI * 2) / rawSum;
+
+  let heading = -Math.PI / 2, x = 0, y = 0, dist = 0;
+  const pts = [{ x, y, d: 0 }];
+  const sectors = [];
+  course.sectors.forEach((s, i) => {
+    const from = pts.length - 1;
+    const steps = Math.max(2, Math.ceil(s.length / 15));
+    const segLen = s.length / steps;
+    const dTurn = (raw[i] * k) / steps;
+    for (let n = 0; n < steps; n++) {
+      heading += dTurn;
+      x += Math.cos(heading) * segLen;
+      y += Math.sin(heading) * segLen;
+      dist += segLen;
+      pts.push({ x, y, d: dist });
+    }
+    sectors.push({ type: s.type, from, to: pts.length - 1 });
+  });
+
+  // 閉じる：残ったずれを距離に比例して配る
+  const gx = pts[0].x - pts.at(-1).x, gy = pts[0].y - pts.at(-1).y;
+  for (const p of pts) { p.x += gx * (p.d / dist); p.y += gy * (p.d / dist); }
+  pts.at(-1).x = pts[0].x; pts.at(-1).y = pts[0].y;
+
+  // viewBox に収める
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const M = 26, VW = 400, VH = 300;
+  const scale = Math.min((VW - M * 2) / (maxX - minX), (VH - M * 2) / (maxY - minY));
+  const ox = M + ((VW - M * 2) - (maxX - minX) * scale) / 2 - minX * scale;
+  const oy = M + ((VH - M * 2) - (maxY - minY) * scale) / 2 - minY * scale;
+  for (const p of pts) { p.x = p.x * scale + ox; p.y = p.y * scale + oy; }
+
+  const d = (a, b) => pts.slice(a, b + 1).map((p, i) => `${i ? 'L' : 'M'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
+  return {
+    points: pts,
+    totalLength: dist,
+    masterD: d(0, pts.length - 1) + ' Z',
+    sectorPaths: sectors.map((s) => ({ type: s.type, d: d(s.from, s.to) })),
+    start: pts[0],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 出走車
+// ---------------------------------------------------------------------------
+/**
+ * AI の性格。同クラス想定なので、得意分野を散らして総合力は近づける。
+ * ここを固定してあるので「ストレート主体では A が速く、コーナー主体では B が速い」が必ず起きる。
+ */
+const AI_PROFILES = [
+  { name: '青 2号車', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 }, skill: +3 },
+  { name: '青 5号車', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 }, skill: +2 },
+  { name: '青 7号車', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 }, skill: +5 },
+  { name: '青 11号車', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 }, skill: -4 },
+  { name: '青 14号車', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 }, skill: -1 },
+];
+
+function makeCar({ id, name, color, perf, driver, seed, isPlayer = false }) {
+  return {
+    id, name, color, perf, driver, isPlayer,
+    rng: createRng(seed),
+    tire: createTireState(), brake: createBrakeState(),
+    lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
+    raceTime: 0, lapTimes: [], best: Infinity,
+    plan: null, plannedLap: 0,
+    finished: false, retired: false, retiredLap: null,
+    lastWear: 0, lastTemp: 0, lastFade: 0,
+  };
+}
+
+function gaussian(rng) {
+  const u = 1 - rng(), v = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+/** 次の周の計画を立てる。セクター通過時間をそのまま進行速度にする。 */
+function planLap(car, course, load) {
+  // リタイア判定は race.js と同じ確率モデル（周の頭で引く）
+  const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -car.perf.stats.reliability);
+  if (car.rng() < retireP) {
+    car.retired = true;
+    car.retiredLap = car.lap + 1;
+    car.plan = null;
+    return;
+  }
+  const eff = effectiveStats(car.perf, car.tire, car.brake);
+  const factor = driverTimeFactor(car.driver, car.perf.stats);
+  const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (car.driver.consistency ?? 100)) / 100;
+  const noise = clamp(1 + sigma * gaussian(car.rng), 0.9, 1.1);
+
+  car.plan = course.sectors.map((s) => ({
+    len: s.length,
+    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise,
+  }));
+  car.plannedLap = car.plan.reduce((a, s) => a + s.len / s.speed, 0);
+  car.lastWear = car.tire.wear;
+  car.lastTemp = car.brake.temp;
+  car.lastFade = brakeFadeLoss(car.perf.stats, car.brake);
+  car.segIdx = 0; car.segStart = 0; car.lapDist = 0;
+}
+
+function completeLap(car, course, load, totalLaps) {
+  car.lapTimes.push(car.plannedLap);
+  car.raceTime += car.plannedLap;
+  if (car.plannedLap < car.best) car.best = car.plannedLap;
+  car.lap += 1;
+  car.tire = advanceTire(car.tire, car.perf.stats);
+  car.brake = advanceBrakes(car.brake, car.perf.stats, load);
+  if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
+  planLap(car, course, load);
+}
+
+/** dt 秒ぶん進める。セクターをまたぐたびに速度を切り替える。 */
+function advance(car, dt, course, load, totalLaps) {
+  let rest = dt;
+  let guard = 0;
+  while (rest > 1e-9 && !car.finished && !car.retired && car.plan && guard++ < 5000) {
+    const seg = car.plan[car.segIdx];
+    const segEnd = car.segStart + seg.len;
+    const t = (segEnd - car.lapDist) / seg.speed;
+    if (t > rest) { car.lapDist += seg.speed * rest; rest = 0; break; }
+    rest -= t;
+    car.lapDist = segEnd;
+    car.segStart = segEnd;
+    car.segIdx += 1;
+    if (car.segIdx >= car.plan.length) completeLap(car, course, load, totalLaps);
+  }
+}
+
+const progress = (car, courseLen) => car.lap * courseLen + car.lapDist;
+const currentSpeed = (car) => (car.plan ? car.plan[Math.min(car.segIdx, car.plan.length - 1)].speed : 0);
+
+// ---------------------------------------------------------------------------
+// 起動
+// ---------------------------------------------------------------------------
+const S = {
+  cars: [], course: null, geo: null, load: null, totalLaps: 10,
+  masterPath: null, pathLen: 0, courseLen: 0,
+  speed: 1, paused: false, done: false, last: 0, raf: 0,
+};
+
+function pointAt(distance) {
+  // 座標は必ず path.getPointAtLength で取る（レース方式.md）
+  const d = ((distance % S.courseLen) + S.courseLen) % S.courseLen;
+  return S.masterPath.getPointAtLength((d / S.courseLen) * S.pathLen);
+}
+
+async function boot() {
+  const [parts, chassisData, courses, drivers] = await Promise.all([
+    json('../../data/parts.json'), json('../../data/chassis.json'),
+    json('../../data/courses.json'), json('../../data/drivers.json'),
+  ]);
+
+  const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
+  const cls = clamp(Number(Q.get('cls') ?? 2), 1, 5);
+  const tier = clamp(Number(Q.get('tier') ?? 1), 0, 4);
+  const chassis = chassisData[CLASS_CHASSIS[cls]];
+  S.totalLaps = clamp(Number(Q.get('laps') ?? 10), 1, 60);
+  S.course = course;
+  S.load = courseLoad(course);
+
+  // 自車：URL のパーツ id を組み直す（規定を満たすものだけ）
+  const ids = (Q.get('parts') ?? '').split(',').filter(Boolean);
+  const mine = ids.map((id) => parts.find((p) => p.id === id))
+    .filter((p) => p && p.class_required <= cls && p.sponsor_tier <= tier);
+  const settings = {};
+  for (const [key, def] of Object.entries(SETTINGS)) {
+    const raw = Q.get({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key]);
+    if (raw !== null && isSettingUnlocked(def, mine)) settings[key] = Number(raw);
+  }
+  const driver = { ...drivers[0] };
+  const myPerf = buildPerformance(mine, driver, chassis, settings);
+
+  // AI：自車のパーツ構成を基準に、性格ぶんだけ振る
+  const baseSeed = Number(Q.get('seed') ?? 20260912);
+  const aiRng = createRng(baseSeed);
+  const ai = AI_PROFILES.map((prof, i) => {
+    const jitter = {};
+    for (const key of ['power', 'cornering_grip', 'downforce', 'acceleration', 'braking']) {
+      jitter[key] = Math.round((aiRng() - 0.5) * 6);
+    }
+    const tune = { id: `ai_tune_${i}`, effects: prof.tune, side_effects: jitter };
+    const aiDriver = {
+      ...driver,
+      skill: clamp(driver.skill + prof.skill + Math.round((aiRng() - 0.5) * 6), 30, 99),
+      consistency: clamp(driver.consistency + Math.round((aiRng() - 0.5) * 30), 20, 95),
+      preferred_balance: driver.preferred_balance + Math.round((aiRng() - 0.5) * 4),
+    };
+    return makeCar({
+      id: `ai${i}`, name: prof.name, color: 'var(--ai)',
+      perf: buildPerformance([...mine, tune], aiDriver, chassis, settings),
+      driver: aiDriver, seed: baseSeed + i * 977,
+    });
+  });
+
+  S.cars = [
+    makeCar({ id: 'me', name: `${driver.name}（自車）`, color: 'var(--car)',
+      perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),
+    ...ai,
+  ];
+
+  // --- コース描画 ---------------------------------------------------------
+  S.geo = buildGeometry(course);
+  S.courseLen = S.geo.totalLength;
+  drawTrack();
+
+  el('courseName').textContent = course.name;
+  el('courseProf').textContent =
+    `${PROFILE[course.profile] ?? ''}・1周 ${Math.round(S.courseLen).toLocaleString('ja-JP')} m・${S.totalLaps} 周`;
+  el('backLink').href = `setup.html${location.search}`;
+
+  for (const car of S.cars) planLap(car, course, S.load);
+  renderStandings();
+  S.last = performance.now();
+  S.raf = requestAnimationFrame(tick);
+}
+
+function drawTrack() {
+  const svg = el('track');
+  svg.textContent = '';
+
+  // セクター種別ごとに色を変えて重ねる
+  for (const sp of S.geo.sectorPaths) {
+    svg.appendChild(svgEl('path', {
+      d: sp.d, fill: 'none', stroke: `var(--${sp.type.replace('_', '-')})`,
+      'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    }));
+  }
+  // 進行距離 → 座標 に使う本体のパス（見えない一本）
+  S.masterPath = svgEl('path', { d: S.geo.masterD, fill: 'none', stroke: 'none' });
+  svg.appendChild(S.masterPath);
+  S.pathLen = S.masterPath.getTotalLength();
+
+  // スタート／フィニッシュライン
+  const p0 = S.masterPath.getPointAtLength(0);
+  const p1 = S.masterPath.getPointAtLength(6);
+  const a = Math.atan2(p1.y - p0.y, p1.x - p0.x) + Math.PI / 2;
+  svg.appendChild(svgEl('path', {
+    d: `M${p0.x + Math.cos(a) * 7} ${p0.y + Math.sin(a) * 7} L${p0.x - Math.cos(a) * 7} ${p0.y - Math.sin(a) * 7}`,
+    stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-dasharray': '2 2',
+  }));
+
+  // 車：軌跡 → 点 の順に重ねる。自車は最前面
+  const trails = svgEl('g', { id: 'trails' });
+  const dots = svgEl('g', { id: 'dots' });
+  svg.append(trails, dots);
+  for (const car of [...S.cars].reverse()) {
+    car.trailEl = svgEl('path', {
+      fill: 'none', stroke: car.color, 'stroke-width': car.isPlayer ? 2.6 : 2,
+      'stroke-linecap': 'round', 'stroke-opacity': .35,
+    });
+    car.dotEl = svgEl('circle', {
+      r: car.isPlayer ? 5 : 4, fill: car.color,
+      stroke: 'var(--field)', 'stroke-width': car.isPlayer ? 1.4 : 1,
+    });
+    trails.appendChild(car.trailEl);
+    dots.appendChild(car.dotEl);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// ループ
+// ---------------------------------------------------------------------------
+function tick(now) {
+  const dt = Math.min((now - S.last) / 1000, 0.1);
+  S.last = now;
+  if (!S.paused && !S.done) {
+    step(dt * S.speed);
+    renderStandings();
+  }
+  draw();
+  S.raf = requestAnimationFrame(tick);
+}
+
+function step(dt) {
+  for (const car of S.cars) advance(car, dt, S.course, S.load, S.totalLaps);
+  if (S.cars.every((c) => c.finished || c.retired)) finish();
+}
+
+function draw() {
+  for (const car of S.cars) {
+    if (car.retired) { car.dotEl.setAttribute('opacity', .25); car.trailEl.setAttribute('d', ''); continue; }
+    const dist = progress(car, S.courseLen);
+    const p = pointAt(dist);
+    car.dotEl.setAttribute('cx', p.x.toFixed(2));
+    car.dotEl.setAttribute('cy', p.y.toFixed(2));
+    // 軌跡：速いほど長く尾を引く
+    const tail = clamp(currentSpeed(car) * 0.9, 8, 70);
+    const seg = [];
+    for (let i = 0; i <= 5; i++) {
+      const q = pointAt(dist - (tail * i) / 5);
+      seg.push(`${i ? 'L' : 'M'}${q.x.toFixed(2)} ${q.y.toFixed(2)}`);
+    }
+    car.trailEl.setAttribute('d', seg.join(' '));
+  }
+  const leader = ranked()[0];
+  el('lapNow').textContent = `${Math.min((leader?.lap ?? 0) + 1, S.totalLaps)} / ${S.totalLaps}`;
+}
+
+function ranked() {
+  const running = S.cars.filter((c) => !c.retired);
+  running.sort((a, b) => {
+    if (a.finished && b.finished) return a.raceTime - b.raceTime;
+    return progress(b, S.courseLen) - progress(a, S.courseLen);
+  });
+  return [...running, ...S.cars.filter((c) => c.retired)];
+}
+
+function renderStandings() {
+  const list = ranked();
+  const leader = list[0];
+  el('standings').innerHTML = list.map((car, i) => {
+    const last = car.lapTimes.at(-1);
+    let gap = '—';
+    if (car.retired) gap = `${car.retiredLap}周目 リタイア`;
+    else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
+    else {
+      const d = progress(leader, S.courseLen) - progress(car, S.courseLen);
+      const lapsDown = Math.floor(d / S.courseLen);
+      gap = lapsDown >= 1 ? `+${lapsDown} LAP`
+        : `+${(d / Math.max(currentSpeed(car), 1)).toFixed(1)}s`;
+    }
+    return `<div class="row ${car.isPlayer ? 'me' : ''} ${car.retired ? 'out' : ''}">
+      <span class="pos">${car.retired ? '—' : i + 1}</span>
+      <span class="nm"><b style="background:${car.color}"></b><span>${car.name}</span></span>
+      <span class="rt"><b>${last ? formatTime(last) : '--:--.---'}</b>${gap}</span>
+    </div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// 結果
+// ---------------------------------------------------------------------------
+function finish() {
+  S.done = true;
+  const list = ranked();
+  el('resultWrap').innerHTML = `<div class="result"><h3>結果</h3>${list.map((car, i) => {
+    const wear = (car.lastWear * 100).toFixed(0);
+    return `<div class="rrow ${car.isPlayer ? 'me' : ''}">
+      <span class="pos">${car.retired ? '—' : i + 1}</span>
+      <span>${car.name}
+        <div class="sub">${car.retired
+          ? `${car.retiredLap}周目にリタイア`
+          : `最終周 タイヤ摩耗 ${wear}% / ブレーキ温度 ${Math.round(car.lastTemp)}`
+            + `${car.lastFade > 0 ? `（フェード −${car.lastFade.toFixed(1)}）` : ''}`}</div>
+      </span>
+      <span class="t"><b>${car.retired ? 'DNF' : formatTime(car.raceTime)}</b>
+        <div class="sub">ベスト ${Number.isFinite(car.best) ? formatTime(car.best) : '—'}</div>
+      </span>
+    </div>`;
+  }).join('')}</div>`;
+  el('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ---------------------------------------------------------------------------
+// 操作
+// ---------------------------------------------------------------------------
+function setSpeed(v) {
+  S.speed = v;
+  el('btn1').classList.toggle('on', v === 1);
+  el('btn4').classList.toggle('on', v === 4);
+}
+el('btn1').addEventListener('click', () => { S.paused = false; setSpeed(1); syncPause(); });
+el('btn4').addEventListener('click', () => { S.paused = false; setSpeed(4); syncPause(); });
+el('btnSkip').addEventListener('click', () => {
+  if (S.done) return;
+  // 決着まで一気に進める（同じ step を使うので結果は倍速時と変わらない）
+  let guard = 0;
+  while (!S.done && guard++ < 200000) step(2);
+  renderStandings();
+  draw();
+});
+function syncPause() {
+  el('btnPause').textContent = S.paused ? '再開' : '一時停止';
+  el('btnPause').classList.toggle('on', S.paused);
+}
+el('btnPause').addEventListener('click', () => { S.paused = !S.paused; syncPause(); });
+
+boot().catch((err) => {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div class="err">読み込みに失敗しました：${err.message}<br>
+     このページは JSON を読み込むため、<b>HTTP 経由で開く必要があります</b>（file:// では動きません）。</div>`);
+  console.error(err);
+});
+</script>
+</body>
+</html>

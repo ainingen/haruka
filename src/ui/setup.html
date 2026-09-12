@@ -225,6 +225,16 @@ h2 {
   background: var(--car); color: #fff; border: 1px solid var(--rule);
   box-shadow: 0 2px 6px var(--shadow);
 }
+.calcbar button.ghost { background: var(--paper); color: var(--ink); font-weight: 400; }
+
+/* --- 出走設定 ------------------------------------------------------------- */
+.entry { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 12px; }
+.entry label { display: flex; align-items: center; gap: 5px; }
+.entry select {
+  font: inherit; font-size: 12px; padding: 3px 5px;
+  background: var(--field); color: var(--ink); border: 1px solid var(--ink-3);
+}
+.entry .note { font-size: 10px; color: var(--ink-2); flex-basis: 100%; }
 .laps { margin-top: 10px; border: 1px solid var(--rule); }
 .laps .lap {
   display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline;
@@ -319,6 +329,17 @@ h2 {
 
   <div id="lapsWrap"></div>
 
+  <h2>出走</h2>
+  <div class="entry">
+    <label>コース <select id="selCourse"></select></label>
+    <label>周回 <select id="selLaps">
+      <option value="5">5 周</option>
+      <option value="10" selected>10 周</option>
+      <option value="20">20 周</option>
+    </select></label>
+    <span class="note">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
+  </div>
+
   <div class="legend">
     <span><i style="background:var(--car)"></i> 自車</span>
     <span><i style="background:var(--ai)"></i> AI車</span>
@@ -326,7 +347,10 @@ h2 {
 
 </div></div>
 
-<div class="calcbar"><button id="calcBtn" type="button">ラップ計算</button></div>
+<div class="calcbar">
+  <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
+  <button id="raceBtn" type="button">レース開始</button>
+</div>
 
 <script type="module">
 import {
@@ -1000,6 +1024,24 @@ function calcLaps() {
 }
 
 // ---------------------------------------------------------------------------
+// レースへ渡す（URL パラメータ。ブラウザストレージは使わない＝PLiCy の制約）
+// ---------------------------------------------------------------------------
+function raceUrl() {
+  const q = new URLSearchParams();
+  q.set('course', el('selCourse').value);
+  q.set('laps', el('selLaps').value);
+  q.set('cls', state.cls);
+  q.set('tier', state.tier);
+  // 装着パーツはホームスロットの id だけを並べる（ユニットも1回で足りる）
+  const ids = activeParts().map((p) => p.id);
+  if (ids.length) q.set('parts', ids.join(','));
+  for (const [key, value] of Object.entries(activeSettings())) {
+    q.set({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key], value);
+  }
+  return `race.html?${q}`;
+}
+
+// ---------------------------------------------------------------------------
 // 再描画
 // ---------------------------------------------------------------------------
 function renderAll() {
@@ -1031,6 +1073,33 @@ try {
   });
   el('selTier').addEventListener('change', (e) => { state.tier = Number(e.target.value); renderAll(); });
   el('calcBtn').addEventListener('click', calcLaps);
+
+  // コース選択肢。URL に course があればそれを初期値にする（レースから戻ったとき用）
+  const PROFILE_LABEL = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型' };
+  const back = new URLSearchParams(location.search);
+  el('selCourse').innerHTML = DATA.courses
+    .map((c) => `<option value="${c.id}">${c.name}（${PROFILE_LABEL[c.profile] ?? ''}）</option>`).join('');
+  if (back.get('course')) el('selCourse').value = back.get('course');
+  if (back.get('laps')) el('selLaps').value = back.get('laps');
+  el('raceBtn').addEventListener('click', () => { location.href = raceUrl(); });
+
+  // レース画面から戻ってきたときは、そのときのクラス・スポンサー・装着を復元する
+  if (back.get('cls')) {
+    state.cls = Math.min(5, Math.max(1, Number(back.get('cls'))));
+    el('selClass').value = String(state.cls);
+  }
+  if (back.get('tier')) {
+    state.tier = Math.min(4, Math.max(0, Number(back.get('tier'))));
+    el('selTier').value = String(state.tier);
+  }
+  for (const id of (back.get('parts') ?? '').split(',').filter(Boolean)) {
+    const p = partById(id);
+    if (p && isLegal(p)) equipPart(p);
+  }
+  for (const [key, short] of Object.entries({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' })) {
+    if (back.get(short) !== null) state.settings[key] = Number(back.get(short));
+  }
+
   renderAll();
 } catch (err) {
   document.body.insertAdjacentHTML('afterbegin',
