@@ -6,8 +6,9 @@
 <title>レース — ハルカのセッティングノート</title>
 <style>
 /* ===========================================================================
-   レース画面（docs/設計/レース方式.md）
-   コースは線、車は点。物理演算はしない。
+   レース画面（docs/設計/レース方式.md、docs/設計/無線.md、docs/設計/実況.md）
+   主役は実況と無線。図は小さく、車両情報は大きく。
+   380px 幅を基準に、上から ログ → 車両情報 → コース図 → 順位表 → 操作。
    =========================================================================== */
 :root {
   --paper:   #f2efe6;
@@ -16,7 +17,7 @@
   --ink-2:   #6b665c;
   --ink-3:   #9a9488;
   --rule:    #3a372f;
-  --car:     #c0392b;   /* 自車＝赤 */
+  --car:     #c0392b;   /* 自車＝赤。ハルカの無線も赤系 */
   --ai:      #1b4f9c;   /* 他車＝青 */
   --straight:    #6b665c;
   --fast-corner: #2f6b3a;
@@ -24,6 +25,7 @@
   --lock-bg: #e2ded1;
   --field:   #fbf9f3;
   --bad:     #9c3b2e;
+  --ok:      #2f6b3a;
   --shadow:  rgba(0,0,0,.08);
 }
 @media (prefers-color-scheme: dark) {
@@ -42,6 +44,7 @@
     --lock-bg: #1f242c;
     --field:   #11141a;
     --bad:     #e08878;
+    --ok:      #74c98a;
     --shadow:  rgba(0,0,0,.4);
   }
 }
@@ -51,113 +54,111 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--paper); color: var(--ink);
   font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
-  -webkit-text-size-adjust: 100%; padding: 8px;
+  -webkit-text-size-adjust: 100%; padding: 6px;
 }
-.sheet { max-width: 900px; margin: 0 auto; border: 2px solid var(--rule); padding: 4px; background: var(--paper); }
-.sheet-inner { border: 1px solid var(--rule); background: var(--paper-2); padding: 10px; }
+.sheet { max-width: 400px; margin: 0 auto; border: 2px solid var(--rule); padding: 3px; background: var(--paper); }
+.sheet-inner { border: 1px solid var(--rule); background: var(--paper-2); padding: 8px; display: grid; gap: 8px; }
+
+h3.cap {
+  margin: 0; font-size: 9px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
+  padding: 4px 7px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
+}
 
 .titleblock {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
-  border-bottom: 1px solid var(--rule); padding-bottom: 8px; margin-bottom: 8px;
+  border-bottom: 1px solid var(--rule); padding-bottom: 6px;
 }
-.titleblock .k { font-size: 10px; letter-spacing: .12em; color: var(--ink-2); }
-.titleblock .course { font-size: 17px; font-weight: 700; }
-.titleblock .prof { font-size: 11px; color: var(--ink-2); }
-.lapcount { text-align: right; border: 1px solid var(--ink-3); padding: 3px 8px; line-height: 1.3; white-space: nowrap; }
-.lapcount b { display: block; font-size: 19px; font-variant-numeric: tabular-nums; }
-.lapcount span { font-size: 9px; letter-spacing: .14em; color: var(--ink-2); }
+.titleblock .k { font-size: 9px; letter-spacing: .12em; color: var(--ink-2); }
+.titleblock .course { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.titleblock .prof { font-size: 10px; color: var(--ink-2); }
+.lapcount { text-align: right; border: 1px solid var(--ink-3); padding: 2px 8px; line-height: 1.3; white-space: nowrap; }
+.lapcount b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.lapcount span { font-size: 8px; letter-spacing: .14em; color: var(--ink-2); }
 
-/* --- コースと順位表：広い画面では横並び、モバイルでは縦 ------------------- */
-.arena { display: grid; grid-template-columns: 1fr; gap: 10px; }
-@media (min-width: 660px) { .arena { grid-template-columns: 1fr 260px; } }
+/* --- 実況・無線ログ（画面の主役） ----------------------------------------- */
+.logbox { border: 1px solid var(--rule); background: var(--field); }
+.log { height: 46vh; min-height: 250px; overflow-y: auto; padding: 6px 7px; scroll-behavior: smooth; }
+.msg { display: grid; grid-template-columns: 34px 1fr; gap: 6px; padding: 3px 2px; font-size: 12.5px; line-height: 1.5; transition: opacity .3s; }
+.msg .who { font-size: 9px; letter-spacing: .08em; color: var(--ink-3); padding-top: 4px; white-space: nowrap; }
+.msg .txt { color: var(--ink-2); }
+.msg[data-speaker="haruka"] .txt { color: var(--car); }
+.msg[data-speaker="haruka"] .who { color: var(--car); opacity: .7; }
+.msg[data-speaker="player"] .txt { color: var(--ink); }
+.msg.info { border: 1px solid var(--car); background: var(--paper-2); padding: 5px 6px; margin: 3px 0; }
+.msg.info .mood { font-size: 9px; color: var(--car); opacity: .75; letter-spacing: .1em; margin-left: 6px; }
+.msg.old { opacity: .45; }
+.msg .replies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.msg .replies button {
+  font: inherit; font-size: 11px; padding: 4px 8px; cursor: pointer;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3);
+}
+.msg .answer { font-size: 11.5px; color: var(--car); margin-top: 4px; }
+.msg .answer .k { font-size: 9px; color: var(--ink-3); letter-spacing: .1em; }
+.msg .note { font-size: 10px; color: var(--ink-3); }
 
+/* --- 車両情報パネル（図面様式） ------------------------------------------ */
+.panel { border: 1px solid var(--rule); background: var(--field); }
+.panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--ink-3); }
+.panel .cell { background: var(--field); padding: 6px 8px; min-height: 52px; }
+.panel .cell.wide { grid-column: 1 / -1; }
+.panel .k { font-size: 8.5px; letter-spacing: .16em; color: var(--ink-2); display: flex; justify-content: space-between; }
+.panel .k span { letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--ink); }
+.panel .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.panel .v small { font-size: 10px; font-weight: 400; color: var(--ink-2); }
+.panel .sub { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.bar { position: relative; height: 8px; border: 1px solid var(--ink-2); background: var(--paper); margin-top: 4px; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-2); }
+.bar i.hot { background: var(--bad); }
+.bar i.ok { background: var(--ok); }
+.bar b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--bad); }
+.bar.thin { height: 6px; }
+.tirebars { display: grid; grid-template-columns: 14px 1fr; gap: 2px 6px; align-items: center; margin-top: 3px; font-size: 9px; color: var(--ink-2); }
+.sector-type { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+
+/* --- コース図（小さく） -------------------------------------------------- */
 .track { border: 1px solid var(--rule); background: var(--field); }
 .track svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 9px; color: var(--ink-2); padding: 3px 7px; border-top: 1px solid var(--ink-3); }
+.legend i { display: inline-block; width: 12px; height: 2px; vertical-align: middle; margin-right: 3px; }
+.legend b.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
 
-.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--ink-2); padding: 5px 7px; border-top: 1px solid var(--ink-3); }
-.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 3px; }
-.legend b.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
-
-/* --- 順位表 --------------------------------------------------------------- */
-.standings { border: 1px solid var(--rule); background: var(--field); align-self: start; }
-.standings h3 {
-  margin: 0; font-size: 10px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
-  padding: 5px 7px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
-}
+/* --- 順位表（小さく） ------------------------------------------------------ */
+.standings { border: 1px solid var(--rule); background: var(--field); }
 .row {
-  display: grid; grid-template-columns: 20px 1fr auto; gap: 6px; align-items: baseline;
-  padding: 4px 7px; border-bottom: 1px solid var(--ink-3); font-size: 11.5px;
+  display: grid; grid-template-columns: 16px 1fr auto auto; gap: 6px; align-items: baseline;
+  padding: 2px 7px; border-bottom: 1px solid var(--ink-3); font-size: 11px; line-height: 1.5;
 }
 .row:last-child { border-bottom: 0; }
 .row.me { background: var(--lock-bg); font-weight: 700; }
 .row.out { color: var(--ink-3); }
 .row .pos { font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; }
 .row .nm { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.row .nm b { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.row .nm b { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .rt { text-align: right; font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ink-2); }
-.row .rt b { display: block; font-size: 11.5px; color: var(--ink); font-weight: 600; }
-
-/* --- 無線（docs/設計/無線.md） --------------------------------------------
-   吹き出しは1つだけ。新しい交信が来たら前のものは消える。
-   顔の枠は将来の差し替え用に空けてある（図面の「部品未配置」と同じ扱い）。 */
-.side { display: grid; gap: 10px; align-content: start; }
-.radio {
-  border: 1px solid var(--rule); background: var(--field);
-  display: grid; grid-template-columns: 48px 1fr; gap: 8px; padding: 8px;
-}
-.radio .face {
-  border: 1px dashed var(--ink-3); height: 48px;
-  display: grid; place-content: center; text-align: center;
-  font-size: 8.5px; line-height: 1.35; letter-spacing: .06em; color: var(--ink-3);
-}
-.radio .face b { display: block; font-size: 10px; color: var(--ink-2); font-weight: 600; }
-.radio .who { font-size: 9px; letter-spacing: .2em; color: var(--ink-2); }
-.radio .line { font-size: 12.5px; margin-top: 1px; }
-.radio .replies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-.radio .replies button {
-  font: inherit; font-size: 11px; padding: 4px 8px; cursor: pointer;
-  background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3);
-}
-.radio .answer { font-size: 11.5px; color: var(--ink-2); margin-top: 5px; }
-.radio .answer .k { font-size: 9px; letter-spacing: .14em; }
+.row .rt, .row .gap { text-align: right; font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ink-2); }
 
 /* --- 操作 ----------------------------------------------------------------- */
-.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+.controls { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .controls button {
-  font: inherit; font-size: 12px; padding: 7px 14px; cursor: pointer; letter-spacing: .06em;
+  font: inherit; font-size: 12px; padding: 7px 12px; cursor: pointer; letter-spacing: .06em;
   background: var(--paper); color: var(--ink); border: 1px solid var(--rule);
 }
 .controls button.on { background: var(--car); color: #fff; }
-.controls button.primary { background: var(--car); color: #fff; font-weight: 700; }
 .controls .spacer { margin-left: auto; }
-.controls a {
-  font-size: 11px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--ink-3);
-}
+.controls a { font-size: 11px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--ink-3); }
 
 /* --- 結果 ----------------------------------------------------------------- */
-.result { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
-.result h3 {
-  margin: 0; font-size: 10px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
-  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
-}
+.result { border: 1px solid var(--rule); background: var(--field); }
 .rrow {
-  display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: baseline;
-  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: baseline;
+  padding: 5px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
 }
 .rrow:last-child { border-bottom: 0; }
 .rrow.me { background: var(--lock-bg); }
 .rrow .pos { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
 .rrow .sub { font-size: 10px; color: var(--ink-2); }
 .rrow .t { text-align: right; font-variant-numeric: tabular-nums; }
-.rrow .t b { font-size: 13px; }
 .err { border: 1px solid var(--bad); color: var(--bad); padding: 10px; font-size: 12px; margin-bottom: 8px; }
-
-@media (max-width: 400px) {
-  body { padding: 4px; }
-  .sheet-inner { padding: 7px; }
-  .controls button { padding: 8px 11px; font-size: 11.5px; }
-}
 </style>
 </head>
 <body>
@@ -173,36 +174,37 @@ body {
     <div class="lapcount"><span>LAP</span><b id="lapNow">—</b></div>
   </div>
 
-  <div class="arena">
-    <div class="track">
-      <svg id="track" viewBox="0 0 400 300" role="img" aria-label="コース図と走行中の車"></svg>
-      <div class="legend">
-        <span><i style="background:var(--straight)"></i>ストレート</span>
-        <span><i style="background:var(--fast-corner)"></i>高速コーナー</span>
-        <span><i style="background:var(--slow-corner)"></i>低速コーナー</span>
-        <span><b class="dot" style="background:var(--car)"></b>自車</span>
-        <span><b class="dot" style="background:var(--ai)"></b>他車</span>
-      </div>
-    </div>
+  <!-- 1. 実況・無線ログ -->
+  <div class="logbox">
+    <h3 class="cap">実況 / 無線</h3>
+    <div class="log" id="log" aria-live="polite"></div>
+  </div>
 
-    <div class="side">
-      <div class="radio" id="radio" hidden>
-        <div class="face"><span><b id="radioMood">通常</b>ハルカ<br>（顔は後日）</span></div>
-        <div>
-          <div class="who">RADIO — ハルカ</div>
-          <div class="line" id="radioLine"></div>
-          <div class="replies" id="radioReplies"></div>
-          <div class="answer" id="radioAnswer" hidden></div>
-        </div>
-      </div>
+  <!-- 2. 車両情報 -->
+  <div class="panel">
+    <h3 class="cap">車両情報 — 神谷ハルカ（自車）</h3>
+    <div class="grid" id="panel"></div>
+  </div>
 
-      <div class="standings">
-        <h3>順位表</h3>
-        <div id="standings"></div>
-      </div>
+  <!-- 3. コース図 -->
+  <div class="track">
+    <svg id="track" viewBox="0 0 400 190" role="img" aria-label="コース図と走行中の車"></svg>
+    <div class="legend">
+      <span><i style="background:var(--straight)"></i>ストレート</span>
+      <span><i style="background:var(--fast-corner)"></i>高速</span>
+      <span><i style="background:var(--slow-corner)"></i>低速</span>
+      <span><b class="dot" style="background:var(--car)"></b>自車</span>
+      <span><b class="dot" style="background:var(--ai)"></b>他車</span>
     </div>
   </div>
 
+  <!-- 4. 順位表 -->
+  <div class="standings">
+    <h3 class="cap">順位表</h3>
+    <div id="standings"></div>
+  </div>
+
+  <!-- 5. 操作 -->
   <div class="controls">
     <button type="button" id="btn1" class="on">1倍</button>
     <button type="button" id="btn4">4倍</button>
@@ -220,8 +222,9 @@ body {
 import {
   buildPerformance, effectiveStats, sectorSpeed, driverTimeFactor,
   createTireState, advanceTire, createBrakeState, advanceBrakes, courseLoad,
-  tireGripLoss, brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
-  createRadioState, radioForLap,
+  brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
+  RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor,
+  brakeThreshold, tireWearSplit, fuelLevel,
 } from '../engine/race.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -232,6 +235,7 @@ const svgEl = (name, attrs = {}) => {
   return n;
 };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------------------------------------------------------------------------
 // URL パラメータ（setup.html から渡ってくる）
@@ -242,6 +246,7 @@ const Q = new URLSearchParams(location.search);
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型',
                  fast: '高速コーナー主体', stopgo: 'ストップ＆ゴー' };
+const SECTOR_LABEL = { straight: 'ストレート', fast_corner: '高速コーナー', slow_corner: '低速コーナー' };
 
 const json = (p) => fetch(new URL(p, import.meta.url)).then((r) => {
   if (!r.ok) throw new Error(`${p}: ${r.status}`);
@@ -249,24 +254,19 @@ const json = (p) => fetch(new URL(p, import.meta.url)).then((r) => {
 });
 
 // ---------------------------------------------------------------------------
-// コース形状：courses.json の path をそのまま使う
-//   path の座標系はメートル。sector.start も path 上の距離（m）なので、
-//   getPointAtLength に渡す値とセクター境界がそのまま一致する。
-//   表示だけ viewBox に合わせて拡大・平行移動する。
+// コース形状：courses.json の path をそのまま使う（座標系はメートル）
 // ---------------------------------------------------------------------------
-const VIEW = { w: 400, h: 300, margin: 26 };
+const VIEW = { w: 400, h: 190, margin: 16 };
 
 function setupTrack(course) {
   const svg = el('track');
   svg.textContent = '';
-
-  // 進行距離 → 座標 に使う本体のパス一本（線は引かない）
   const master = svgEl('path', { d: course.path, fill: 'none', stroke: 'none' });
   svg.appendChild(master);
   S.masterPath = master;
   S.pathLen = master.getTotalLength();
   S.courseLen = course.length;
-  S.ratio = S.pathLen / S.courseLen;      // ふつうは 1 付近（path はメートル）
+  S.ratio = S.pathLen / S.courseLen;
 
   const box = master.getBBox();
   const iw = VIEW.w - VIEW.margin * 2, ih = VIEW.h - VIEW.margin * 2;
@@ -275,60 +275,59 @@ function setupTrack(course) {
   const oy = VIEW.margin + (ih - box.height * k) / 2 - box.y * k;
   S.toView = (pt) => ({ x: pt.x * k + ox, y: pt.y * k + oy });
 
-  // セクター種別ごとに色を変えた線を、本体パスをなぞって作る
-  for (const sec of course.sectors) {
+  S.sectorEls = course.sectors.map((sec) => {
     const steps = Math.max(2, Math.ceil(sec.length / 8));
     const d = [];
     for (let i = 0; i <= steps; i++) {
       const q = S.toView(rawPoint(sec.start + (sec.length * i) / steps));
       d.push(`${i ? 'L' : 'M'}${q.x.toFixed(2)} ${q.y.toFixed(2)}`);
     }
-    svg.appendChild(svgEl('path', {
+    const p = svgEl('path', {
       d: d.join(' '), fill: 'none', stroke: `var(--${sec.type.replace('_', '-')})`,
-      'stroke-width': 3.2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-    }));
-  }
+      'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-opacity': .55,
+    });
+    svg.appendChild(p);
+    return p;
+  });
 
-  // スタート／フィニッシュライン
   const a0 = S.toView(rawPoint(0)), a1 = S.toView(rawPoint(8));
   const a = Math.atan2(a1.y - a0.y, a1.x - a0.x) + Math.PI / 2;
   svg.appendChild(svgEl('path', {
-    d: `M${a0.x + Math.cos(a) * 7} ${a0.y + Math.sin(a) * 7} L${a0.x - Math.cos(a) * 7} ${a0.y - Math.sin(a) * 7}`,
+    d: `M${a0.x + Math.cos(a) * 6} ${a0.y + Math.sin(a) * 6} L${a0.x - Math.cos(a) * 6} ${a0.y - Math.sin(a) * 6}`,
     stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-dasharray': '2 2',
   }));
 
-  // 車：軌跡 → 点 の順に重ねる。自車が最前面
-  const trails = svgEl('g'), dots = svgEl('g');
-  svg.append(trails, dots);
+  const dots = svgEl('g');
+  svg.appendChild(dots);
   for (const car of [...S.cars].reverse()) {
-    car.trailEl = svgEl('path', {
-      fill: 'none', stroke: car.color, 'stroke-width': car.isPlayer ? 2.6 : 2,
-      'stroke-linecap': 'round', 'stroke-opacity': .35,
-    });
     car.dotEl = svgEl('circle', {
-      r: car.isPlayer ? 5 : 4, fill: car.color,
+      r: car.isPlayer ? 5.5 : 3.2, fill: car.color,
       stroke: 'var(--field)', 'stroke-width': car.isPlayer ? 1.4 : 1,
     });
-    trails.appendChild(car.trailEl);
     dots.appendChild(car.dotEl);
   }
 }
 
-/** 走行距離（m）→ path 上の生座標。座標は必ず getPointAtLength で取る（レース方式.md） */
 function rawPoint(distance) {
   const d = ((distance % S.courseLen) + S.courseLen) % S.courseLen;
   return S.masterPath.getPointAtLength(d * S.ratio);
 }
-/** 走行距離（m）→ 画面座標 */
 const pointAt = (distance) => S.toView(rawPoint(distance));
+
+/** 自車がいるセクターだけ太く濃く。 */
+function highlightSector(idx) {
+  if (S.litSector === idx) return;
+  S.sectorEls.forEach((p, i) => {
+    p.setAttribute('stroke-width', i === idx ? 5 : 2.4);
+    p.setAttribute('stroke-opacity', i === idx ? 1 : .55);
+  });
+  S.litSector = idx;
+}
 
 // ---------------------------------------------------------------------------
 // 出走車
 // ---------------------------------------------------------------------------
-/**
- * AI の性格。同クラス想定なので、得意分野を散らして総合力は近づける。
- * ここを固定してあるので「ストレート主体では A が速く、コーナー主体では B が速い」が必ず起きる。
- */
+/** AI の性格。radio は雑談と解説の語り口を選ぶキー（data/radio.json chat.ai、commentary.json analyst_traits）。 */
 const AI_PROFILES = [
   { name: '青 2号車', radio: 'straight', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 }, skill: +3 },
   { name: '青 5号車', radio: 'corner', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 }, skill: +2 },
@@ -343,10 +342,11 @@ function makeCar({ id, name, color, perf, driver, seed, isPlayer = false, radio 
     rng: createRng(seed),
     tire: createTireState(), brake: createBrakeState(),
     lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
-    raceTime: 0, lapTimes: [], best: Infinity,
+    raceTime: 0, lapTimes: [], best: Infinity, sectorBest: [],
     plan: null, plannedLap: 0,
-    finished: false, retired: false, retiredLap: null,
+    finished: false, retired: false, retiredLap: null, announcedRetire: false,
     lastWear: 0, lastTemp: 0, lastFade: 0,
+    lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
   };
 }
 
@@ -355,9 +355,7 @@ function gaussian(rng) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-/** 次の周の計画を立てる。セクター通過時間をそのまま進行速度にする。 */
 function planLap(car, course, load) {
-  // リタイア判定は race.js と同じ確率モデル（周の頭で引く）
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -car.perf.stats.reliability);
   if (car.rng() < retireP) {
     car.retired = true;
@@ -382,24 +380,23 @@ function planLap(car, course, load) {
 }
 
 function completeLap(car, course, load, totalLaps) {
-  // 無線は「いま走り終えた周」の状態を見る。摩耗と温度を進める前に控えておく。
-  if (car.isPlayer) {
-    S.pendingRadio.push({
-      lap: car.lap + 1, tire: car.tire, brake: car.brake, driver: car.driver,
-      lapTime: car.plannedLap, bestTime: car.best,
-    });
-  }
+  // 無線と実況は「いま走り終えた周」の状態を見る。摩耗と温度を進める前に控えておく
+  const lapEvent = {
+    car, lap: car.lap + 1, tire: car.tire, brake: car.brake, driver: car.driver,
+    lapTime: car.plannedLap, bestTime: car.best,
+  };
   car.lapTimes.push(car.plannedLap);
   car.raceTime += car.plannedLap;
   if (car.plannedLap < car.best) car.best = car.plannedLap;
   car.lap += 1;
   car.tire = advanceTire(car.tire, car.perf.stats);
   car.brake = advanceBrakes(car.brake, car.perf.stats, load);
+  S.lapEvents.push(lapEvent);
   if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
   planLap(car, course, load);
 }
 
-/** dt 秒ぶん進める。セクターをまたぐたびに速度を切り替える。 */
+/** dt 秒ぶん進める。セクターをまたぐたびに速度を切り替え、自車なら通過を記録する。 */
 function advance(car, dt, course, load, totalLaps) {
   let rest = dt;
   let guard = 0;
@@ -411,6 +408,13 @@ function advance(car, dt, course, load, totalLaps) {
     rest -= t;
     car.lapDist = segEnd;
     car.segStart = segEnd;
+    if (car.isPlayer) {
+      const idx = car.segIdx;
+      const time = seg.len / seg.speed;
+      const best = car.sectorBest[idx] ?? Infinity;
+      S.sectorEvents.push({ idx, type: course.sectors[idx].type, time, best });
+      if (time < best) car.sectorBest[idx] = time;
+    }
     car.segIdx += 1;
     if (car.segIdx >= car.plan.length) completeLap(car, course, load, totalLaps);
   }
@@ -418,20 +422,105 @@ function advance(car, dt, course, load, totalLaps) {
 
 const progress = (car, courseLen) => car.lap * courseLen + car.lapDist;
 const currentSpeed = (car) => (car.plan ? car.plan[Math.min(car.segIdx, car.plan.length - 1)].speed : 0);
+/** 2台の差（秒）。後ろの車の今の速度で割る */
+const gapSeconds = (ahead, behind) =>
+  (progress(ahead, S.courseLen) - progress(behind, S.courseLen)) / Math.max(currentSpeed(behind), 1);
 
 // ---------------------------------------------------------------------------
-// 無線（docs/設計/無線.md）
-//
-// 判定は race.js の radioForLap がやる。ここは「順位まわりの状況を渡す」ことと
-// 「トリガー ID に対応する台詞を data/radio.json から選んで出す」ことだけを担当する。
-// レース中にセッティングは変えられない。返事はハルカの調子（consistency）にだけ効く。
+// ログ（実況と無線を同じ流れに。話者で見分ける）
 // ---------------------------------------------------------------------------
-const MOOD = { 通常: '通常', 不機嫌: '不機嫌', 楽しい: '楽しい', 焦り: '焦り' };
+const LOG_KEEP = 40;    // DOM に残す本数
+const LOG_FRESH = 8;    // 濃く表示する本数。それより古いものは薄く
+const SPEAKER_LABEL = { announcer: '実況', analyst: '解説', haruka: 'ハルカ', player: 'ピット' };
 
-/** 配列から1本引く。シード固定の乱数なので、同じレースなら同じ台詞になる。 */
+const textOf = (entry) => (typeof entry === 'string' ? entry : entry.text);
+
+/** 配列から1本引く。 */
 const pick = (list) => list[Math.floor(S.lineRng() * list.length)];
 
-/** セクター種別ごとの平均速度。どこで負けているかの判定に使う。 */
+/**
+ * 同じ台詞を1レースで繰り返さない引き方。使い切ったら忘れて最初から。
+ * key はプールの名前（"commentary/lap_lead/announcer" など）。
+ */
+function pickUnique(key, list) {
+  let used = S.used.get(key);
+  if (!used || used.size >= list.length) { used = new Set(); S.used.set(key, used); }
+  const candidates = list.map((e, i) => i).filter((i) => !used.has(i));
+  const i = candidates[Math.floor(S.lineRng() * candidates.length)];
+  used.add(i);
+  return list[i];
+}
+
+/** {gap} {car} {lap} … をその場の値で埋める。 */
+function fill(text, vars) {
+  return text.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+}
+
+/**
+ * ログに1本足す。
+ * @param {string} speaker  announcer / analyst / haruka / player
+ * @param {string} text
+ * @param {object} [opt]    { info: true, mood, replies: [{label, reactions, consistency}] }
+ */
+function say(speaker, text, opt = {}) {
+  const entry = { speaker, text, info: !!opt.info, mood: opt.mood ?? null, replies: opt.replies ?? [], answer: null, id: S.logSeq++ };
+  S.log.push(entry);
+  if (S.log.length > LOG_KEEP) S.log.splice(0, S.log.length - LOG_KEEP);
+  // 返事の選択肢は最新の情報系にだけ付ける。前の分は消す
+  if (entry.info) for (const e of S.log) if (e !== entry && e.info && !e.answer) e.replies = [];
+  S.logDirty = true;
+}
+
+function renderLog() {
+  if (!S.logDirty) return;
+  S.logDirty = false;
+  const box = el('log');
+  const freshFrom = Math.max(0, S.log.length - LOG_FRESH);
+  box.innerHTML = S.log.map((e, i) => {
+    const replies = e.replies.length && !e.answer
+      ? `<div class="replies">${e.replies.map((r, j) => `<button type="button" data-id="${e.id}" data-r="${j}">${esc(r.label)}</button>`).join('')}</div>`
+      : '';
+    const answer = e.answer ? `<div class="answer"><span class="k">ピット→</span>${esc(e.answer.label)}　<span class="k">ハルカ：</span>${esc(e.answer.reaction)} <span class="note">${esc(e.answer.note)}</span></div>` : '';
+    const mood = e.info && e.mood ? `<span class="mood">${esc(e.mood)}</span>` : '';
+    return `<div class="msg${e.info ? ' info' : ''}${i < freshFrom ? ' old' : ''}" data-speaker="${e.speaker}">
+      <span class="who">${SPEAKER_LABEL[e.speaker] ?? e.speaker}</span>
+      <span class="txt">${esc(e.text)}${mood}${replies}${answer}</span>
+    </div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+el('log').addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-id]');
+  if (!btn) return;
+  const entry = S.log.find((e) => e.id === Number(btn.dataset.id));
+  if (!entry) return;
+  answer(entry, entry.replies[Number(btn.dataset.r)]);
+});
+
+/** 返事。セッティングは動かない。動くのはハルカの調子だけ。 */
+function answer(entry, reply) {
+  const driver = S.cars[0].driver;
+  let note = '';
+  if (reply.consistency) {
+    const before = driver.consistency;
+    driver.consistency = clamp(before + reply.consistency, 20, 95);
+    const d = driver.consistency - before;
+    if (d) note = `（調子 ${d > 0 ? '+' : ''}${d}）`;
+  }
+  entry.answer = { label: reply.label, reaction: textOf(pick(reply.reactions)), note };
+  entry.replies = [];
+  S.logDirty = true;
+  renderLog();
+}
+
+// ---------------------------------------------------------------------------
+// 無線（docs/設計/無線.md）。4層。
+//   常時：数秒に1本、ピット（主人公）からの自動コールとハルカの状態の一言
+//   反応：セクター通過ごとに高確率で一言
+//   情報系：症状が続く間くり返す。悪化で口調がきつくなる。判定は race.js
+//   雑談：情報系の隙間に
+// ---------------------------------------------------------------------------
 function avgSpeedByType(car) {
   const out = { straight: 0, corner: 0 };
   if (!car.plan) return out;
@@ -445,13 +534,13 @@ function avgSpeedByType(car) {
   return out;
 }
 
-/** 順位の絡む症状。engine には無い情報なので、ここで作って渡す。 */
+/** 順位の絡む症状。engine には無い情報なので、ここで作って渡す。ついでに実況の順位・ギャップ変動も拾う。 */
 function trafficForPlayer() {
   const me = S.cars[0];
   const list = ranked();
   const idx = list.indexOf(me);
   const rank = idx + 1;
-  const t = { overtook: false, overtaken: false, straightLoss: false, cornerLoss: false };
+  const t = { overtook: false, overtaken: false, straightLoss: false, cornerLoss: false, rank, gapAheadDelta: null };
 
   if (me.lastRank != null && !me.finished) {
     if (rank < me.lastRank) t.overtook = true;
@@ -459,7 +548,15 @@ function trafficForPlayer() {
   }
   me.lastRank = rank;
 
-  // 後続に詰められているなら、直線とコーナーのどちらで詰められたかを速度差で見る
+  const ahead = list[idx - 1];
+  if (ahead && !ahead.retired) {
+    const gap = gapSeconds(ahead, me);
+    if (me.lastGapAhead != null) t.gapAheadDelta = gap - me.lastGapAhead;
+    me.lastGapAhead = gap;
+    t.gapAhead = gap;
+    t.aheadCar = ahead;
+  } else me.lastGapAhead = null;
+
   const behind = list[idx + 1];
   if (behind && !behind.retired) {
     const gap = progress(me, S.courseLen) - progress(behind, S.courseLen);
@@ -476,7 +573,7 @@ function trafficForPlayer() {
   return t;
 }
 
-/** いま出す雑談を1本選ぶ。近くに他車がいれば、その車の性格に触れる。 */
+/** 雑談を1本。近くに他車がいれば、その車の性格に触れる。 */
 function chatLine() {
   const chat = S.radioData.chat;
   const me = S.cars[0];
@@ -484,82 +581,197 @@ function chatLine() {
   const gap = near ? Math.abs(progress(me, S.courseLen) - progress(near, S.courseLen)) : Infinity;
 
   if (near && gap < 60 && S.lineRng() < 0.5) {
-    // 一度絡んだ相手ともう一度並んだら「またあいつ」になる
     const pool = (S.metRivals.has(near.id) ? chat.ai.rival : chat.ai[near.radio]) ?? chat.ai.rival;
     S.metRivals.add(near.id);
-    return { text: pick(pool), replies: [] };
+    return { text: textOf(pickUnique(`chat/ai/${near.id}`, pool)), replies: [] };
   }
-  if (S.lineRng() < 0.05) return { text: pick(chat.rare), replies: [] };
+  if (S.lineRng() < 0.05) return { text: textOf(pick(chat.rare)), replies: [] };
   if (S.lineRng() < 0.25) {
-    const entry = pick(chat.with_reply);
+    const entry = pickUnique('chat/with_reply', chat.with_reply);
     return { text: entry.text, replies: entry.replies };
   }
-  return { text: pick(chat.general), replies: [] };
+  return { text: textOf(pickUnique('chat/general', chat.general)), replies: [] };
 }
 
-/**
- * 吹き出しを出す。前の吹き出しは消える（同時に2つ出さない）。
- * replies は [{ label, answer, consistency }]。空なら選択肢は出さない。
- */
-function showBubble({ text, mood = '通常', replies = [] }) {
-  el('radio').hidden = false;
-  el('radioMood').textContent = MOOD[mood] ?? '通常';
-  el('radioLine').textContent = text;
-  el('radioAnswer').hidden = true;
-  el('radioAnswer').textContent = '';
+/** 情報系。level が harsh なら悪化版の台詞（無ければ通常版）。 */
+function sayInfo(call) {
+  const def = S.radioData.info[call.id];
+  if (!def) return;
+  const pool = call.level === 'harsh' && def.harsh?.length ? def.harsh : def.lines;
+  say('haruka', textOf(pickUnique(`info/${call.id}/${call.level}`, pool)), {
+    info: true, mood: def.mood, replies: S.radioData.replies,
+  });
+  S.lastInfoLap = call.lap;
+}
 
-  const box = el('radioReplies');
-  box.textContent = '';
-  for (const reply of replies) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = reply.label;
-    btn.addEventListener('click', () => answer(reply));
-    box.appendChild(btn);
+/** 反応層：セクター通過ごと。倍速では間引く。スキップ中は出さない。 */
+function reactionTick() {
+  const events = S.sectorEvents;
+  S.sectorEvents = [];
+  if (S.skipping || !S.radioData) return;
+  const chance = RADIO.reaction.chance / (S.speed >= 4 ? RADIO.constant.thinAtFast : 1);
+  for (const ev of events) {
+    const r = reactionFor(ev, S.radioRng, chance);
+    if (!r) continue;
+    const R = S.radioData.reaction;
+    // 型ごとの一言（「伸びろ」「立ち上がり」）は、良し悪しの無い周に混ぜる
+    const pool = r.sentiment === 'neutral' && S.lineRng() < 0.5 ? R[ev.type] : R[r.sentiment];
+    say('haruka', textOf(pickUnique(`reaction/${r.sentiment}/${ev.type}`, pool)));
   }
 }
 
-/** 返事。セッティングは動かない。動くのはハルカの調子だけ。 */
-function answer(reply) {
-  el('radioReplies').textContent = '';
-  const driver = S.cars[0].driver;
-  let note = '';
-  if (reply.consistency) {
-    const before = driver.consistency;
-    driver.consistency = clamp(before + reply.consistency, 20, 95);
-    const d = driver.consistency - before;
-    if (d) note = `（調子 ${d > 0 ? '+' : ''}${d}）`;
+/** 常時層：走行 intervalSec 秒ごとに1本。ピット（主人公）とハルカを交互に。 */
+function constantTick(dt) {
+  if (S.skipping || S.done) return;
+  S.constantClock += dt;
+  const interval = RADIO.constant.intervalSec * (S.speed >= 4 ? RADIO.constant.thinAtFast : 1);
+  if (S.constantClock < interval) return;
+  S.constantClock = 0;
+
+  const me = S.cars[0];
+  if (me.finished || me.retired) return;
+  const P = S.radioData.constant.player;
+  const list = ranked();
+  const idx = list.indexOf(me);
+  const ahead = list[idx - 1], behind = list[idx + 1];
+  const left = S.totalLaps - me.lap;
+  const vars = { pos: idx + 1, left, lap: me.lap + 1, laps: S.totalLaps };
+
+  // 何を言うか：状況が切迫しているものから
+  let key = null;
+  if (ahead && !ahead.retired && gapSeconds(ahead, me) < 4) { key = 'gap_ahead'; vars.gap = `${gapSeconds(ahead, me).toFixed(1)}秒`; vars.car = ahead.name; }
+  else if (behind && !behind.retired && gapSeconds(me, behind) < 2.5) { key = 'gap_behind'; vars.gap = `${gapSeconds(me, behind).toFixed(1)}秒`; vars.car = behind.name; }
+  else if (left <= 3 && me.lap !== S.lastLapsLeftCall && left > 1) { key = 'laps_left'; S.lastLapsLeftCall = me.lap; }
+  else if (idx === 0 && S.lineRng() < 0.5) key = 'leader';
+  else if (behind && !behind.retired && S.lineRng() < 0.3) { key = 'gap_behind_safe'; vars.gap = `${gapSeconds(me, behind).toFixed(1)}秒`; }
+  else if (me.lapTimes.length && S.lineRng() < 0.35) { key = 'lap_time'; vars.time = formatTime(me.lapTimes.at(-1)); vars.best = formatTime(me.best); }
+  else if (S.lineRng() < 0.3) key = 'position';
+
+  // 主人公とハルカを交互に。主人公に言うことが無ければハルカ
+  S.constantTurn = (S.constantTurn + 1) % 2;
+  if (key && (S.constantTurn === 0 || S.lineRng() < 0.4)) {
+    if (key === 'position') { vars.car = ahead?.name ?? '—'; }
+    say('player', fill(textOf(pickUnique(`constant/${key}`, P[key])), vars));
+  } else if (S.lineRng() < 0.35) {
+    say('player', textOf(pickUnique('constant/encourage', P.encourage)));
+  } else {
+    say('haruka', textOf(pickUnique('constant/haruka', S.radioData.constant.haruka)));
   }
-  const box = el('radioAnswer');
-  box.hidden = false;
-  box.innerHTML = `<span class="k">ハルカ：</span>${pick(reply.reactions)} ${note}`;
 }
 
-/**
- * 終わった周のぶんだけ無線を処理する。engine が「出さない」と言えば何も出さない。
- * スキップ中は何周も一度に片付くが、吹き出しは最後の1本だけが残る。
- */
-function radioTick() {
-  if (!S.radioData || !S.pendingRadio.length) return;
-  const queue = S.pendingRadio;
-  S.pendingRadio = [];
+// ---------------------------------------------------------------------------
+// 実況（docs/設計/実況.md）。data/commentary.json
+//   アナウンサーは事実、解説は理屈。神谷の車の解説は、ハルカの無線が出ていない周に。
+// ---------------------------------------------------------------------------
+function commentary(trigger, speaker, vars = {}) {
+  const pool = S.commentary.triggers[trigger]?.[speaker];
+  if (!pool?.length) return;
+  say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}`, pool)), vars));
+}
 
-  for (const snapshot of queue) {
-    snapshot.traffic = trafficForPlayer();
-    const call = radioForLap(S.cars[0].perf, snapshot, S.radio, S.radioRng);
-    if (!call) continue;
+function baseVars() {
+  const list = ranked();
+  const me = S.cars[0];
+  return {
+    course: S.course.name, length: S.course.length.toLocaleString('ja-JP'), laps: S.totalLaps,
+    leader: list[0]?.name ?? '—', pos: list.indexOf(me) + 1,
+    lap: Math.min((list[0]?.lap ?? 0) + 1, S.totalLaps), left: S.totalLaps - (list[0]?.lap ?? 0),
+  };
+}
 
-    if (call.kind === 'chat') {
-      const line = chatLine();
-      showBubble({
-        text: line.text,
-        mood: '通常',
-        replies: (line.replies ?? []).map((r) => ({ label: r.label, reactions: [r.answer], consistency: 0 })),
-      });
-      continue;
+/** 周が終わるたび（どの車でも）。先頭通過、ベストラップ、自車の順位・ギャップの変動、解説。 */
+function lapCommentary(ev, traffic) {
+  const vars = baseVars();
+  const car = ev.car;
+
+  // ベストラップ（レース全体で最速）。1周目はまだ比べる相手がいない
+  if (Number.isFinite(S.raceBest) && ev.lapTime < S.raceBest) {
+    commentary('best_lap', 'announcer', { ...vars, car: car.name, time: formatTime(ev.lapTime) });
+    if (car.isPlayer) say('player', fill(textOf(pickUnique('constant/best_lap', S.radioData.constant.player.best_lap)), { time: formatTime(ev.lapTime) }));
+    if (S.lineRng() < 0.4) commentary('best_lap', 'analyst', vars);
+  }
+  if (ev.lapTime < S.raceBest) S.raceBest = ev.lapTime;
+
+  // 先頭の通過。最終周はその旨
+  const leaderLap = Math.max(...S.cars.map((c) => c.lap));
+  if (leaderLap > S.leaderLap) {
+    S.leaderLap = leaderLap;
+    if (leaderLap === S.totalLaps - 1) {
+      commentary('final_lap', 'announcer', vars);
+      say('player', textOf(pickUnique('constant/final_lap', S.radioData.constant.player.final_lap)));
+      commentary('final_lap', 'analyst', vars);
+    } else if (leaderLap < S.totalLaps - 1) {
+      commentary('lap_lead', 'announcer', { ...vars, lap: leaderLap + 1, left: S.totalLaps - leaderLap });
+      analystOnLap(leaderLap);
     }
-    const def = S.radioData.info[call.id];
-    if (def) showBubble({ text: pick(def.lines), mood: def.mood, replies: S.radioData.replies });
+  }
+
+  if (!car.isPlayer || !traffic) return;
+  if (traffic.overtook || traffic.overtaken) {
+    commentary('position_change', 'announcer', { ...vars, car: car.name, pos: traffic.rank });
+    if (S.lineRng() < 0.5) commentary('position_change', 'analyst', vars);
+  } else if (traffic.gapAheadDelta != null && Math.abs(traffic.gapAheadDelta) >= 0.8) {
+    const key = traffic.gapAheadDelta < 0 ? 'gap_shrink' : 'gap_grow';
+    commentary(key, 'announcer', { ...vars, car: car.name, pos: traffic.rank, gap: traffic.gapAhead.toFixed(1) });
+    if (S.lineRng() < 0.5) commentary(key, 'analyst', vars);
+  }
+}
+
+/** 解説の周ごとの一言。他車の性格か、神谷の車の症状（無線と重ならない周だけ）。 */
+function analystOnLap(lap) {
+  if (lap % 2 === 0) return;   // 毎周は喋らない
+  const me = S.cars[0];
+  const C = S.commentary;
+  const canTalkPlayer = S.lastInfoLap !== lap && S.lastInfoLap !== lap - 1;
+  if (canTalkPlayer && S.lineRng() < 0.5 && S.lastSnapshot) {
+    const symptoms = radioSymptoms(me.perf, S.lastSnapshot);
+    const id = RADIO.priority.find((k) => symptoms[k] !== undefined && C.analyst_player[k]);
+    const pool = C.analyst_player[id ?? 'clean'];
+    say('analyst', textOf(pickUnique(`analyst_player/${id ?? 'clean'}`, pool)));
+    return;
+  }
+  const ai = S.cars.filter((c) => !c.isPlayer && !c.retired && C.analyst_traits[c.radio]);
+  if (ai.length && S.lineRng() < 0.6) {
+    const car = pick(ai);
+    say('analyst', fill(textOf(pickUnique(`analyst_traits/${car.radio}`, C.analyst_traits[car.radio])), { car: car.name }));
+  } else if (S.lineRng() < 0.5) {
+    commentary('lap_lead', 'analyst', baseVars());
+  }
+}
+
+/** 終わった周ぶんの無線と実況を処理する。 */
+function lapTick() {
+  if (!S.lapEvents.length) return;
+  const events = S.lapEvents;
+  S.lapEvents = [];
+  for (const ev of events) {
+    let traffic = null;
+    if (ev.car.isPlayer) {
+      traffic = trafficForPlayer();
+      ev.traffic = traffic;
+      S.lastSnapshot = ev;
+      const calls = radioForLap(ev.car.perf, ev, S.radio, S.radioRng);
+      for (const call of calls) {
+        if (call.kind === 'chat') {
+          const line = chatLine();
+          say('haruka', line.text, {
+            replies: (line.replies ?? []).map((r) => ({ label: r.label, reactions: [r.answer], consistency: 0 })),
+          });
+        } else sayInfo(call);
+      }
+    }
+    lapCommentary(ev, traffic);
+  }
+}
+
+/** リタイアした車を実況する。 */
+function retireTick() {
+  for (const car of S.cars) {
+    if (car.retired && !car.announcedRetire) {
+      car.announcedRetire = true;
+      commentary('retire', 'announcer', { ...baseVars(), car: car.name, lap: car.retiredLap });
+      if (S.lineRng() < 0.6) commentary('retire', 'analyst', baseVars());
+    }
   }
 }
 
@@ -568,17 +780,20 @@ function radioTick() {
 // ---------------------------------------------------------------------------
 const S = {
   cars: [], course: null, load: null, totalLaps: 10,
-  masterPath: null, pathLen: 0, courseLen: 0, ratio: 1, toView: (p) => p,
-  speed: 1, paused: false, done: false, last: 0, raf: 0,
-  radioData: null, radio: null, radioRng: null, lineRng: null,
-  pendingRadio: [], metRivals: new Set(),
+  masterPath: null, pathLen: 0, courseLen: 0, ratio: 1, toView: (p) => p, sectorEls: [], litSector: -1,
+  speed: 1, paused: false, done: false, skipping: false, last: 0, raf: 0,
+  radioData: null, commentary: null, radio: null, radioRng: null, lineRng: null,
+  lapEvents: [], sectorEvents: [], metRivals: new Set(), used: new Map(),
+  log: [], logSeq: 0, logDirty: false, lastInfoLap: -9, lastSnapshot: null,
+  constantClock: 0, constantTurn: 0, lastLapsLeftCall: -1,
+  raceBest: Infinity, leaderLap: 0, panelClock: 0,
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
-    json('../../data/radio.json'),
+    json('../../data/radio.json'), json('../../data/commentary.json'),
   ]);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
@@ -589,7 +804,6 @@ async function boot() {
   S.course = course;
   S.load = courseLoad(course);
 
-  // 自車：URL のパーツ id を組み直す（規定を満たすものだけ）
   const ids = (Q.get('parts') ?? '').split(',').filter(Boolean);
   const mine = ids.map((id) => parts.find((p) => p.id === id))
     .filter((p) => p && p.class_required <= cls && p.sponsor_tier <= tier);
@@ -601,7 +815,6 @@ async function boot() {
   const driver = { ...drivers[0] };
   const myPerf = buildPerformance(mine, driver, chassis, settings);
 
-  // AI：自車のパーツ構成を基準に、性格ぶんだけ振る
   const baseSeed = Number(Q.get('seed') ?? 20260912);
   const aiRng = createRng(baseSeed);
   const ai = AI_PROFILES.map((prof, i) => {
@@ -624,30 +837,33 @@ async function boot() {
   });
 
   S.cars = [
-    makeCar({ id: 'me', name: `${driver.name}（自車）`, color: 'var(--car)',
-      perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),
+    makeCar({ id: 'me', name: '神谷ハルカ（自車）', color: 'var(--car)', perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),
     ...ai,
   ];
 
-  // --- コース描画 ---------------------------------------------------------
   setupTrack(course);
-
   el('courseName').textContent = course.name;
-  el('courseProf').innerHTML =
-    `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周`
-    + `<br>${course.description}`;
+  el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周`;
   el('backLink').href = `setup.html${location.search}`;
 
-  // --- 無線 ---------------------------------------------------------------
+  // --- 無線と実況 ---------------------------------------------------------
   S.radioData = radioData;
+  S.commentary = commentaryData;
   S.radio = createRadioState();
   S.radioRng = createRng(baseSeed + 101);   // 出す／出さないの判断
   S.lineRng = createRng(baseSeed + 202);    // どの台詞を引くか
-  const intro = radioData.chat.course_start[course.id];
-  if (intro) showBubble({ text: pick(intro), mood: '通常' });
 
   for (const car of S.cars) planLap(car, course, S.load);
+  const vars = baseVars();
+  commentary('race_start', 'announcer', vars);
+  say('announcer', textOf(pickUnique('profile', commentaryData.profile)));
+  commentary('race_start', 'analyst', vars);
+  const intro = radioData.chat.course_start[course.id];
+  if (intro) say('haruka', textOf(pick(intro)));
+
   renderStandings();
+  renderPanel();
+  renderLog();
   S.last = performance.now();
   S.raf = requestAnimationFrame(tick);
 }
@@ -661,33 +877,32 @@ function tick(now) {
   if (!S.paused && !S.done) {
     step(dt * S.speed);
     renderStandings();
+    S.panelClock += dt;
+    if (S.panelClock > 0.25) { S.panelClock = 0; renderPanel(); }
   }
+  renderLog();
   draw();
   S.raf = requestAnimationFrame(tick);
 }
 
 function step(dt) {
   for (const car of S.cars) advance(car, dt, S.course, S.load, S.totalLaps);
-  radioTick();      // 自車が1周終えていれば、その周の無線を1本だけ出す
+  reactionTick();
+  lapTick();
+  retireTick();
+  constantTick(dt);
   if (S.cars.every((c) => c.finished || c.retired)) finish();
 }
 
 function draw() {
   for (const car of S.cars) {
-    if (car.retired) { car.dotEl.setAttribute('opacity', .25); car.trailEl.setAttribute('d', ''); continue; }
-    const dist = progress(car, S.courseLen);
-    const p = pointAt(dist);
+    if (car.retired) { car.dotEl.setAttribute('opacity', .25); continue; }
+    const p = pointAt(progress(car, S.courseLen));
     car.dotEl.setAttribute('cx', p.x.toFixed(2));
     car.dotEl.setAttribute('cy', p.y.toFixed(2));
-    // 軌跡：速いほど長く尾を引く
-    const tail = clamp(currentSpeed(car) * 0.9, 8, 70);
-    const seg = [];
-    for (let i = 0; i <= 5; i++) {
-      const q = pointAt(dist - (tail * i) / 5);
-      seg.push(`${i ? 'L' : 'M'}${q.x.toFixed(2)} ${q.y.toFixed(2)}`);
-    }
-    car.trailEl.setAttribute('d', seg.join(' '));
   }
+  const me = S.cars[0];
+  if (me.plan) highlightSector(Math.min(me.segIdx, me.plan.length - 1));
   const leader = ranked()[0];
   el('lapNow').textContent = `${Math.min((leader?.lap ?? 0) + 1, S.totalLaps)} / ${S.totalLaps}`;
 }
@@ -704,32 +919,96 @@ function ranked() {
 function renderStandings() {
   const list = ranked();
   const leader = list[0];
-  el('standings').innerHTML = list.map((car, i) => {
+  el('standings').innerHTML = list.slice(0, 6).map((car, i) => {
     const last = car.lapTimes.at(-1);
     let gap = '—';
-    if (car.retired) gap = `${car.retiredLap}周目 リタイア`;
+    if (car.retired) gap = `${car.retiredLap}周目 OUT`;
     else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
     else {
       const d = progress(leader, S.courseLen) - progress(car, S.courseLen);
       const lapsDown = Math.floor(d / S.courseLen);
-      gap = lapsDown >= 1 ? `+${lapsDown} LAP`
-        : `+${(d / Math.max(currentSpeed(car), 1)).toFixed(1)}s`;
+      gap = lapsDown >= 1 ? `+${lapsDown} LAP` : `+${gapSeconds(leader, car).toFixed(1)}s`;
     }
     return `<div class="row ${car.isPlayer ? 'me' : ''} ${car.retired ? 'out' : ''}">
       <span class="pos">${car.retired ? '—' : i + 1}</span>
       <span class="nm"><b style="background:${car.color}"></b><span>${car.name}</span></span>
-      <span class="rt"><b>${last ? formatTime(last) : '--:--.---'}</b>${gap}</span>
+      <span class="rt">${last ? formatTime(last) : '--:--.---'}</span>
+      <span class="gap">${gap}</span>
     </div>`;
   }).join('');
+}
+
+/** 車両情報。engine の値をそのまま出す。燃料だけは表示用の見積もり（race.js fuelLevel 参照）。 */
+function renderPanel() {
+  const me = S.cars[0];
+  const stats = me.perf.stats;
+  const list = ranked();
+  const idx = list.indexOf(me);
+  const ahead = list[idx - 1], behind = list[idx + 1];
+
+  const split = tireWearSplit(me.perf, me.tire, me.driver);
+  const pct = (w) => Math.min(100, Math.round(w * 100));
+  const threshold = brakeThreshold(stats);
+  const temp = me.brake.temp;
+  const hot = temp >= threshold * RADIO.fadeRatio;
+  const tempScale = threshold * 1.4;
+  const fuel = fuelLevel(stats, me.lap, S.totalLaps);
+  const secIdx = me.plan ? Math.min(me.segIdx, me.plan.length - 1) : 0;
+  const sec = S.course.sectors[secIdx];
+  const last = me.lapTimes.at(-1);
+  const gapA = ahead && !ahead.retired && !me.retired ? `+${gapSeconds(ahead, me).toFixed(1)}s ${ahead.name}` : '—';
+  const gapB = behind && !behind.retired && !me.retired ? `−${gapSeconds(me, behind).toFixed(1)}s ${behind.name}` : '—';
+
+  const bar = (ratio, cls = '', mark = null) =>
+    `<div class="bar"><i class="${cls}" style="width:${clamp(ratio * 100, 0, 100).toFixed(1)}%"></i>${mark != null ? `<b style="left:${clamp(mark * 100, 0, 100).toFixed(1)}%"></b>` : ''}</div>`;
+
+  el('panel').innerHTML = `
+    <div class="cell">
+      <div class="k">TIRE WEAR <span>${pct(me.tire.wear)}%</span></div>
+      <div class="tirebars">
+        <span>F</span>${bar(split.front, split.front > .6 ? 'hot' : '')}
+        <span>R</span>${bar(split.rear, split.rear > .6 ? 'hot' : '')}
+      </div>
+    </div>
+    <div class="cell">
+      <div class="k">BRAKE TEMP <span>${Math.round(temp)}</span></div>
+      <div class="v" style="color:${hot ? 'var(--bad)' : 'inherit'}">${Math.round(temp)}<small> / フェード ${Math.round(threshold)}</small></div>
+      ${bar(temp / tempScale, hot ? 'hot' : '', threshold / tempScale)}
+    </div>
+    <div class="cell">
+      <div class="k">FUEL <span>${Math.round(fuel * 100)}%</span></div>
+      ${bar(fuel, fuel < .15 ? 'hot' : 'ok')}
+      <div class="sub">見積もり。計算には未反映</div>
+    </div>
+    <div class="cell">
+      <div class="k">LAP TIME</div>
+      <div class="v">${last ? formatTime(last) : '--:--.---'}</div>
+      <div class="sub">ベスト ${Number.isFinite(me.best) ? formatTime(me.best) : '—'}</div>
+    </div>
+    <div class="cell">
+      <div class="k">GAP</div>
+      <div class="sub">前 ${esc(gapA)}</div>
+      <div class="sub">後 ${esc(gapB)}</div>
+    </div>
+    <div class="cell">
+      <div class="k">SECTOR <span>${secIdx + 1} / ${S.course.sectors.length}</span></div>
+      <div class="v"><i class="sector-type" style="background:var(--${sec.type.replace('_', '-')})"></i>${SECTOR_LABEL[sec.type]}</div>
+      <div class="sub">${sec.length} m・P${idx + 1}</div>
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
 // 結果
 // ---------------------------------------------------------------------------
 function finish() {
+  if (S.done) return;
   S.done = true;
   const list = ranked();
-  el('resultWrap').innerHTML = `<div class="result"><h3>結果</h3>${list.map((car, i) => {
+  const vars = baseVars();
+  commentary('checkered', 'announcer', { ...vars, pos: list.indexOf(S.cars[0]) + 1 });
+  commentary('checkered', 'analyst', vars);
+  renderPanel();
+  el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {
     const wear = (car.lastWear * 100).toFixed(0);
     return `<div class="rrow ${car.isPlayer ? 'me' : ''}">
       <span class="pos">${car.retired ? '—' : i + 1}</span>
@@ -744,7 +1023,6 @@ function finish() {
       </span>
     </div>`;
   }).join('')}</div>`;
-  el('resultWrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // ---------------------------------------------------------------------------
@@ -759,10 +1037,14 @@ el('btn1').addEventListener('click', () => { S.paused = false; setSpeed(1); sync
 el('btn4').addEventListener('click', () => { S.paused = false; setSpeed(4); syncPause(); });
 el('btnSkip').addEventListener('click', () => {
   if (S.done) return;
-  // 決着まで一気に進める（同じ step を使うので結果は倍速時と変わらない）
+  // 決着まで一気に進める。常時層と反応は出さず、情報系と実況だけ残す
+  S.skipping = true;
   let guard = 0;
   while (!S.done && guard++ < 200000) step(2);
+  S.skipping = false;
   renderStandings();
+  renderPanel();
+  renderLog();
   draw();
 });
 function syncPause() {

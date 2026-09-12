@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
-  RADIO, pitComment,
+  RADIO, pitComment, reactionFor, brakeThreshold, tireWearSplit, fuelLevel,
 } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -260,17 +260,21 @@ test('10. 無線: アンダーに振った車でみさきを10周すると「ア
   assert.ok(under.length >= 1, 'アンダーが少なくとも1回は出るはず');
   assert.ok(!r.radio.some((c) => c.id === 'oversteer'), 'アンダー側なのにオーバーは出ないはず');
 
-  // 1周に出るのは1本まで
+  // 症状が続く間は繰り返す。ただし毎周ではなく repeatLaps おき（悪化したときだけ待たない）
+  assert.ok(under.length >= 2, '10周続く症状なら、2回以上は言うはず');
   const perLap = new Map();
-  for (const c of r.radio) perLap.set(c.lap, (perLap.get(c.lap) ?? 0) + 1);
-  assert.ok([...perLap.values()].every((n) => n === 1), '1周につき1本までのはず');
-
-  // 同じトリガーは連続する周では出さず、上限を超えない
+  for (const c of r.radio.filter((c) => c.kind === 'info')) perLap.set(c.lap, (perLap.get(c.lap) ?? 0) + 1);
+  assert.ok([...perLap.values()].every((n) => n <= RADIO.maxInfoPerLap), `1周の情報系は ${RADIO.maxInfoPerLap} 本まで`);
   for (const id of new Set(r.radio.map((c) => c.id))) {
-    const laps = r.radio.filter((c) => c.id === id).map((c) => c.lap);
-    assert.ok(laps.length <= RADIO.maxPerTrigger, `${id} が ${laps.length} 回出ている`);
-    assert.ok(laps.every((lap, i) => i === 0 || lap > laps[i - 1] + 1), `${id} が連続する周で出ている`);
+    if (RADIO.events.includes(id) || id === 'chat') continue;
+    const seq = r.radio.filter((c) => c.id === id);
+    for (let i = 1; i < seq.length; i++) {
+      const soon = seq[i].lap < seq[i - 1].lap + RADIO.repeatLaps;
+      assert.ok(!soon || seq[i].level === 'harsh', `${id} が悪化していないのに続けて出ている`);
+    }
   }
+  // 3回目からは口調がきつくなる
+  assert.ok(under.some((c) => c.level === 'harsh'), '続く症状はきつい口調に変わるはず');
 
   // バランスを好みどおりに戻せば、アンダーは出ない（前後スタビで相殺する）
   const balanced = race({
@@ -326,4 +330,110 @@ test('12. 無線: ピットの一言は好みからのズレと無理をして�
   assert.equal(pit(['tire_compound_02', 'suspension_works_01'], {}), 'too_demanding',
     '要求技量（+6）が最優先で拾われるはず');
   console.log(`  ハルカ（技量 ${haruka.skill} / 好み ${haruka.preferred_balance}）に対するピットの一言を7通り確認`);
+});
+
+// ---------------------------------------------------------------------------
+// データの整合。台詞の量と禁則、ノートの装着可否。
+// ---------------------------------------------------------------------------
+
+const RADIO_DATA = load('radio.json');
+const COMMENTARY = load('commentary.json');
+const NOTES = load('notes.json');
+
+/** ネストした台詞データから { text, sound_cue } のエントリをすべて拾う。 */
+function collectEntries(node, out = []) {
+  if (Array.isArray(node)) node.forEach((n) => collectEntries(n, out));
+  else if (node && typeof node === 'object') {
+    if (typeof node.text === 'string') out.push(node);
+    else Object.values(node).forEach((n) => collectEntries(n, out));
+  }
+  return out;
+}
+const countOf = (node) => collectEntries(node).length;
+
+test('13. radio.json: 4層それぞれの本数、sound_cue、禁則', () => {
+  const R = RADIO_DATA;
+  const constant = countOf(R.constant);
+  const reaction = countOf(R.reaction);
+  const chat = countOf(R.chat);
+  console.log(`  常時 ${constant} / 反応 ${reaction} / 雑談 ${chat} / 情報系 ${countOf(R.info)} / ピット ${countOf(R.pit)}`);
+  assert.ok(constant >= 50, '常時層は50本以上');
+  assert.ok(reaction >= 50, '反応は50本以上');
+  assert.ok(chat >= 40, '雑談は40本以上');
+  for (const id of RADIO.priority) {
+    const def = R.info[id];
+    assert.ok(def, `radio.json に ${id} がない`);
+    const n = def.lines.length + (def.harsh?.length ?? 0);
+    assert.ok(n >= 6, `${id} は6本以上（${n}）`);
+  }
+  for (const id of RADIO.pit.priority) assert.ok(R.pit[id], `pit に ${id} がない`);
+
+  const all = collectEntries(R);
+  for (const e of all) {
+    assert.equal(typeof e.sound_cue, 'string', `sound_cue が無い: ${e.text}`);
+    assert.ok(!e.text.includes('ハルノート'), `禁則「ハルノート」: ${e.text}`);
+  }
+  // ハルカの台詞は計器を読まない＝数字を言わない（テンプレートの主人公側は除く）
+  const haruka = [...collectEntries(R.info), ...collectEntries(R.reaction), ...collectEntries(R.constant.haruka), ...collectEntries(R.chat)];
+  for (const e of haruka) assert.ok(!/[0-9０-９]/.test(e.text) || /3周ちょうだい/.test(e.text), `ハルカが数字を言っている: ${e.text}`);
+});
+
+test('14. commentary.json: 各トリガーに2人×5本以上、同じ台詞が無い', () => {
+  const C = COMMENTARY;
+  const need = ['race_start', 'lap_lead', 'position_change', 'gap_shrink', 'gap_grow', 'best_lap', 'pit', 'retire', 'final_lap', 'checkered'];
+  for (const id of need) {
+    const t = C.triggers[id];
+    assert.ok(t, `commentary.json に ${id} がない`);
+    assert.ok(t.announcer.length >= 5, `${id} 実況は5本以上`);
+    assert.ok(t.analyst.length >= 5, `${id} 解説は5本以上`);
+  }
+  const all = collectEntries(C);
+  const texts = all.map((e) => e.text);
+  assert.equal(new Set(texts).size, texts.length, '同じ台詞が2つ以上ある');
+  for (const e of all) {
+    assert.equal(typeof e.sound_cue, 'string');
+    assert.ok(!e.text.includes('ハルノート'));
+  }
+  assert.ok(C.profile.some((e) => e.text.includes('17歳')), '経歴に触れる台詞');
+  console.log(`  実況・解説 合計 ${texts.length} 本（トリガー ${need.length} 種＋性格別・神谷の車・経歴）`);
+});
+
+test('15. notes.json: 全ノートが装着できて規定を満たす。クラス5は無い', () => {
+  const byCourse = Object.fromEntries(COURSES.map((c) => [c.id, c]));
+  for (const n of NOTES) {
+    const c = byCourse[n.course];
+    assert.ok(c, `コース ${n.course} がない`);
+    assert.ok(c.classes.includes(n.class), `${n.course} はクラス${n.class}では走れない`);
+    const parts = n.parts.map(part);
+    for (const p of parts) {
+      assert.ok(p.class_required <= n.class, `${n.course}/${n.class}: ${p.id} は規定外`);
+      assert.ok(p.sponsor_tier <= n.class - 1, `${n.course}/${n.class}: ${p.id} はスポンサー段階が足りない`);
+    }
+    resolveLoadout(parts);   // スロット重複なら例外
+    const chassisId = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt' }[n.class];
+    const perf = buildPerformance(parts, haruka, CHASSIS[chassisId], n.settings);
+    assert.ok(Number.isFinite(perf.stats.power));
+    assert.ok(n.note.length > 0 && !n.note.includes('ハルノート'));
+  }
+  for (const cls of [1, 2, 3]) {
+    for (const c of COURSES.filter((c) => c.classes.includes(cls))) {
+      assert.ok(NOTES.some((n) => n.course === c.id && n.class === cls), `クラス${cls} の ${c.id} のノートがない`);
+    }
+  }
+  assert.ok(NOTES.some((n) => n.class === 4), 'クラス4のノートは一部ある');
+  assert.ok(!NOTES.some((n) => n.class === 5), 'クラス5のノートは無い（父の記述が尽きる）');
+  console.log(`  ノート ${NOTES.length} 冊：クラス別 ${[1, 2, 3, 4].map((k) => `${k}=${NOTES.filter((n) => n.class === k).length}`).join(' ')}`);
+});
+
+test('16. パネル用の値：フェード閾値、摩耗の前後、燃料', () => {
+  const perf = buildPerformance([part('tire_compound_02'), part('suspension_stabi_01')], haruka, sedan);
+  assert.equal(brakeThreshold(perf.stats), 100);
+  const split = tireWearSplit(perf, { wear: 0.4, lapsRun: 10 }, haruka);
+  assert.ok(split.front > split.rear, 'アンダーの車は前を余計に削る');
+  assert.ok(fuelLevel(perf.stats, 0, 10) === 1 && fuelLevel(perf.stats, 10, 10) > 0, '基準車は余裕を残して走り切る');
+  const rng = () => 0;   // 必ず出す
+  assert.equal(reactionFor({ type: 'straight', time: 10, best: 10 }, rng).sentiment, 'good');
+  assert.equal(reactionFor({ type: 'slow_corner', time: 10.2, best: 10 }, rng).sentiment, 'bad');
+  assert.equal(reactionFor({ type: 'slow_corner', time: 10, best: Infinity }, rng).sentiment, 'neutral');
+  assert.equal(reactionFor({ type: 'straight', time: 10, best: 10 }, () => 0.99), null);
 });

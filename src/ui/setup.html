@@ -245,6 +245,14 @@ h2 {
   background: var(--field); color: var(--ink); border: 1px solid var(--ink-3);
 }
 .entry .note { font-size: 10px; color: var(--ink-2); flex-basis: 100%; }
+.notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
+.notes .cap { font-size: 9px; letter-spacing: .2em; color: var(--ink-2); padding: 4px 8px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg); }
+.notes .body { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 10px; }
+.notes .hand { margin: 0; flex: 1 1 200px; font-size: 13px; line-height: 1.6; color: var(--ink);
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif; letter-spacing: .04em; }
+.notes .hand.blank { color: var(--ink-3); font-family: inherit; font-size: 11px; }
+.notes button { font: inherit; font-size: 12px; padding: 6px 12px; cursor: pointer; background: var(--paper); color: var(--ink); border: 1px solid var(--rule); }
+.notes button:disabled { color: var(--ink-3); cursor: default; }
 .laps { margin-top: 10px; border: 1px solid var(--rule); }
 .laps .lap {
   display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline;
@@ -350,6 +358,14 @@ h2 {
     <span class="note" id="courseNote"></span>
     <span class="note" id="courseHidden" style="color:var(--bad)"></span>
     <span class="note">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
+  </div>
+
+  <div class="notes" id="notes">
+    <div class="cap">親父のノート — <span id="notesWhere">—</span></div>
+    <div class="body">
+      <p class="hand" id="notesText">—</p>
+      <button type="button" id="notesBtn">ノート通りにする</button>
+    </div>
   </div>
 
   <div class="legend">
@@ -528,16 +544,17 @@ async function loadCarSvg(id) {
 }
 
 async function loadAll() {
-  const [parts, chassisData, courses, drivers, radio] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radio, notes] = await Promise.all([
     json('../../data/parts.json'),
     json('../../data/chassis.json'),
     json('../../data/courses.json'),
     json('../../data/drivers.json'),
     json('../../data/radio.json'),
+    json('../../data/notes.json'),
   ]);
   const cars = {};
   for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
-  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, cars };
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, cars };
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,17 +1034,60 @@ function drawStatus() {
 // ---------------------------------------------------------------------------
 /** いま出している一言の ID。変わったときだけ台詞を引き直す（触るたびに喋り直さない）。 */
 let pitShown = null;
+/** 判定より優先して1回だけ出す一言（ノートを写した直後の「親父ならこうしてた」など）。 */
+let pitOverride = null;
 
 function drawPitLine() {
-  const id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings() });
+  let id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings() });
+  if (pitOverride) { id = pitOverride; pitOverride = null; pitShown = null; }
   const box = el('pitline');
   const def = id ? DATA.radio.pit[id] : null;
   if (!def) { box.hidden = true; pitShown = null; return; }
   if (id !== pitShown) {
     pitShown = id;
-    el('pitlineText').textContent = def.lines[Math.floor(Math.random() * def.lines.length)];
+    const line = def.lines[Math.floor(Math.random() * def.lines.length)];
+    el('pitlineText').textContent = typeof line === 'string' ? line : line.text;
   }
   box.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// 父のノートの基準セッティング（data/notes.json）
+//
+// コース × クラスごとの、大河が書き残した基準。ボタンで丸ごと写す。
+// クラス5にはページが無い（父の記述が尽きる——題名の回収はそこから始まる）。
+// ---------------------------------------------------------------------------
+const noteFor = () => DATA.notes.find((n) => n.course === el('selCourse').value && n.class === state.cls) ?? null;
+
+function drawNotes() {
+  const n = noteFor();
+  const cur = DATA.courses.find((c) => c.id === el('selCourse').value);
+  el('notesWhere').textContent = `${cur?.name ?? '—'} / クラス${state.cls}`;
+  const text = el('notesText');
+  if (n) {
+    text.textContent = n.note;
+    text.classList.remove('blank');
+    el('notesBtn').disabled = false;
+  } else {
+    text.textContent = state.cls >= 5 ? 'この先のページは白紙。' : 'このコース・このクラスのページは無い。';
+    text.classList.add('blank');
+    el('notesBtn').disabled = true;
+  }
+}
+
+/** ノートの基準を丸ごと写す。装着はスロット単位で置き換え、連続値も入れる。 */
+function applyNote() {
+  const n = noteFor();
+  if (!n) return;
+  for (const slot of Object.keys(state.equipped)) state.equipped[slot] = null;
+  for (const id of n.parts) {
+    const p = partById(id);
+    if (p) equipPart(p);
+  }
+  state.settings = { ...n.settings };
+  pitOverride = 'from_notes';
+  renderAll();
+  clearLaps(true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1060,6 +1120,7 @@ function drawCourses() {
   const hidden = DATA.courses.length - list.length;
   el('courseHidden').textContent = hidden
     ? `クラス${state.cls}では走れないコースが ${hidden} 本あります（規定でクラスが決まっています）。` : '';
+  drawNotes();
 }
 
 /** そのクラスで走れるコースだけ。classes が無いデータは全クラス可とみなす。 */
@@ -1145,6 +1206,7 @@ try {
   if (back.get('laps')) el('selLaps').value = back.get('laps');
   el('selCourse').addEventListener('change', () => { wanted.course = el('selCourse').value; drawCourses(); });
   el('raceBtn').addEventListener('click', () => { location.href = raceUrl(); });
+  el('notesBtn').addEventListener('click', applyNote);
 
   // レース画面から戻ってきたときは、そのときのクラス・スポンサー・装着を復元する
   if (back.get('cls')) {

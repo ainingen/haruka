@@ -148,11 +148,13 @@ export const WEIGHTS = {
  * **台詞は持たない。** トリガー ID だけを返し、文言は data/radio.json から UI が選ぶ。
  */
 export const RADIO = {
-  /** 優先順。先にあるものから判定し、1本出したらその周は終わり。 */
+  /** 情報系の優先順。1周に出せる本数（maxInfoPerLap）を超えたら、後ろのものは次の周に回る。 */
   priority: [
     'retire_sign', 'brake_fade', 'tire_wear', 'understeer', 'oversteer', 'cold_tire',
     'straight_loss', 'corner_loss', 'overtaken', 'overtake', 'good_lap',
   ],
+  /** 出来事（抜いた・抜かれた・好調）。症状ではないので、繰り返しの抑制をかけない */
+  events: ['overtake', 'overtaken', 'good_lap'],
   /** 1周あたりのリタイア確率がこれを超えたら「嫌な音がする」 */
   retireRisk: 0.005,
   /** ブレーキ温度がフェード閾値のこの割合を超えたら */
@@ -161,13 +163,20 @@ export const RADIO = {
   wearRatio: 0.25,
   /** 好みからの balance のズレがこれ以上なら アンダー／オーバー */
   balanceDev: 3,
-  /** 同じトリガーは原則1レース1回。2回目は深刻さがこの倍率を超えて悪化したときだけ */
+  /** 症状が続いている間、何周おきに繰り返して言うか */
+  repeatLaps: 2,
+  /** 深刻さがこの倍率を超えて悪化したら、周を待たずに言い、口調がきつくなる */
   worsen: 1.15,
-  /** 同じトリガーの上限回数 */
-  maxPerTrigger: 2,
-  /** 情報系が何も立たなかった周に雑談を出す確率と、1レースの上限 */
-  chatChance: 0.3,
-  chatMax: 3,
+  /** 同じ症状を何回目から、きつい口調（harsh）で言うか */
+  harshAfter: 3,
+  /** 1周に出す情報系の上限 */
+  maxInfoPerLap: 2,
+  /** 雑談：情報系が立たなかった周に出す確率、1レースの上限、雑談どうしの最小間隔（周） */
+  chat: { chance: 0.35, max: 6, gapLaps: 1 },
+  /** セクター通過ごとの反応：出す確率と、ベストに対して「良かった／悪かった」とみなす比率 */
+  reaction: { chance: 0.6, goodMargin: 0.002, badMargin: 0.006 },
+  /** 常時層（ピットからの自動コールなど）：1倍速での間隔（走行秒）と、4倍速で何倍に間引くか */
+  constant: { intervalSec: 9, thinAtFast: 3 },
 
   /**
    * ピットでの一言（セッティング画面）。無線とは別枠。
@@ -397,9 +406,7 @@ export function advanceBrakes(brake, stats, load) {
 
 /** フェードで braking から引くポイント数。閾値以下なら 0。 */
 export function brakeFadeLoss(stats, brake) {
-  const B = WEIGHTS.brake;
-  const threshold = B.thresholdBase + B.thresholdPerFadeResistance * stats.fade_resistance;
-  return Math.max(0, brake.temp - threshold) * B.lossPerDegree;
+  return Math.max(0, brake.temp - brakeThreshold(stats)) * WEIGHTS.brake.lossPerDegree;
 }
 
 // ---------------------------------------------------------------------------
@@ -497,8 +504,7 @@ export function radioSymptoms(perf, snapshot) {
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -stats.reliability);
   if (retireP >= RADIO.retireRisk) out.retire_sign = retireP / RADIO.retireRisk;
 
-  const threshold = WEIGHTS.brake.thresholdBase + WEIGHTS.brake.thresholdPerFadeResistance * stats.fade_resistance;
-  const heat = brake.temp / (threshold * RADIO.fadeRatio);
+  const heat = brake.temp / (brakeThreshold(stats) * RADIO.fadeRatio);
   if (heat >= 1) out.brake_fade = heat;
 
   const loss = tireGripLoss(stats, tire);
@@ -524,43 +530,109 @@ export function radioSymptoms(perf, snapshot) {
 }
 
 /**
- * その周に出す無線を1本決める。出さない周は null。
+ * その周に出す情報系の無線を決める。配列で返す（出さない周は空）。
  *
- * 優先度の高いものから見て、抑制（1レース1回・連続では出さない・悪化したときだけ2回目）に
- * 引っかからない最初の1本を返す。情報系が何も残らなければ、確率で雑談を1本。
+ * 症状は続いている間くり返し言う（repeatLaps ごと）。悪化したときは待たずに言い、
+ * 口調がきつくなる（level: 'harsh'）。同じ症状を harshAfter 回目からもきつく言う。
+ * 出来事（抜いた・抜かれた・好調）は抑制なし。情報系が何も無ければ、確率で雑談を1本。
  *
  * state は呼び出し側が持ち回る（この関数が書き換える）。
  */
 export function radioForLap(perf, snapshot, state, rng = Math.random) {
   const lap = snapshot.lap;
   const symptoms = radioSymptoms(perf, snapshot);
+  const calls = [];
 
   for (const id of RADIO.priority) {
     const severity = symptoms[id];
     if (severity === undefined) continue;
+    if (calls.length >= RADIO.maxInfoPerLap) break;
+
     const prev = state.fired[id];
-    if (prev) {
-      if (prev.count >= RADIO.maxPerTrigger) continue;      // 何度も同じことを言わない
-      if (prev.lap >= lap - 1) continue;                    // 連続する周では出さない
-      if (severity <= prev.severity * RADIO.worsen) continue;  // 悪化していなければ黙っている
+    const isEvent = RADIO.events.includes(id);
+    let level = 'normal';
+    if (prev && !isEvent) {
+      const worse = severity > prev.severity * RADIO.worsen;
+      // 症状が続いていても毎周は言わない。悪化したときだけ待たずに言う
+      if (!worse && lap < prev.lap + RADIO.repeatLaps) continue;
+      if (worse || prev.count + 1 >= RADIO.harshAfter) level = 'harsh';
+    } else if (prev && isEvent && prev.count + 1 >= RADIO.harshAfter) {
+      level = 'harsh';   // 「また抜かれた」
     }
-    state.fired[id] = { count: (prev?.count ?? 0) + 1, lap, severity };
+    const count = (prev?.count ?? 0) + 1;
+    state.fired[id] = { count, lap, severity: Math.max(severity, prev?.severity ?? 0) };
     state.lastLap = lap;
-    const call = { lap, id, kind: 'info', severity };
+    const call = { lap, id, kind: 'info', severity, level, count };
     state.calls.push(call);
-    return call;
+    calls.push(call);
   }
 
-  // 雑談。情報系が立たなかった周にだけ、直後の周を空けて出す。
-  if (state.chats < RADIO.chatMax && lap > state.lastChatLap + 1 && rng() < RADIO.chatChance) {
+  // 雑談。情報系が立たなかった周の隙間に。
+  const C = RADIO.chat;
+  if (!calls.length && state.chats < C.max && lap > state.lastChatLap + C.gapLaps && rng() < C.chance) {
     state.chats += 1;
     state.lastChatLap = lap;
     state.lastLap = lap;
-    const call = { lap, id: 'chat', kind: 'chat', severity: 0 };
+    const call = { lap, id: 'chat', kind: 'chat', severity: 0, level: 'normal', count: state.chats };
     state.calls.push(call);
-    return call;
+    calls.push(call);
   }
-  return null;
+  return calls;
+}
+
+/**
+ * セクターを1つ抜けるたびのハルカの反応。「よし」「ちっ」の類。出さないときは null。
+ *
+ * その車の同じセクターのベストと比べて、並んでいれば good、目に見えて遅ければ bad。
+ * ベストがまだ無い（1周目）なら neutral。数字は返さない——ハルカは計器を読まない。
+ *
+ * @param {{ type: string, time: number, best: number }} sector
+ * @param {function} rng
+ * @param {number} [chance] 出す確率（倍速時は間引くために下げる）
+ */
+export function reactionFor(sector, rng = Math.random, chance = RADIO.reaction.chance) {
+  if (rng() >= chance) return null;
+  const R = RADIO.reaction;
+  let sentiment = 'neutral';
+  if (Number.isFinite(sector.best) && sector.best > 0) {
+    const d = (sector.time - sector.best) / sector.best;
+    if (d <= R.goodMargin) sentiment = 'good';
+    else if (d >= R.badMargin) sentiment = 'bad';
+  }
+  return { sentiment, type: sector.type };
+}
+
+// ---------------------------------------------------------------------------
+// 車両情報パネル用の値。計算には使わない表示専用のものも含む（その旨を各所に書く）。
+// ---------------------------------------------------------------------------
+
+/** フェードが始まるブレーキ温度。 */
+export function brakeThreshold(stats) {
+  const B = WEIGHTS.brake;
+  return B.thresholdBase + B.thresholdPerFadeResistance * stats.fade_resistance;
+}
+
+/**
+ * タイヤ摩耗の前後配分（表示用）。
+ * 計算上の摩耗は1つの値だが、アンダーの車は前を、オーバーの車は後ろを余計に削るので、
+ * balance のズレに応じて前後に振り分けて見せる。合計の意味は変えない。
+ */
+export function tireWearSplit(perf, tire, driver) {
+  const dev = perf.stats.balance - (driver?.preferred_balance ?? 0);
+  const skew = Math.min(0.5, Math.abs(dev) * 0.08);
+  const front = tire.wear * (1 + (dev < 0 ? skew : -skew));
+  const rear = tire.wear * (1 + (dev > 0 ? skew : -skew));
+  return { front, rear };
+}
+
+/**
+ * 燃料の残量（0〜1、表示用）。**レース計算にはまだ入っていない。**
+ * fuel_consumption が 0 なら 15% の余裕を残して走り切る。増えるほど余裕が減り、
+ * 極端なら最後の周で底をつく——が、いまは表示が 0 になるだけで車は止まらない。
+ */
+export function fuelLevel(stats, lapsDone, totalLaps) {
+  const perLap = (1 + 0.02 * Math.max(0, stats.fuel_consumption)) / (totalLaps * 1.15);
+  return Math.max(0, 1 - lapsDone * perLap);
 }
 
 /**
@@ -652,7 +724,7 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
       entry.radio = radioForLap(
         perf, { lap: i + 1, tire, brake, driver, lapTime: time, bestTime: result.best }, radioState, radioRng,
       );
-      if (entry.radio) result.radio.push(entry.radio);
+      result.radio.push(...entry.radio);
     }
     result.laps.push(entry);
     result.total += time;
