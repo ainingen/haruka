@@ -150,6 +150,8 @@ h3.cap {
 .controls button.on { background: var(--car); color: #fff; }
 .controls .spacer { margin-left: auto; }
 .controls a { font-size: 11px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--ink-3); }
+.controls a.btn { font-size: 12px; padding: 7px 12px; border: 1px solid var(--rule); color: var(--ink); background: var(--paper); letter-spacing: .06em; }
+.controls a.btn.primary { background: var(--car); color: #fff; border-color: var(--car); font-weight: 700; }
 
 /* --- 結果 ----------------------------------------------------------------- */
 .result { border: 1px solid var(--rule); background: var(--field); }
@@ -230,6 +232,7 @@ import {
   brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
   RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor,
   brakeThreshold, tireWearSplit, fuelLevel,
+  QUALI, START, gridBlockFactor,
 } from '../engine/race.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -248,6 +251,11 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 //   ブラウザストレージは使わない（PLiCy の制約）
 // ---------------------------------------------------------------------------
 const Q = new URLSearchParams(location.search);
+/** 予選 (quali) か決勝 (race) か。予選は計測3周、ベストラップでグリッドを決める。 */
+const SESSION = Q.get('session') === 'quali' ? 'quali' : 'race';
+const IS_QUALI = SESSION === 'quali';
+/** 予選用のセッティングは q 付きのパラメータで来る。無ければ決勝用と同じ */
+const qp = (key, qkey) => (IS_QUALI && Q.get(qkey) !== null ? Q.get(qkey) : Q.get(key));
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型',
                  fast: '高速コーナー主体', stopgo: 'ストップ＆ゴー' };
@@ -385,6 +393,7 @@ function makeCar({ id, name, short = name, number = null, color, perf, driver, s
     finished: false, retired: false, retiredLap: null, announcedRetire: false,
     lastWear: 0, lastTemp: 0, lastFade: 0,
     lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
+    delay: 0, gridPos: null, blockFactor: 1,
   };
 }
 
@@ -406,9 +415,12 @@ function planLap(car, course, load) {
   const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (car.driver.consistency ?? 100)) / 100;
   const noise = clamp(1 + sigma * gaussian(car.rng), 0.9, 1.1);
 
+  // 予選：アウトラップとインラップは流す（QUALI の係数）。アタックだけ全開
+  const lapNo = car.lap + 1;
+  const quali = !IS_QUALI ? 1 : lapNo < QUALI.attackLap ? QUALI.outLapFactor : lapNo > QUALI.attackLap ? QUALI.inLapFactor : 1;
   car.plan = course.sectors.map((s) => ({
     len: s.length,
-    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise,
+    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise * quali,
   }));
   car.plannedLap = car.plan.reduce((a, s) => a + s.len / s.speed, 0);
   car.lastWear = car.tire.wear;
@@ -437,12 +449,19 @@ function completeLap(car, course, load, totalLaps) {
 /** dt 秒ぶん進める。セクターをまたぐたびに速度を切り替え、自車なら通過を記録する。 */
 function advance(car, dt, course, load, totalLaps) {
   let rest = dt;
+  // グリッドの後ろほどスタートが遅れる
+  if (car.delay > 0) {
+    const d = Math.min(car.delay, rest);
+    car.delay -= d;
+    rest -= d;
+  }
   let guard = 0;
   while (rest > 1e-9 && !car.finished && !car.retired && car.plan && guard++ < 5000) {
     const seg = car.plan[car.segIdx];
+    const speed = seg.speed * car.blockFactor;   // スタート直後の混雑ぶん
     const segEnd = car.segStart + seg.len;
-    const t = (segEnd - car.lapDist) / seg.speed;
-    if (t > rest) { car.lapDist += seg.speed * rest; rest = 0; break; }
+    const t = (segEnd - car.lapDist) / speed;
+    if (t > rest) { car.lapDist += speed * rest; rest = 0; break; }
     rest -= t;
     car.lapDist = segEnd;
     car.segStart = segEnd;
@@ -624,6 +643,7 @@ function chatLine() {
     return { text: textOf(pickUnique(`chat/ai/${near.id}`, pool)), replies: [] };
   }
   if (S.lineRng() < 0.05) return { text: textOf(pick(chat.rare)), replies: [] };
+  if (IS_QUALI && chat.quali?.length && S.lineRng() < 0.6) return { text: textOf(pickUnique('chat/quali', chat.quali)), replies: [] };
   if (S.lineRng() < 0.25) {
     const entry = pickUnique('chat/with_reply', chat.with_reply);
     return { text: entry.text, replies: entry.replies };
@@ -652,6 +672,13 @@ function reactionTick() {
     const r = reactionFor(ev, S.radioRng, chance);
     if (!r) continue;
     const R = S.radioData.reaction;
+    // 予選のアタック中は専用の台詞（「今の区間、いい」）。それ以外は通常の反応
+    const attacking = IS_QUALI && S.cars[0].lap === QUALI.attackLap - 1;
+    if (attacking && r.sentiment !== 'neutral') {
+      const pool = r.sentiment === 'good' ? S.radioData.quali.attack_good : S.radioData.quali.attack_bad;
+      say('haruka', textOf(pickUnique(`quali/${r.sentiment}`, pool)));
+      continue;
+    }
     // 型ごとの一言（「伸びろ」「立ち上がり」）は、良し悪しの無い周に混ぜる
     const pool = r.sentiment === 'neutral' && S.lineRng() < 0.5 ? R[ev.type] : R[r.sentiment];
     say('haruka', textOf(pickUnique(`reaction/${r.sentiment}/${ev.type}`, pool)));
@@ -668,6 +695,19 @@ function constantTick(dt) {
 
   const me = S.cars[0];
   if (me.finished || me.retired) return;
+  if (IS_QUALI) {
+    // 予選：アタック中に前が近ければ「前に遅いのがいる」。それ以外は状態の一言
+    const attacking = me.lap === QUALI.attackLap - 1;
+    const byPos = [...S.cars].filter((c) => !c.retired && c !== me);
+    const near = byPos.find((c) => { const g = (progress(c, S.courseLen) - progress(me, S.courseLen)) / Math.max(currentSpeed(me), 1); return g > 0 && g < 3; });
+    if (attacking && near && !S.qualiTrafficSaid) {
+      S.qualiTrafficSaid = true;
+      say('haruka', textOf(pickUnique('quali/traffic', S.radioData.quali.traffic)));
+    } else if (S.lineRng() < 0.5) {
+      say('haruka', textOf(pickUnique('constant/haruka', S.radioData.constant.haruka)));
+    }
+    return;
+  }
   const P = S.radioData.constant.player;
   const list = ranked();
   const idx = list.indexOf(me);
@@ -701,9 +741,10 @@ function constantTick(dt) {
 // 実況（docs/設計/実況.md）。data/commentary.json
 //   アナウンサーは事実、解説は理屈。神谷の車の解説は、ハルカの無線が出ていない周に。
 // ---------------------------------------------------------------------------
+const FINAL_TRIGGERS = new Set(['checkered', 'pole', 'quali_end']);
 function commentary(trigger, speaker, vars = {}) {
-  // スキップ中は途中の実況を出さない。結果が確定したチェッカーだけ残す
-  if (S.skipping && trigger !== 'checkered') return;
+  // スキップ中は途中の実況を出さない。結果が確定した後の実況（チェッカー、ポール、予選終了）だけ残す
+  if (S.skipping && !FINAL_TRIGGERS.has(trigger)) return;
   const pool = S.commentary.triggers[trigger]?.[speaker];
   if (!pool?.length) return;
   say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}`, pool)), vars));
@@ -802,8 +843,59 @@ function lapTick() {
         } else sayInfo(call);
       }
     }
-    lapCommentary(ev, traffic);
+    if (IS_QUALI) qualiLapCommentary(ev);
+    else lapCommentary(ev, traffic);
   }
+}
+
+// ---------------------------------------------------------------------------
+// 予選（QUALI）。アウトラップ → アタック → インラップ。暫定トップの更新を実況し、
+// 終わったらポールと確定順を出してグリッドを決勝へ渡す。
+// ---------------------------------------------------------------------------
+function qualiLapCommentary(ev) {
+  const car = ev.car;
+  const vars = baseVars();
+  const lapNo = ev.lap;
+  if (lapNo === QUALI.attackLap) {
+    // アタックラップのタイムだけが暫定トップの対象
+    if (ev.lapTime < S.qualiBest) {
+      S.qualiBest = ev.lapTime;
+      S.qualiTop = car;
+      commentary('provisional_top', 'announcer', { ...vars, car: car.name, time: formatTime(ev.lapTime) });
+      if (S.lineRng() < 0.4) commentary('provisional_top', 'analyst', vars);
+    }
+    if (car.isPlayer) say('haruka', textOf(pickUnique('quali/done', S.radioData.quali.done)));
+  }
+  if (car.isPlayer && lapNo === QUALI.attackLap - 1) say('haruka', textOf(pickUnique('quali/attack_start', S.radioData.quali.attack_start)));
+  if (car.isPlayer && lapNo === QUALI.attackLap) say('haruka', textOf(pickUnique('quali/in', S.radioData.quali.in)));
+}
+
+/** 予選終了。グリッドを並べ、決勝へのリンクを出す。 */
+function qualiFinish() {
+  const list = ranked();
+  const pole = list[0];
+  const vars = { ...baseVars(), car: pole.name, time: formatTime(pole.best), pos: list.indexOf(S.cars[0]) + 1,
+    gap: list[1] ? (list[1].best - pole.best).toFixed(3) : '0.000', laps: Q.get('laps') ?? 10 };
+  commentary('pole', 'announcer', vars);
+  commentary('quali_end', 'announcer', vars);
+  commentary('quali_end', 'analyst', vars);
+
+  const grid = list.map((c) => c.id).join(',');
+  const q = new URLSearchParams(location.search);
+  q.set('session', 'race');
+  q.set('grid', grid);
+  const back = new URLSearchParams(location.search);
+  back.set('grid', grid);
+  el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">予選結果 — スターティンググリッド</h3>${list.map((car, i) => `
+    <div class="rrow ${car.isPlayer ? 'me' : ''}">
+      <span class="pos">${i + 1}</span>
+      <span>${esc(car.name)}<div class="sub">${i === 0 ? 'ポールポジション' : `トップとの差 +${(car.best - pole.best).toFixed(3)}`}</div></span>
+      <span class="t"><b>${Number.isFinite(car.best) ? formatTime(car.best) : '—'}</b></span>
+    </div>`).join('')}
+    <div class="controls" style="padding:8px">
+      <a class="btn primary" href="race.html?${q}">決勝へ（このグリッドで）</a>
+      <a class="btn" href="setup.html?${back}">決勝のセッティングを見直す</a>
+    </div></div>`;
 }
 
 /** リタイアした車を実況する。 */
@@ -829,6 +921,7 @@ const S = {
   log: [], logSeq: 0, logDirty: false, lastInfoLap: -9, lastSnapshot: null,
   constantClock: 0, constantTurn: 0, lastLapsLeftCall: -1,
   raceBest: Infinity, leaderLap: 0, panelClock: 0,
+  gridStart: false, qualiBest: Infinity, qualiTop: null, qualiTrafficSaid: false,
 };
 
 async function boot() {
@@ -846,14 +939,16 @@ async function boot() {
   S.course = course;
   S.load = courseLoad(course);
 
-  const ids = (Q.get('parts') ?? '').split(',').filter(Boolean);
+  const ids = (qp('parts', 'qparts') ?? '').split(',').filter(Boolean);
   const mine = ids.map((id) => parts.find((p) => p.id === id))
     .filter((p) => p && p.class_required <= cls && p.sponsor_tier <= tier);
   const settings = {};
   for (const [key, def] of Object.entries(SETTINGS)) {
-    const raw = Q.get({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key]);
+    const short = { tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key];
+    const raw = qp(short, `q${short}`);
     if (raw !== null && isSettingUnlocked(def, mine)) settings[key] = Number(raw);
   }
+  if (IS_QUALI) S.totalLaps = QUALI.laps;
   const driver = { ...drivers[0] };
   const myPerf = buildPerformance(mine, driver, chassis, settings);
 
@@ -869,10 +964,29 @@ async function boot() {
     ...ai,
   ];
 
+  // --- グリッド（予選結果）。'last' は予選なし＝最後尾 --------------------
+  const gridParam = Q.get('grid');
+  if (!IS_QUALI && gridParam) {
+    const byId = Object.fromEntries(S.cars.map((c) => [c.id, c]));
+    let order = gridParam === 'last'
+      ? [...S.cars.filter((c) => !c.isPlayer), S.cars[0]]
+      : gridParam.split(',').map((id) => byId[id]).filter(Boolean);
+    for (const c of S.cars) if (!order.includes(c)) order.push(c);   // 名簿に無い id は後ろへ
+    order.forEach((c, i) => { c.gridPos = i + 1; c.delay = i * START.slotDelay; });
+    S.gridStart = true;
+  }
+
   setupTrack(course);
   el('courseName').textContent = course.name;
   el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周・${S.cars.length} 台`;
   el('backLink').href = `setup.html${location.search}`;
+  if (IS_QUALI) {
+    document.title = '予選 — ハルカのセッティングノート';
+    el('courseName').textContent = `${course.name}（予選）`;
+    el('courseProf').textContent = `計測 ${QUALI.laps} 周：アウト → アタック → イン・${S.cars.length} 台`;
+  } else if (S.gridStart) {
+    el('courseProf').textContent += `・${S.cars[0].gridPos} 番グリッド`;
+  }
 
   // --- 無線と実況 ---------------------------------------------------------
   S.radioData = radioData;
@@ -883,11 +997,17 @@ async function boot() {
 
   for (const car of S.cars) planLap(car, course, S.load);
   const vars = baseVars();
-  commentary('race_start', 'announcer', vars);
-  say('announcer', textOf(pickUnique('profile', commentaryData.profile)));
-  commentary('race_start', 'analyst', vars);
-  const intro = radioData.chat.course_start[course.id];
-  if (intro) say('haruka', textOf(pick(intro)));
+  if (IS_QUALI) {
+    commentary('quali_start', 'announcer', vars);
+    commentary('quali_start', 'analyst', vars);
+    say('haruka', textOf(pickUnique('quali/out', radioData.quali.out)));
+  } else {
+    commentary('race_start', 'announcer', vars);
+    say('announcer', textOf(pickUnique('profile', commentaryData.profile)));
+    commentary('race_start', 'analyst', vars);
+    const intro = radioData.chat.course_start[course.id];
+    if (intro) say('haruka', textOf(pick(intro)));
+  }
 
   renderStandings();
   renderPanel();
@@ -913,7 +1033,24 @@ function tick(now) {
   S.raf = requestAnimationFrame(tick);
 }
 
+/**
+ * スタート直後の混雑（START）。1周目の最初の数セクターで、前の車が近いほど遅くなる。
+ * グリッドがあるレースだけ。予選と、予選なしの旧リンクでは効かない。
+ */
+function updateBlocking() {
+  if (!S.gridStart) return;
+  const order = [...S.cars].filter((c) => !c.retired).sort((a, b) => progress(b, S.courseLen) - progress(a, S.courseLen));
+  order.forEach((car, i) => {
+    if (car.lap > 0 || car.segIdx >= START.sectors || car.delay > 0) { car.blockFactor = 1; return; }
+    const ahead = order[i - 1];
+    if (!ahead) { car.blockFactor = 1; return; }
+    const gap = (progress(ahead, S.courseLen) - progress(car, S.courseLen)) / Math.max(currentSpeed(car), 1);
+    car.blockFactor = gridBlockFactor(gap);
+  });
+}
+
 function step(dt) {
+  updateBlocking();
   for (const car of S.cars) advance(car, dt, S.course, S.load, S.totalLaps);
   reactionTick();
   lapTick();
@@ -932,12 +1069,20 @@ function draw() {
   const me = S.cars[0];
   if (me.plan) highlightSector(Math.min(me.segIdx, me.plan.length - 1));
   const leader = ranked()[0];
-  el('lapNow').textContent = `${Math.min((leader?.lap ?? 0) + 1, S.totalLaps)} / ${S.totalLaps}`;
+  const lapNo = Math.min((S.cars[0].lap ?? 0) + 1, S.totalLaps);
+  el('lapNow').textContent = IS_QUALI
+    ? (['OUT', 'ATTACK', 'IN'][lapNo - 1] ?? `${lapNo}`)
+    : `${Math.min((leader?.lap ?? 0) + 1, S.totalLaps)} / ${S.totalLaps}`;
 }
 
 function ranked() {
   const running = S.cars.filter((c) => !c.retired);
   running.sort((a, b) => {
+    if (IS_QUALI) {
+      // 予選はベストラップ順。まだ計測が無い車は走行位置順で後ろに
+      if (a.best !== b.best) return a.best - b.best;
+      return progress(b, S.courseLen) - progress(a, S.courseLen);
+    }
     if (a.finished && b.finished) return a.raceTime - b.raceTime;
     return progress(b, S.courseLen) - progress(a, S.courseLen);
   });
@@ -947,6 +1092,18 @@ function ranked() {
 function standingRow(car, i, leader) {
   const last = car.lapTimes.at(-1);
   let gap = '—';
+  if (IS_QUALI) {
+    const best = Number.isFinite(car.best) ? car.best : null;
+    const top = Number.isFinite(leader.best) ? leader.best : null;
+    gap = best == null ? (car.lap === 0 ? 'OUT LAP' : car.lap === 1 ? 'ATTACK' : '—')
+      : car === leader ? 'P1' : `+${(best - top).toFixed(3)}`;
+    return `<div class="row ${car.isPlayer ? 'me' : ''}">
+      <span class="pos">${i + 1}</span>
+      <span class="nm"><b style="background:${car.color}"></b><span>${esc(car.short)}</span></span>
+      <span class="rt">${best != null ? formatTime(best) : '--:--.---'}</span>
+      <span class="gap">${gap}</span>
+    </div>`;
+  }
   if (car.retired) gap = `${car.retiredLap}周目 OUT`;
   else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
   else if (car.finished && leader.finished) gap = `+${(car.raceTime - leader.raceTime).toFixed(1)}s`;   // 確定後は総時間差
@@ -1056,6 +1213,8 @@ function renderPanel() {
 function finish() {
   if (S.done) return;
   S.done = true;
+  renderPanel();
+  if (IS_QUALI) { qualiFinish(); return; }
   const list = ranked();
   const vars = baseVars();
   commentary('checkered', 'announcer', { ...vars, pos: list.indexOf(S.cars[0]) + 1 });

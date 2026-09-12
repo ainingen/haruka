@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import {
   buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
   RADIO, pitComment, reactionFor, brakeThreshold, tireWearSplit, fuelLevel,
+  QUALI, START, gridBlockFactor, simulateQualifying,
 } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -452,4 +453,53 @@ test('16. パネル用の値：フェード閾値、摩耗の前後、燃料', (
   assert.equal(reactionFor({ type: 'slow_corner', time: 10.2, best: 10 }, rng).sentiment, 'bad');
   assert.equal(reactionFor({ type: 'slow_corner', time: 10, best: Infinity }, rng).sentiment, 'neutral');
   assert.equal(reactionFor({ type: 'straight', time: 10, best: 10 }, () => 0.99), null);
+});
+
+test('18. 予選：アタックラップがベストで、アウト／インは流す。空気圧を上げると一発は速い', () => {
+  const p = buildPerformance([part('tire_compound_02')], haruka, sedan);
+  const q = simulateQualifying(p, course(BALANCED), haruka, { noise: false });
+  assert.equal(q.laps.length, QUALI.laps);
+  assert.deepEqual(q.laps.map((l) => l.kind), ['out', 'attack', 'in']);
+  assert.equal(q.best, q.attack.time, 'ベストはアタックラップ');
+  assert.ok(q.laps[0].time > q.attack.time && q.laps[2].time > q.attack.time, 'アウト／インはアタックより遅い');
+
+  // 予選用に空気圧を上げる（温まりが早い）と、決勝の10周平均では損でも一発は得
+  const high = buildPerformance([part('tire_compound_02')], haruka, sedan, { tire_pressure: 2.4 });
+  const qHigh = simulateQualifying(high, course(BALANCED), haruka, { noise: false });
+  const r = simulateRace(p, course(BALANCED), 10, haruka, OPTIONS);
+  const rHigh = simulateRace(high, course(BALANCED), 10, haruka, OPTIONS);
+  console.log(`  一発: 基準 ${formatTime(q.best)} / 圧高め ${formatTime(qHigh.best)}（${(qHigh.best - q.best).toFixed(3)} 秒）`
+    + ` ｜ 10周平均: 基準 ${formatTime(r.average)} / 圧高め ${formatTime(rHigh.average)}（${(rHigh.average - r.average).toFixed(3)} 秒/周）`);
+  assert.ok(qHigh.best < q.best, '一発なら圧高めが速いはず');
+  assert.ok(rHigh.average > r.average, '10周なら圧高めは損のはず（予選と決勝で別セッティングを持つ理由）');
+
+  // 予選タブでは高い空気圧は文句ではなく「一発なら高めでいい」
+  const ctx = { parts: [part('tire_compound_02')], settings: { tire_pressure: 2.5 } };
+  assert.equal(pitComment(high, haruka, ctx), 'pressure_high');
+  assert.equal(pitComment(high, haruka, { ...ctx, session: 'quali' }), 'quali_pressure_ok');
+});
+
+test('19. スタート直後の混雑：前車が近いほど遅く、離れていれば影響なし', () => {
+  assert.equal(gridBlockFactor(START.gapSec), 1);
+  assert.equal(gridBlockFactor(5), 1);
+  assert.ok(Math.abs(gridBlockFactor(0) - (1 - START.maxLoss)) < 1e-9, '差 0 で最大ペナルティ');
+  assert.ok(gridBlockFactor(0.5) > gridBlockFactor(0) && gridBlockFactor(0.5) < 1, '単調');
+  console.log(`  差 0秒 ×${gridBlockFactor(0).toFixed(2)} / 0.5秒 ×${gridBlockFactor(0.5).toFixed(2)} / ${START.gapSec}秒 ×1.00、グリッド1列 ${START.slotDelay} 秒遅れ`);
+});
+
+test('20. 予選のデータ：ノートの予選欄、無線の予選台詞、実況の予選トリガー', () => {
+  for (const n of NOTES) {
+    assert.ok(n.quali?.note && !n.quali.note.includes('ハルノート'), `${n.course}/${n.class} に予選の書き込みが無い`);
+    assert.ok(n.quali.settings.tire_pressure > n.settings.tire_pressure, `${n.course}/${n.class} の予選は空気圧を上げているはず`);
+  }
+  for (const key of ['out', 'attack_start', 'attack_good', 'attack_bad', 'traffic', 'in', 'done']) {
+    assert.ok(RADIO_DATA.quali[key]?.length >= 3, `radio.quali.${key}`);
+  }
+  assert.ok(RADIO_DATA.chat.quali.length >= 3 && RADIO_DATA.pit.quali_pressure_ok, '予選の雑談とピットの一言');
+  for (const id of ['quali_start', 'provisional_top', 'pole', 'quali_end']) {
+    const t = COMMENTARY.triggers[id];
+    assert.ok(t?.announcer.length >= 5 && t?.analyst.length >= 5, `commentary ${id}`);
+  }
+  const texts = collectEntries(COMMENTARY).map((e) => e.text);
+  assert.equal(new Set(texts).size, texts.length, '予選の台詞を足しても重複なし');
 });

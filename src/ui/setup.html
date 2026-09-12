@@ -54,7 +54,7 @@ body {
   font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
   padding: 8px;
-  padding-bottom: 72px;            /* 固定フッターぶん */
+  padding-bottom: 104px;           /* 固定フッターぶん（ボタン3つが2段に折り返しても隠れない） */
 }
 
 /* --- 図面枠：外枠と内枠の二重線 ----------------------------------------- */
@@ -92,6 +92,15 @@ h2 {
 }
 
 /* --- デバッグ切替 -------------------------------------------------------- */
+.tabs { display: flex; gap: 0; margin-top: 8px; border-bottom: 1px solid var(--rule); }
+.tabs button {
+  font: inherit; font-size: 12px; letter-spacing: .1em; padding: 6px 16px; cursor: pointer;
+  background: var(--lock-bg); color: var(--ink-2); border: 1px solid var(--ink-3); border-bottom: 0; margin-bottom: -1px;
+}
+.tabs button.on { background: var(--paper-2); color: var(--ink); border-color: var(--rule); font-weight: 700; }
+.tabs .hint { margin-left: auto; font-size: 10px; color: var(--ink-2); align-self: center; }
+.calcbar a.ghost { pointer-events: auto; font: inherit; font-size: 12px; padding: 10px 12px; text-decoration: none; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); box-shadow: 0 2px 6px var(--shadow); }
+
 .debug {
   display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
   background: var(--lock-bg); border: 1px dashed var(--ink-3);
@@ -225,13 +234,13 @@ h2 {
 
 .calcbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
-  display: flex; justify-content: flex-end; padding: 8px;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; padding: 8px;
   background: linear-gradient(to top, var(--paper) 60%, transparent);
   pointer-events: none;
 }
 .calcbar button {
-  pointer-events: auto; font: inherit; font-size: 13px; font-weight: 700;
-  padding: 10px 18px; cursor: pointer; letter-spacing: .08em;
+  pointer-events: auto; font: inherit; font-size: 12.5px; font-weight: 700;
+  padding: 9px 14px; cursor: pointer; letter-spacing: .06em;
   background: var(--car); color: #fff; border: 1px solid var(--rule);
   box-shadow: 0 2px 6px var(--shadow);
 }
@@ -317,6 +326,12 @@ h2 {
     </label>
   </div>
 
+  <div class="tabs">
+    <button type="button" data-session="quali" id="tabQuali">予選</button>
+    <button type="button" data-session="race" id="tabRace" class="on">決勝</button>
+    <span class="hint" id="tabHint">予選と決勝で別のセッティングを持てます</span>
+  </div>
+
   <h2>主ビュー / 側面</h2>
   <svg class="mainview" id="mainview" viewBox="0 0 412 188" role="img" aria-label="車体側面図と寸法"></svg>
   <div class="note-scale" id="scaleNote"></div>
@@ -382,13 +397,14 @@ h2 {
 
 <div class="calcbar">
   <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
-  <button id="raceBtn" type="button">レース開始</button>
+  <button id="qualiBtn" class="ghost" type="button">予選へ</button>
+  <button id="raceBtn" type="button">決勝開始</button>
 </div>
 
 <script type="module">
 import {
   buildPerformance, simulateRace, formatTime,
-  SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment,
+  SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
 } from '../engine/race.js';
 
 // ---------------------------------------------------------------------------
@@ -456,7 +472,42 @@ const state = {
   equipped: Object.fromEntries(ALL_SLOTS.map((s) => [s, null])),  // slot -> part id
   settings: {},        // key -> 値（未設定なら既定値）
   openSlot: null,
+  /** いま編集しているセッション。予選と決勝で装着と連続値を別に持つ */
+  session: 'race',
+  /** 表示していない側のセッションの { equipped, settings }。null なら未作成 */
+  stash: { quali: null, race: null },
 };
+
+/** 予選用セッティングの初期値：決勝用の写し＋空気圧を高め（一発なら高くていい） */
+const QUALI_PRESSURE_BUMP = 0.3;
+
+function snapshotSetup() {
+  return { equipped: { ...state.equipped }, settings: { ...state.settings } };
+}
+function loadSetup(setup) {
+  state.equipped = { ...setup.equipped };
+  state.settings = { ...setup.settings };
+}
+function switchSession(to) {
+  if (to === state.session) return;
+  state.stash[state.session] = snapshotSetup();
+  let next = state.stash[to];
+  if (!next) {
+    next = snapshotSetup();
+    if (to === 'quali') {
+      const cur = next.settings.tire_pressure ?? SETTINGS.tire_pressure.defaultValue();
+      next.settings.tire_pressure = Math.min(2.6, Math.round((cur + QUALI_PRESSURE_BUMP) * 20) / 20);
+    }
+  }
+  loadSetup(next);
+  state.session = to;
+  state.openSlot = null;
+  el('tabQuali').classList.toggle('on', to === 'quali');
+  el('tabRace').classList.toggle('on', to === 'race');
+  pitShown = null;
+  renderAll();
+  clearLaps(true);
+}
 let DATA = null;
 
 const chassis = () => DATA.chassis[CLASS_CHASSIS[state.cls]];
@@ -1038,7 +1089,7 @@ let pitShown = null;
 let pitOverride = null;
 
 function drawPitLine() {
-  let id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings() });
+  let id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings(), session: state.session });
   if (pitOverride) { id = pitOverride; pitOverride = null; pitShown = null; }
   const box = el('pitline');
   const def = id ? DATA.radio.pit[id] : null;
@@ -1065,7 +1116,7 @@ function drawNotes() {
   el('notesWhere').textContent = `${cur?.name ?? '—'} / クラス${state.cls}`;
   const text = el('notesText');
   if (n) {
-    text.textContent = n.note;
+    text.textContent = state.session === 'quali' && n.quali ? n.quali.note : n.note;
     text.classList.remove('blank');
     el('notesBtn').disabled = false;
   } else {
@@ -1084,7 +1135,7 @@ function applyNote() {
     const p = partById(id);
     if (p) equipPart(p);
   }
-  state.settings = { ...n.settings };
+  state.settings = state.session === 'quali' ? { ...n.settings, ...(n.quali?.settings ?? {}) } : { ...n.settings };
   pitOverride = 'from_notes';
   renderAll();
   clearLaps(true);
@@ -1128,6 +1179,7 @@ const usableCourses = () => DATA.courses.filter((c) => !c.classes || c.classes.i
 
 function calcLaps() {
   const p = perf();
+  if (state.session === 'quali') return calcQuali(p);
   const rows = usableCourses().map((c) => {
     const r = simulateRace(p, c, 10, DATA.driver, { noise: false, retire: false });
     return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1) };
@@ -1147,22 +1199,71 @@ function calcLaps() {
   }).join('')}</div>`;
 }
 
+/** 予選タブのラップ計算：計測3周のベスト（アタックラップ）。 */
+function calcQuali(p) {
+  const rows = usableCourses().map((c) => {
+    const r = simulateQualifying(p, c, DATA.driver, { noise: false });
+    return { course: c, best: r.best, attack: r.attack };
+  });
+  const prev = lapBaseline;
+  lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.best]));
+  el('lapsWrap').innerHTML = `<h2>予選計算 / アタック1周</h2><div class="laps">${rows.map((r) => {
+    const d = prev?.[r.course.id] != null ? r.best - prev[r.course.id] : null;
+    const dTxt = d == null ? '' : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒</div>`;
+    return `<div class="lap">
+      <div class="cname">${r.course.name}<div class="cprof">${PROFILE_LABEL[r.course.profile] ?? ''}
+        ・アタック時の冷間ロス −${r.attack.gripLoss.toFixed(1)} pt</div></div>
+      <div><div class="t">${formatTime(r.best)}</div>${dTxt}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
 // ---------------------------------------------------------------------------
 // レースへ渡す（URL パラメータ。ブラウザストレージは使わない＝PLiCy の制約）
+//   決勝用：parts / tp / rh / bb、予選用：qparts / qtp / qrh / qbb。
+//   grid は予選結果（車 id の並び）か 'last'（予選をスキップして最後尾）。
 // ---------------------------------------------------------------------------
-function raceUrl() {
+const SHORT = { tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' };
+
+/** そのセッションの装着と連続値をパラメータに載せる。 */
+function putSetup(q, session) {
+  const setup = session === state.session ? snapshotSetup() : state.stash[session];
+  if (!setup) return;
+  const prefix = session === 'quali' ? 'q' : '';
+  const ids = [...new Set(Object.values(setup.equipped).filter(Boolean))]
+    .map(partById).filter((p) => p && isLegal(p)).map((p) => p.id);
+  if (ids.length) q.set(`${prefix}parts`, ids.join(','));
+  const parts = ids.map(partById);
+  for (const [key, def] of Object.entries(SETTINGS)) {
+    if (!isSettingUnlocked(def, parts)) continue;
+    q.set(`${prefix}${SHORT[key]}`, setup.settings[key] ?? def.defaultValue(chassis()));
+  }
+}
+
+function raceUrl(session) {
   const q = new URLSearchParams();
+  q.set('session', session);
   q.set('course', el('selCourse').value);
   q.set('laps', el('selLaps').value);
   q.set('cls', state.cls);
   q.set('tier', state.tier);
-  // 装着パーツはホームスロットの id だけを並べる（ユニットも1回で足りる）
-  const ids = activeParts().map((p) => p.id);
-  if (ids.length) q.set('parts', ids.join(','));
-  for (const [key, value] of Object.entries(activeSettings())) {
-    q.set({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key], value);
-  }
+  putSetup(q, 'race');
+  putSetup(q, 'quali');
+  if (session === 'race') q.set('grid', gridParam ?? 'last');
   return `race.html?${q}`;
+}
+
+/** 予選結果として受け取ったグリッド。無ければ最後尾スタート。 */
+let gridParam = null;
+
+function drawRaceButton() {
+  const btn = el('raceBtn');
+  if (gridParam && gridParam !== 'last') {
+    const pos = gridParam.split(',').indexOf('me') + 1;
+    btn.textContent = pos ? `決勝開始（${pos}番グリッド）` : '決勝開始';
+  } else {
+    btn.textContent = '決勝開始（予選なし＝最後尾）';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1194,6 +1295,9 @@ try {
   el('selClass').addEventListener('change', (e) => {
     state.cls = Number(e.target.value);
     state.settings = {};        // 車体が変わると車高の基準も変わるので既定に戻す
+    state.stash = { quali: null, race: null };   // 予選用も作り直し
+    gridParam = null;           // 別クラスの予選結果は使えない
+    drawRaceButton();
     renderAll();
     clearLaps(true);            // 別の車になるので前回ラップとは比べない
   });
@@ -1205,8 +1309,13 @@ try {
   if (back.get('course')) wanted.course = back.get('course');
   if (back.get('laps')) el('selLaps').value = back.get('laps');
   el('selCourse').addEventListener('change', () => { wanted.course = el('selCourse').value; drawCourses(); });
-  el('raceBtn').addEventListener('click', () => { location.href = raceUrl(); });
+  el('raceBtn').addEventListener('click', () => { location.href = raceUrl('race'); });
+  el('qualiBtn').addEventListener('click', () => { location.href = raceUrl('quali'); });
   el('notesBtn').addEventListener('click', applyNote);
+  el('tabQuali').addEventListener('click', () => switchSession('quali'));
+  el('tabRace').addEventListener('click', () => switchSession('race'));
+  if (back.get('grid')) gridParam = back.get('grid');
+  drawRaceButton();
 
   // レース画面から戻ってきたときは、そのときのクラス・スポンサー・装着を復元する
   if (back.get('cls')) {
@@ -1221,13 +1330,28 @@ try {
     const p = partById(id);
     if (p && isLegal(p)) equipPart(p);
   }
-  for (const [key, short] of Object.entries({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' })) {
+  for (const [key, short] of Object.entries(SHORT)) {
     if (back.get(short) !== null) state.settings[key] = Number(back.get(short));
+  }
+  // 予選用セッティングが URL にあれば、決勝用とは別に控えておく
+  if (back.get('qparts') !== null || back.get('qtp') !== null) {
+    const quali = { equipped: Object.fromEntries(ALL_SLOTS.map((s) => [s, null])), settings: {} };
+    const raceNow = snapshotSetup();
+    for (const id of (back.get('qparts') ?? '').split(',').filter(Boolean)) {
+      const p = partById(id);
+      if (p && isLegal(p)) for (const slot of occupiedSlots(p)) quali.equipped[slot] = p.id;
+    }
+    for (const [key, short] of Object.entries(SHORT)) {
+      if (back.get(`q${short}`) !== null) quali.settings[key] = Number(back.get(`q${short}`));
+    }
+    state.stash.quali = quali;
+    loadSetup(raceNow);
   }
 
   el('selCourse').dataset.ready = '1';
   drawCourses();
   renderAll();
+  if (back.get('session') === 'quali') switchSession('quali');   // 予選から戻ったら予選タブ
 } catch (err) {
   document.body.insertAdjacentHTML('afterbegin',
     `<div class="err">読み込みに失敗しました：${err.message}<br>

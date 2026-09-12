@@ -186,7 +186,7 @@ export const RADIO = {
    */
   pit: {
     priority: [
-      'too_demanding', 'pressure_high', 'understeer', 'oversteer',
+      'too_demanding', 'pressure_high', 'quali_pressure_ok', 'understeer', 'oversteer',
       'stabi_front_only', 'stabi_rear_only', 'just_right',
     ],
     /** 好みからの balance のズレがこれ以上なら口を出す（無線より早い段階で言う） */
@@ -197,6 +197,39 @@ export const RADIO = {
     demand: 6,
   },
 };
+
+/**
+ * 予選（docs/設計/レース方式.md）。計測3周：アウトラップ → アタック → インラップ。ベストラップで並ぶ。
+ * アウト／インは流すので係数で遅くする。アタックは決勝と同じ計算（冷間のグリップ低下もそのまま効く）。
+ */
+export const QUALI = {
+  laps: 3,
+  attackLap: 2,
+  /** アウトラップとインラップの速度係数（1 未満＝流す） */
+  outLapFactor: 0.94,
+  inLapFactor: 0.90,
+};
+
+/**
+ * スタート直後の混雑。グリッド順に並び、前の車が近いほど最初の数セクターで遅くなる。
+ * 予選を走らなければ最後尾なので、この分だけ確実に払う。
+ */
+export const START = {
+  /** グリッド1列ごとのスタート遅れ（秒） */
+  slotDelay: 0.5,
+  /** 混雑ペナルティが効くセクター数（周の頭から） */
+  sectors: 2,
+  /** 前車との差がこの秒数以内ならブロックされる */
+  gapSec: 1.0,
+  /** 差 0 のときの速度低下率 */
+  maxLoss: 0.15,
+};
+
+/** 前車との差（秒）→ 速度係数。差が gapSec 以上なら 1（影響なし）。 */
+export function gridBlockFactor(gapSec) {
+  const g = Math.max(0, gapSec);
+  return 1 - START.maxLoss * Math.max(0, 1 - g / START.gapSec);
+}
 
 /**
  * 連続値セッティング。パーツとは別に、走行前に決める数値。
@@ -654,7 +687,10 @@ export function pitComment(perf, driver, context = {}) {
     said.too_demanding = true;
   }
   const pressure = settings.tire_pressure;
-  if (pressure !== undefined && pressure !== null && pressure >= P.pressureHigh) said.pressure_high = true;
+  if (pressure !== undefined && pressure !== null && pressure >= P.pressureHigh) {
+    // 予選なら高めは正解。一発ならそれでいい、と言う
+    said[context.session === 'quali' ? 'quali_pressure_ok' : 'pressure_high'] = true;
+  }
 
   const slots = new Set(parts.flatMap(occupiedSlots));
   if (slots.has('stabi_front') && !slots.has('stabi_rear')) said.stabi_front_only = true;
@@ -734,6 +770,38 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
   }
   result.average = result.laps.length ? result.total / result.laps.length : NaN;
   return result;
+}
+
+/**
+ * 予選を1台走らせる。アウトラップ → アタック → インラップ。
+ * 戻り値の best がグリッド順の根拠。attack はアタックラップの詳細。
+ *
+ * @param {object} perf    buildPerformance の戻り値（予選用セッティングで組む）
+ * @param {object} course  courses.json の要素
+ * @param {object} driver  drivers.json の要素
+ * @param {object} [options] { seed, noise } — simulateRace と同じ
+ */
+export function simulateQualifying(perf, course, driver, options = {}) {
+  const { seed = 1, noise = true } = options;
+  const rng = createRng(seed + 31);
+  const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (driver?.consistency ?? 100)) / 100;
+  const load = courseLoad(course);
+  let tire = createTireState();
+  let brake = createBrakeState();
+  const laps = [];
+  for (let i = 0; i < QUALI.laps; i++) {
+    const lapNo = i + 1;
+    const factor = lapNo < QUALI.attackLap ? 1 / QUALI.outLapFactor
+      : lapNo > QUALI.attackLap ? 1 / QUALI.inLapFactor : 1;
+    const lt = lapTime(perf, course, tire, driver, brake);
+    let time = lt.time * factor;
+    if (noise) time *= 1 + sigma * gaussian(rng);
+    laps.push({ lap: lapNo, time, kind: lapNo < QUALI.attackLap ? 'out' : lapNo > QUALI.attackLap ? 'in' : 'attack', wear: tire.wear, gripLoss: lt.gripLoss.total });
+    tire = advanceTire(tire, perf.stats);
+    brake = advanceBrakes(brake, perf.stats, load);
+  }
+  const best = Math.min(...laps.map((l) => l.time));
+  return { courseId: course.id, laps, best, attack: laps[QUALI.attackLap - 1] };
 }
 
 /** 秒 → "m:ss.mmm" */

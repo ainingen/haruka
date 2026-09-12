@@ -3,87 +3,101 @@
     "course": "asahina", "class": 1,
     "parts": ["drivetrain_final_01", "brake_pad_01", "tire_compound_02", "suspension_damper_01", "engine_intake_01"],
     "settings": { "tire_pressure": 2.0 },
-    "note": "あさひなは前を柔らかく。ブレーキで曲げろ。ギアは下を使え。"
+    "note": "あさひなは前を柔らかく。ブレーキで曲げろ。ギアは下を使え。",
+    "quali": { "note": "予選は空気圧を上げろ。一周だけ持てばいい。", "settings": { "tire_pressure": 2.3 } }
   },
   {
     "course": "misaki", "class": 1,
     "parts": ["drivetrain_final_01", "tire_compound_02", "suspension_damper_01", "engine_exhaust_01"],
     "settings": { "tire_pressure": 2.1 },
-    "note": "みさきは切り返しで決まる。タイヤを信じろ。信じすぎるな。"
+    "note": "みさきは切り返しで決まる。タイヤを信じろ。信じすぎるな。",
+    "quali": { "note": "予選は柔らかいタイヤで一発。決勝はまた別に考えろ。", "settings": { "tire_pressure": 2.3 } }
   },
   {
     "course": "hibaridaira", "class": 1,
     "parts": ["tire_compound_02", "suspension_damper_01", "engine_intake_01", "engine_exhaust_01", "brake_pad_01"],
     "settings": { "tire_pressure": 2.1 },
-    "note": "ひばり平は基準だ。ここで速くなければ、どこでも速くない。"
+    "note": "ひばり平は基準だ。ここで速くなければ、どこでも速くない。",
+    "quali": { "note": "予選は圧を上げて、ひばり平の高速で稼げ。", "settings": { "tire_pressure": 2.3 } }
   },
 
   {
     "course": "asahina", "class": 2,
     "parts": ["drivetrain_final_01", "brake_pad_02", "brake_rotor_01", "tire_compound_02", "suspension_coilover_01", "drivetrain_clutch_01", "aero_weight_light_01"],
     "settings": { "tire_pressure": 2.0, "ride_height": 110 },
-    "note": "ブレーキに金をかけろ。あさひなの半分はブレーキだ。"
+    "note": "ブレーキに金をかけろ。あさひなの半分はブレーキだ。",
+    "quali": { "note": "予選はブレーキが冷えてる。一周目から踏める。圧は高め。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "misaki", "class": 2,
     "parts": ["drivetrain_final_01", "tire_compound_03", "suspension_coilover_01", "suspension_camber_01", "engine_ecu_01", "aero_weight_light_01", "brake_pad_02"],
     "settings": { "tire_pressure": 2.1, "ride_height": 110 },
-    "note": "短いレースなら柔らかいタイヤ。長いなら、考え直せ。"
+    "note": "短いレースなら柔らかいタイヤ。長いなら、考え直せ。",
+    "quali": { "note": "予選は圧高め、車高そのまま。切り返しで一発。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "hibaridaira", "class": 2,
     "parts": ["drivetrain_final_02", "tire_compound_02", "suspension_coilover_01", "suspension_toe_01", "engine_ecu_01", "engine_exhaust_02", "brake_pad_02", "aero_weight_light_01"],
     "settings": { "tire_pressure": 2.1, "ride_height": 110 },
-    "note": "全部を少しずつ。偏るな。偏るのは次のコースでいい。"
+    "note": "全部を少しずつ。偏るな。偏るのは次のコースでいい。",
+    "quali": { "note": "予選は圧を上げろ。決勝で戻すのを忘れるな。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "nagasawa", "class": 2,
     "parts": ["drivetrain_final_02", "engine_exhaust_02", "engine_ecu_01", "aero_weight_light_01", "aero_weight_light_02", "tire_compound_01", "suspension_damper_01", "brake_pad_01"],
     "settings": { "tire_pressure": 2.2 },
-    "note": "ながさわは空気との勝負。翼は要らない。軽さと伸びだ。"
+    "note": "ながさわは空気との勝負。翼は要らない。軽さと伸びだ。",
+    "quali": { "note": "予選は最高速勝負。圧を上げて転がり抵抗を減らせ。", "settings": { "tire_pressure": 2.4 } }
   },
 
   {
     "course": "asahina", "class": 3,
     "parts": ["drivetrain_final_01", "drivetrain_lsd_01", "brake_pad_03", "brake_rotor_01", "brake_bias_01", "tire_compound_02", "suspension_coilover_01", "drivetrain_clutch_01", "aero_weight_light_01", "aero_weight_light_02"],
     "settings": { "tire_pressure": 2.0, "ride_height": 110, "brake_bias": 62 },
-    "note": "LSDが立ち上がりを変える。配分は前に少し。止まらなきゃ曲がれない。"
+    "note": "LSDが立ち上がりを変える。配分は前に少し。止まらなきゃ曲がれない。",
+    "quali": { "note": "予選は圧高め、配分は前。止まらなきゃ一周も速くない。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "misaki", "class": 3,
     "parts": ["drivetrain_final_01", "drivetrain_lsd_01", "suspension_stabi_02", "tire_compound_03", "suspension_coilover_01", "suspension_camber_01", "engine_ecu_01", "engine_exhaust_02", "aero_weight_light_01", "brake_pad_02"],
     "settings": { "tire_pressure": 2.1, "ride_height": 105 },
-    "note": "リアのスタビで頭を入れる。前は触るな。"
+    "note": "リアのスタビで頭を入れる。前は触るな。",
+    "quali": { "note": "予選は柔らかいのを履いて圧高め。一周しか使わない。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "hibaridaira", "class": 3,
     "parts": ["drivetrain_final_02", "drivetrain_lsd_01", "suspension_stabi_01", "suspension_stabi_02", "aero_weight_aero_01", "tire_compound_02", "suspension_coilover_01", "suspension_toe_01", "engine_ecu_01", "engine_exhaust_02", "engine_cam_01", "aero_weight_light_01", "brake_pad_02"],
     "settings": { "tire_pressure": 2.1, "ride_height": 110 },
-    "note": "前後で釣り合わせる。片方だけ固めるな。"
+    "note": "前後で釣り合わせる。片方だけ固めるな。",
+    "quali": { "note": "予選は圧を上げて、翼はそのまま。全部の区間で少しずつ稼げ。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "nagasawa", "class": 3,
     "parts": ["drivetrain_final_02", "drivetrain_lsd_01", "engine_cam_01", "engine_exhaust_02", "engine_ecu_01", "aero_weight_light_01", "aero_weight_light_02", "tire_compound_01", "suspension_coilover_01", "brake_pad_02"],
     "settings": { "tire_pressure": 2.2, "ride_height": 100 },
-    "note": "翼を外して車高を落とせ。空気はタダじゃない。"
+    "note": "翼を外して車高を落とせ。空気はタダじゃない。",
+    "quali": { "note": "予選は圧高め、車高は底。翼は要らない。", "settings": { "tire_pressure": 2.4 } }
   },
   {
     "course": "kazahaya", "class": 3,
     "parts": ["drivetrain_final_02", "aero_weight_aero_02", "suspension_stabi_01", "suspension_stabi_02", "suspension_coilover_01", "tire_slick_01", "engine_cam_01", "engine_exhaust_02", "engine_ecu_01", "drivetrain_lsd_01", "brake_pad_02", "aero_weight_light_01"],
     "settings": { "tire_pressure": 2.1, "ride_height": 100 },
-    "note": "かざはやは翼で走る。ストレートで払う分は覚悟しろ。"
+    "note": "かざはやは翼で走る。ストレートで払う分は覚悟しろ。",
+    "quali": { "note": "予選は翼を信じて圧高め。ストレートで払う分は一周なら安い。", "settings": { "tire_pressure": 2.35 } }
   },
 
   {
     "course": "hibaridaira", "class": 4,
     "parts": ["engine_turbo_01", "engine_cam_01", "engine_exhaust_02", "engine_ecu_01", "drivetrain_final_02", "drivetrain_gearset_01", "drivetrain_lsd_02", "suspension_coilover_02", "suspension_stabi_01", "suspension_stabi_02", "aero_weight_aero_03", "aero_weight_light_03", "aero_weight_light_02", "brake_caliper_01", "brake_pad_03", "tire_slick_01"],
     "settings": { "tire_pressure": 2.1, "ride_height": 75 },
-    "note": "過給は熱との取引だ。冷やせないなら踏むな。"
+    "note": "過給は熱との取引だ。冷やせないなら踏むな。",
+    "quali": { "note": "予選はブーストを開けて圧高め。一周なら熱は間に合う。", "settings": { "tire_pressure": 2.35 } }
   },
   {
     "course": "nagasawa", "class": 4,
     "parts": ["engine_turbo_02", "engine_cam_01", "engine_exhaust_02", "engine_ecu_01", "drivetrain_final_02", "drivetrain_lsd_01", "suspension_coilover_02", "aero_weight_light_04", "aero_weight_light_01", "aero_weight_light_02", "tire_slick_01", "brake_pad_03", "brake_rotor_01"],
     "settings": { "tire_pressure": 2.2, "ride_height": 65 },
-    "note": "ながさわの空気は重い。翼なし、車高は底。壊れる前に降りろ。"
+    "note": "ながさわの空気は重い。翼なし、車高は底。壊れる前に降りろ。",
+    "quali": { "note": "予選は圧高め、車高は底、ブースト全開。壊れる前に一周で戻れ。", "settings": { "tire_pressure": 2.4 } }
   }
 ]

@@ -423,6 +423,11 @@
       { "text": "おいちゃ……アンタ、聞こえてる？", "sound_cue": "" },
       { "text": "……親父も、こんな声で聞いてたのかな", "sound_cue": "" }
     ],
+    "quali": [
+      { "text": "予選って一発じゃん。一発、好き", "sound_cue": "" },
+      { "text": "アタック前。静かにして", "sound_cue": "" },
+      { "text": "今の一周、録画してる？　してないの", "sound_cue": "" }
+    ],
     "ai": {
       "straight": [
         { "text": "あいつ直線だけ速い。コーナーで返す", "sound_cue": "" },
@@ -505,6 +510,44 @@
     }
   ],
 
+  "quali": {
+    "out": [
+      { "text": "アウトラップ。温める", "sound_cue": "" },
+      { "text": "まだ踏まない。起こしてる", "sound_cue": "" },
+      { "text": "一周、流す", "sound_cue": "" }
+    ],
+    "attack_start": [
+      { "text": "行く", "sound_cue": "" },
+      { "text": "アタック。黙ってて", "sound_cue": "" },
+      { "text": "ここから一発", "sound_cue": "" }
+    ],
+    "attack_good": [
+      { "text": "今の区間、いい", "sound_cue": "" },
+      { "text": "乗ってる。このまま", "sound_cue": "" },
+      { "text": "今の、悪くない", "sound_cue": "" }
+    ],
+    "attack_bad": [
+      { "text": "今の区間、落とした", "sound_cue": "" },
+      { "text": "ちょっとミスった", "sound_cue": "" },
+      { "text": "……もう一回は無いんだよね", "sound_cue": "" }
+    ],
+    "traffic": [
+      { "text": "前に遅いのがいる", "sound_cue": "" },
+      { "text": "前、邪魔。どいて", "sound_cue": "" },
+      { "text": "前の車、アタックしてない。抜けない", "sound_cue": "" }
+    ],
+    "in": [
+      { "text": "終わり。戻る", "sound_cue": "" },
+      { "text": "インラップ。冷やす", "sound_cue": "" },
+      { "text": "一発は出した。あとは知らない", "sound_cue": "" }
+    ],
+    "done": [
+      { "text": "これがウチの一発", "sound_cue": "" },
+      { "text": "出た。見た？", "sound_cue": "" },
+      { "text": "……こんなもん", "sound_cue": "" }
+    ]
+  },
+
   "pit": {
     "understeer": {
       "mood": "不機嫌",
@@ -553,6 +596,13 @@
       "lines": [
         { "text": "これ、ウチにはまだ早い気がする", "sound_cue": "" },
         { "text": "乗れなくはない。乗れてるとは言わない", "sound_cue": "" }
+      ]
+    },
+    "quali_pressure_ok": {
+      "mood": "通常",
+      "lines": [
+        { "text": "一発なら高めでいい。決勝はまた考える", "sound_cue": "" },
+        { "text": "予選はこれでいい。一周だけ持てばいい", "sound_cue": "" }
       ]
     },
     "from_notes": {
