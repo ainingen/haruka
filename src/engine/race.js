@@ -22,6 +22,45 @@ export const KEYS = Object.freeze([
 export const SECTOR_TYPES = Object.freeze(['straight', 'fast_corner', 'slow_corner']);
 
 /**
+ * 装着スロット。装着の排他はカテゴリではなくスロット単位で決まる。
+ * 配列の順序が正で、パーツの「ホームスロット」は占有スロットのうち最も前のもの。
+ */
+export const SLOTS = Object.freeze({
+  engine:      ['intake', 'exhaust', 'ecu', 'cam', 'forced_induction'],
+  drivetrain:  ['final', 'clutch', 'lsd', 'gearbox'],
+  suspension:  ['damper', 'camber', 'toe', 'stabi_front', 'stabi_rear'],
+  tire:        ['compound'],
+  brake:       ['pad', 'rotor', 'caliper', 'bias'],
+  aero_weight: ['weight', 'aero'],
+});
+
+/** そのパーツが占有するスロット。ユニット部品は replaces で複数を埋める。 */
+export function occupiedSlots(part) {
+  return [part.slot, ...(part.replaces ?? [])].filter(Boolean);
+}
+
+/**
+ * 装着リストを正規化する。配列でも、スロット → パーツ の対応表でも受け取れる。
+ * 同じスロットを2つのパーツが取り合っていたら例外にする（UI のバグを早く見つけるため）。
+ * slot を持たないパーツ（テスト用の合成パーツなど）は排他の対象外。
+ */
+export function resolveLoadout(loadout) {
+  const parts = Array.isArray(loadout)
+    ? loadout.filter(Boolean)
+    : [...new Set(Object.values(loadout ?? {}).filter(Boolean))];
+  const taken = new Map();
+  for (const part of parts) {
+    for (const slot of occupiedSlots(part)) {
+      if (taken.has(slot)) {
+        throw new Error(`スロット "${slot}" が重複している（${taken.get(slot)} と ${part.id}）`);
+      }
+      taken.set(slot, part.id);
+    }
+  }
+  return parts;
+}
+
+/**
  * 重み付け。テスト（race.test.js）が通り、かつ差が体感できる範囲（0.3〜2秒/周）に
  * 収まるよう調整した値。ここだけを触れば挙動が変わる。
  *
@@ -149,7 +188,7 @@ export const SETTINGS = {
     label: 'ブレーキ前後配分',
     unit: '% 前',
     step: 1,
-    unlockedBy: ['brake_bias_01'],
+    unlockedBy: ['brake_bias_01', 'brake_works_01'],   // ワークス系は配分調整を内蔵する
     rangeFor: () => ({ min: 50, max: 70 }),
     defaultValue: () => 60,
     /**
@@ -220,13 +259,15 @@ function addStats(stats, delta, source) {
  * 連続値セッティング（空気圧・車高・ブレーキ前後配分）を渡すと、解禁されているものだけが
  * 同じ語彙の差分として合算される。渡さなければ基準値（差分ゼロ）として扱う。
  *
- * @param {object[]} parts    parts.json の要素
+ * @param {object[]|Object<string,object>} loadout
+ *        parts.json の要素の配列、または スロット → パーツ の対応表（UI はこちらを渡す）
  * @param {object}   driver   drivers.json の要素（preferred_balance を使う）
  * @param {object}   chassis  chassis.json の要素（base_speed と base）
  * @param {object}   [settings] { tire_pressure, ride_height, brake_bias } の一部または全部
  */
-export function buildPerformance(parts, driver, chassis, settings = null) {
+export function buildPerformance(loadout, driver, chassis, settings = null) {
   if (!chassis?.base_speed) throw new Error('chassis に base_speed がない');
+  const parts = resolveLoadout(loadout);
   const stats = Object.fromEntries(KEYS.map((k) => [k, 0]));
   addStats(stats, chassis.base, `chassis:${chassis.id}`);
   for (const part of parts) {

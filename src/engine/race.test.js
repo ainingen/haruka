@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { buildPerformance, simulateRace, formatTime } from './race.js';
+import { buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (name) => JSON.parse(readFileSync(join(ROOT, 'data', name), 'utf8'));
@@ -155,6 +155,36 @@ test('7. brake_rotor_01 はひばり平5周では基準車より遅いが、コ�
 
   const last = longWithout.laps[24];
   console.log(`  基準車のブレーキ温度 最終周 ${last.brakeTemp.toFixed(0)}（フェード −${last.brakeFade.toFixed(1)} pt）/ ローター車 ${longWith.laps[24].brakeTemp.toFixed(0)}（−${longWith.laps[24].brakeFade.toFixed(1)} pt）`);
+});
+
+test('8. スロット: 前後スタビは別スロットなので同時装着でき、balance が相殺される', () => {
+  const front = part('suspension_stabi_01');   // balance -3
+  const rear = part('suspension_stabi_02');    // balance +3
+  assert.equal(front.slot, 'stabi_front');
+  assert.equal(rear.slot, 'stabi_rear');
+
+  const both = buildPerformance([part('tire_compound_02'), front, rear], haruka, sedan);
+  assert.equal(both.stats.balance, 0, '前後を揃えれば balance は 0 になるはず');
+
+  const onlyFront = buildPerformance([part('tire_compound_02'), front], haruka, sedan);
+  assert.equal(onlyFront.stats.balance, -3);
+  console.log(`  フロントのみ balance ${onlyFront.stats.balance} / 前後セット balance ${both.stats.balance}`
+    + `（好み ${haruka.preferred_balance}）`);
+
+  // 同じスロットの2点は同時装着できない
+  assert.throws(() => buildPerformance([part('brake_pad_01'), part('brake_pad_02')], haruka, sedan),
+    /スロット "pad" が重複/);
+  // ユニット部品は占有スロットを塞ぐ
+  assert.deepEqual(occupiedSlots(part('engine_works_01')), SLOTS.engine);
+  assert.throws(() => buildPerformance([part('engine_works_01'), part('engine_intake_01')], haruka, sedan),
+    /スロット "intake" が重複/);
+
+  // スロット → パーツ の対応表でも渡せる
+  const byArray = buildPerformance([part('tire_compound_02'), front, rear], haruka, sedan);
+  const byMap = buildPerformance(
+    { compound: part('tire_compound_02'), stabi_front: front, stabi_rear: rear }, haruka, sedan);
+  assert.deepEqual(byMap.stats, byArray.stats);
+  assert.equal(resolveLoadout({ pad: null, rotor: undefined }).length, 0);
 });
 
 test('補足: 乱数ありでも同じシードなら同じ結果、reliability が低いとリタイアが起きうる', () => {

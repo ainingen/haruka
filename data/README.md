@@ -10,7 +10,10 @@
 | `drivers.json` | ドライバー（技量、好みのバランス、安定性） |
 
 これらを読んで走らせるのが `src/engine/race.js`。エンジンは I/O を持たないので、Node でもブラウザでも同じファイルが動く。
-挙動テストは `node --test src/engine/race.test.js`。
+挙動テストは `npm test`（＝ `node --test src/engine/race.test.js`）。
+
+`buildPerformance(loadout, ...)` の `loadout` は、パーツの配列でも
+**スロット → パーツ の対応表**でも渡せる。同じスロットを2点が取り合っていると例外になる。
 
 ## parts.json
 
@@ -38,6 +41,8 @@
 | `id` | string | 一意の識別子。`{category}_{種別}_{連番2桁}`。変更しない（セーブデータが参照する） |
 | `name` | string | 表示名。架空名のみ。実在ブランド・製品名は使わない |
 | `category` | string | `engine` / `drivetrain` / `suspension` / `tire` / `brake` / `aero_weight` のいずれか |
+| `slot` | string | 装着スロット。**装着の排他はカテゴリではなくスロット単位**。下記のスロット一覧を参照 |
+| `replaces` | string[] | 省略可。`slot` に**加えて**占有するスロット。ユニット部品（カテゴリ丸ごとの置き換え）だけが持つ |
 | `class_required` | 1〜5 | **装着**に必要なクラス（規定）。下記の対応表を参照 |
 | `sponsor_tier` | 0〜4 | **入手**に必要なスポンサー段階。下記の対応表を参照 |
 | `price` | number | 購入価格（円）。クラスが上がるほど桁が増える |
@@ -45,6 +50,49 @@
 | `effects` | object | このパーツを買う理由。パラメータ名 → 変化量 |
 | `side_effects` | object | 代償。パラメータ名 → 変化量。**空にしない** |
 | `note` | string | 父・大河のノートの書き込み。1〜3文。答えを与えず判断材料を示す |
+
+### スロット一覧
+
+同じスロットには1点しか装着できない。逆に、スロットが違えば同じカテゴリのパーツを併用できる
+（例：フロントスタビとリアスタビは別スロットなので同時装着でき、`balance` が相殺される）。
+
+| カテゴリ | スロット（この順に並べる） |
+|---|---|
+| `engine` | `intake` / `exhaust` / `ecu` / `cam` / `forced_induction` |
+| `drivetrain` | `final` / `clutch` / `lsd` / `gearbox` |
+| `suspension` | `damper` / `camber` / `toe` / `stabi_front` / `stabi_rear` |
+| `tire` | `compound` |
+| `brake` | `pad` / `rotor` / `caliper` / `bias` |
+| `aero_weight` | `weight` / `aero` |
+
+### replaces の仕様
+
+ワークス系のようなユニット部品は、カテゴリのスロットをまとめて占有する。
+
+- 占有スロット ＝ `slot` ＋ `replaces`。`replaces` に `slot` 自身は書かない。
+- **ホームスロット（`slot`）は、占有するスロットのうちカテゴリ順で最も前のもの。** 迷う余地をなくすための決め事。
+- 占有されたスロットには他のパーツを装着できない。画面では「（ワークス開発エンジンに含む）」のように表示する。
+
+```json
+{
+  "id": "engine_works_01",
+  "category": "engine",
+  "slot": "intake",
+  "replaces": ["exhaust", "ecu", "cam", "forced_induction"]
+}
+```
+
+現在のユニット部品は4点。
+
+| パーツ | 占有スロット |
+|---|---|
+| `engine_works_01` ワークス開発エンジン | engine 全5スロット |
+| `drivetrain_works_01` ワークス駆動系 | drivetrain 全4スロット |
+| `suspension_works_01` ワークス専用サスペンション | suspension 全5スロット |
+| `brake_works_01` カーボンブレーキシステム | brake 全4スロット（`bias` を含むため、前後配分スライダーはこのパーツ単体でも解禁される） |
+
+`tire_works_01` と `aero_weight_works_01` はユニットではない。前者はコンパウンドそのもの、
+後者は空力パッケージであって軽量化ではない（`weight` を +6 する側なので、`weight` スロットは空けてある）。
 
 ### 符号の規約
 
@@ -198,14 +246,14 @@
 ## 連続値セッティング
 
 パーツとは別に、走行前に決める数値。定義は `src/engine/race.js` の `SETTINGS`。
-`buildPerformance(parts, driver, chassis, settings)` の第4引数で渡すと、
+`buildPerformance(loadout, driver, chassis, settings)` の第4引数で渡すと、
 パーツの `effects` / `side_effects` と同じ語彙・同じ向きの差分として合算される。
 
 | キー | 範囲 | 解禁条件 | 効果と代償 |
 |---|---|---|---|
 | `tire_pressure` | 1.6〜2.6 bar（基準 2.1） | 常時 | 高いほど `warmup` が上がるが `tire_wear` も増える。基準から離れるほど `cornering_grip` が落ちる（接地形状） |
 | `ride_height` | 基準 −40〜+20 mm | 車高調系を装着 | 下げると `downforce` `cornering_grip` が上がり `drag` が減るが、`road_compliance` を失う |
-| `brake_bias` | 50〜70 %前（基準 60） | `brake_bias_01` を装着 | 後ろへ寄せると `turn_in` と `balance` が上がり `stability` を失う。どちらに振っても `braking` は二次で落ちる |
+| `brake_bias` | 50〜70 %前（基準 60） | `brake_bias_01` または `brake_works_01` を装着 | 後ろへ寄せると `turn_in` と `balance` が上がり `stability` を失う。どちらに振っても `braking` は二次で落ちる |
 
 **基準値が常に最適ではない。** 空気圧はレース長で、車高はコース特性で、ブレーキ配分は車の `balance` と
 ドライバーの `preferred_balance` との関係で最適点が動く。

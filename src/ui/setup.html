@@ -128,42 +128,51 @@ h2 {
 .slider .hint { font-size: 10px; color: var(--ink-2); }
 .slider .locked { color: var(--ink-3); font-size: 10px; }
 
-/* --- 部品表（引き出しラベル） -------------------------------------------- */
+/* --- 部品表：カテゴリ見出し＋スロット行 ---------------------------------- */
 .bom { border: 1px solid var(--rule); }
+.bom-cat {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--lock-bg); border-bottom: 1px solid var(--ink-3);
+  padding: 5px 8px; font-size: 11px; letter-spacing: .1em;
+}
+.bom-cat .no {
+  width: 19px; height: 19px; border: 1px solid var(--ink); border-radius: 50%;
+  display: grid; place-items: center; font-size: 10px; font-variant-numeric: tabular-nums;
+  letter-spacing: 0; flex: none;
+}
+.bom-cat .fill { margin-left: auto; font-size: 10px; color: var(--ink-2); letter-spacing: 0; }
 .bom-row {
-  display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center;
-  padding: 7px 8px; border-bottom: 1px solid var(--ink-3);
+  display: grid; grid-template-columns: 78px 1fr auto; gap: 8px; align-items: center;
+  padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--ink-3);
   background: none; width: 100%; text-align: left; cursor: pointer;
   font: inherit; color: inherit;
 }
 .bom-row:last-child { border-bottom: 0; }
-.bom-row:hover { background: var(--lock-bg); }
-.bom-row .no {
-  width: 22px; height: 22px; border: 1px solid var(--ink); border-radius: 50%;
-  display: grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums;
-}
-.bom-row .cat { font-size: 10px; letter-spacing: .1em; color: var(--ink-2); }
-.bom-row .name { font-size: 13px; }
+.bom-row:hover { background: var(--field); }
+.bom-row .slot { font-size: 10px; letter-spacing: .06em; color: var(--ink-2); }
+.bom-row .name { font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
 .bom-row .name.empty {
   color: var(--ink-3); border: 1px dashed var(--ink-3);
-  padding: 1px 8px; display: inline-block; font-size: 12px;
+  padding: 1px 8px; display: inline-block; font-size: 11.5px;
 }
-.bom-row .chev { font-size: 11px; color: var(--ink-2); }
+.bom-row .name.included { color: var(--ink-3); font-size: 11.5px; }
+.bom-row .chev { font-size: 10px; color: var(--ink-2); white-space: nowrap; }
 .badge {
   font-size: 9px; letter-spacing: .08em; border: 1px solid var(--bad); color: var(--bad);
   padding: 0 4px; margin-left: 6px; white-space: nowrap;
 }
+.badge.unit { border-color: var(--accent); color: var(--accent); }
 
 /* --- パーツ選択 ---------------------------------------------------------- */
 .picker { border: 1px solid var(--rule); border-top: 0; background: var(--field); }
 .picker-head {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
   padding: 6px 8px; border-bottom: 1px solid var(--ink-3);
   font-size: 11px; letter-spacing: .1em; color: var(--ink-2);
 }
 .picker-head button {
   font: inherit; font-size: 11px; background: none; border: 1px solid var(--ink-3);
-  color: var(--ink); padding: 2px 8px; cursor: pointer;
+  color: var(--ink); padding: 2px 8px; cursor: pointer; white-space: nowrap;
 }
 .part { padding: 8px; border-bottom: 1px solid var(--ink-3); }
 .part:last-child { border-bottom: 0; }
@@ -225,7 +234,7 @@ h2 {
 .laps .cname { min-width: 0; }
 .laps .cprof { font-size: 10px; color: var(--ink-2); }
 .laps .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
-.laps .d { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.laps .d { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
 
 .legend { font-size: 10px; color: var(--ink-2); margin-top: 8px; display: flex; gap: 12px; }
 .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
@@ -237,6 +246,7 @@ h2 {
   .details { flex-direction: column; }
   .status { grid-template-columns: 1fr 1fr; }
   .status div:last-child { grid-column: 1 / -1; }
+  .bom-row { grid-template-columns: 68px 1fr auto; padding-left: 8px; }
 }
 </style>
 </head>
@@ -280,7 +290,7 @@ h2 {
   </div>
 
   <h2>主ビュー / 側面</h2>
-  <svg class="mainview" id="mainview" viewBox="0 0 400 184" role="img" aria-label="車体側面図と寸法"></svg>
+  <svg class="mainview" id="mainview" viewBox="0 0 412 188" role="img" aria-label="車体側面図と寸法"></svg>
   <div class="note-scale" id="scaleNote"></div>
 
   <div class="details">
@@ -299,7 +309,7 @@ h2 {
   <h2>セッティング / 連続値</h2>
   <div id="sliders"></div>
 
-  <h2>部品表</h2>
+  <h2>部品表 / スロット</h2>
   <div class="bom" id="bom"></div>
   <div class="picker" id="picker" hidden></div>
   <div id="illegalWarn"></div>
@@ -321,7 +331,7 @@ h2 {
 <script type="module">
 import {
   buildPerformance, simulateRace, formatTime,
-  SETTINGS, isSettingUnlocked,
+  SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots,
 } from '../engine/race.js';
 
 // ---------------------------------------------------------------------------
@@ -337,6 +347,15 @@ const STAT_LABEL = {
   unsprung_weight: 'ばね下重量', warmup: '温まり', tire_wear: 'タイヤ摩耗',
   heat: '発熱', fuel_consumption: '燃料消費', reliability: '信頼性',
   noise: '騒音', driver_demand: '要求技量',
+};
+const SLOT_LABEL = {
+  intake: '吸気', exhaust: '排気', ecu: '燃調', cam: 'カム', forced_induction: '過給',
+  final: 'ファイナル', clutch: 'クラッチ', lsd: 'LSD', gearbox: 'ミッション',
+  damper: 'ダンパー', camber: 'キャンバー', toe: 'トー',
+  stabi_front: 'スタビ（前）', stabi_rear: 'スタビ（後）',
+  compound: 'コンパウンド',
+  pad: 'パッド', rotor: 'ローター', caliper: 'キャリパー', bias: '前後配分',
+  weight: '軽量化', aero: '空力',
 };
 const CATEGORIES = [
   { id: 'engine',      label: 'エンジン' },
@@ -364,32 +383,64 @@ const svgEl = (name, attrs = {}, text = null) => {
   if (text !== null) n.textContent = text;
   return n;
 };
+const ALL_SLOTS = CATEGORIES.flatMap((c) => SLOTS[c.id]);
+const slotCategory = (slot) => CATEGORIES.find((c) => SLOTS[c.id].includes(slot)).id;
 
 // ---------------------------------------------------------------------------
-// 状態
+// 状態：装着はスロット単位で持つ（ユニット部品は複数スロットに同じ id が入る）
 // ---------------------------------------------------------------------------
 const state = {
   cls: 2,
   tier: 1,
-  equipped: Object.fromEntries(CATEGORIES.map((c) => [c.id, null])), // category -> part id
-  settings: {},      // key -> 値（未設定なら既定値）
-  openCategory: null,
+  equipped: Object.fromEntries(ALL_SLOTS.map((s) => [s, null])),  // slot -> part id
+  settings: {},        // key -> 値（未設定なら既定値）
+  openSlot: null,
 };
 let DATA = null;
 
 const chassis = () => DATA.chassis[CLASS_CHASSIS[state.cls]];
 const partById = (id) => DATA.parts.find((p) => p.id === id) ?? null;
+/** 装着中のパーツ（重複を除く）。ユニット部品は1点として数える。 */
 const equippedParts = () =>
-  CATEGORIES.map((c) => partById(state.equipped[c.id])).filter(Boolean);
+  [...new Set(Object.values(state.equipped).filter(Boolean))].map(partById);
 /** 規定とスポンサー段階を満たしているか。 */
 const isLegal = (p) => p.class_required <= state.cls && p.sponsor_tier <= state.tier;
 /** 性能計算に乗るのは「装着済み かつ 規定を満たす」パーツだけ。 */
 const activeParts = () => equippedParts().filter(isLegal);
 const illegalParts = () => equippedParts().filter((p) => !isLegal(p));
+/** そのスロットを塞いでいるユニット部品（ホームスロットでない場合だけ返す）。 */
+function coveredBy(slot) {
+  const id = state.equipped[slot];
+  if (!id) return null;
+  const p = partById(id);
+  return p.slot === slot ? null : p;
+}
+/** そのスロットに入っている「規定を満たす」パーツ。DETAIL の描き分けに使う。 */
+function inSlot(slot) {
+  const id = state.equipped[slot];
+  if (!id) return null;
+  const p = partById(id);
+  return isLegal(p) ? p : null;
+}
+
+function equipPart(part) {
+  const slots = occupiedSlots(part);
+  // 取り合いになる既存パーツを、その占有スロットごと外す
+  for (const cur of equippedParts()) {
+    if (occupiedSlots(cur).some((s) => slots.includes(s))) {
+      for (const s of occupiedSlots(cur)) state.equipped[s] = null;
+    }
+  }
+  for (const s of slots) state.equipped[s] = part.id;
+}
+function unequipSlot(slot) {
+  const id = state.equipped[slot];
+  if (!id) return;
+  for (const s of occupiedSlots(partById(id))) state.equipped[s] = null;
+}
 
 function settingValue(key) {
-  const def = SETTINGS[key];
-  return state.settings[key] ?? def.defaultValue(chassis());
+  return state.settings[key] ?? SETTINGS[key].defaultValue(chassis());
 }
 /** 解禁されているセッティングだけを race.js に渡す。 */
 function activeSettings() {
@@ -400,7 +451,17 @@ function activeSettings() {
   }
   return out;
 }
-const perf = () => buildPerformance(activeParts(), DATA.driver, chassis(), activeSettings());
+/** 装着リストはスロット → パーツ の対応表で渡す（race.js が重複を検査する）。 */
+function loadout() {
+  const map = {};
+  for (const [slot, id] of Object.entries(state.equipped)) {
+    if (!id) continue;
+    const p = partById(id);
+    if (isLegal(p) && p.slot === slot) map[slot] = p;   // ホームスロットの分だけ入れる
+  }
+  return map;
+}
+const perf = () => buildPerformance(loadout(), DATA.driver, chassis(), activeSettings());
 
 // ---------------------------------------------------------------------------
 // データ読み込み
@@ -457,7 +518,6 @@ const BALLOON_COLUMNS = {
   left:  ['engine', 'suspension', 'brake'],
   right: ['aero_weight', 'drivetrain', 'tire'],
 };
-
 const DIM = { stroke: 'var(--dim)', 'stroke-width': .7, fill: 'none' };
 
 function drawMainView() {
@@ -467,8 +527,8 @@ function drawMainView() {
   const disp = chassis().display;
 
   // --- 車体 ---------------------------------------------------------------
-  const scale = 236 / car.vbW;
-  const originX = (400 - car.vbW * scale) / 2;
+  const scale = 232 / car.vbW;
+  const originX = (392 - car.vbW * scale) / 2;
   const originY = 16;
   const g = svgEl('g', {
     transform: `translate(${originX} ${originY}) scale(${scale})`,
@@ -518,11 +578,11 @@ function drawMainView() {
     ...(rotate ? { transform: `rotate(${rotate} ${x} ${y})` } : {}),
   }, label));
 
-  // 接地線
-  line(`M${L - 30} ${B} L${R + 30} ${B}`, { 'stroke-dasharray': '3 3' });
+  // 接地線。右端は全高の寸法補助線を兼ねる
+  line(`M${L - 40} ${B} L404 ${B}`, { 'stroke-dasharray': '3 3' });
 
   // 全長（最下段）／ホイールベース（その上）
-  const yLen = 170, yWb = 152;
+  const yLen = 174, yWb = 156;
   line(`M${L} ${B + 3} L${L} ${yLen + 6}`);
   line(`M${R} ${B + 3} L${R} ${yLen + 6}`);
   line(`M${L} ${yLen} L${R} ${yLen}`);
@@ -535,31 +595,29 @@ function drawMainView() {
   arrowsH(wbL, wbR, yWb);
   dimText((wbL + wbR) / 2, yWb, `WB ${disp.wheelbase_mm} mm`);
 
-  // 全高（左・縦）：図示は誇張、数値は実寸で計算する
-  const xH = L - 22;
-  // 基準車高のときの全高だけをシルエットから割り出して覚え、以降は実寸で引き算する
-  // （図示は誇張しているので、誇張ぶんを戻して計算すると 1mm 単位で揺れる）
+  // 全高：右端の外側（バルーンより外）に置く。左の引き出し線と交差させないため。
+  // 図示は誇張しているので、基準車高のときの値だけを覚えて実寸で引き算する。
+  const xH = 400;
   car.overallBaseMm ??= Math.round(disp.length_mm * (H / W));
   const overall = car.overallBaseMm - rideDelta;
-  line(`M${xH - 5} ${T} L${L} ${T}`);
-  line(`M${xH - 5} ${B} L${L} ${B}`);
+  line(`M${R} ${T} L404 ${T}`, { 'stroke-dasharray': '3 3' });   // 屋根からの補助線
   line(`M${xH} ${T} L${xH} ${B}`);
   arrowsV(xH, T, B);
   dimText(xH, (T + B) / 2, `全高 ${overall} mm`, -90);
 
-  // 車高＝地上高（右・縦）：スライダーの値がそのまま寸法値になる
-  const xR = R + 16;
-  line(`M${R - 10} ${sillY} L${xR + 5} ${sillY}`);
+  // 車高＝地上高：左下。スライダーの値がそのまま寸法値になる
+  const xR = L - 18;
+  line(`M${L + 10} ${sillY} L${xR - 5} ${sillY}`);
   line(`M${xR} ${sillY} L${xR} ${B}`);
   arrowsV(xR, sillY, B);
-  dimText(xR + 15, (sillY + B) / 2, `車高 ${settingValue('ride_height')} mm`, -90);
+  dimText(xR, B + 13, `車高 ${settingValue('ride_height')} mm`);
 
-  // --- 引き出し線とバルーン ------------------------------------------------
+  // --- 引き出し線とバルーン（寸法線より後に描いて補助線を隠す） ------------
   const order = Object.fromEntries(CATEGORIES.map((c, i) => [c.id, i + 1]));
   for (const [side, ids] of Object.entries(BALLOON_COLUMNS)) {
-    const bx = side === 'left' ? 18 : 382;
+    const bx = side === 'left' ? 18 : 372;
     ids.forEach((id, i) => {
-      const by = T + H * (0.06 + 0.47 * i);
+      const by = T + H * (side === 'left' ? 0.06 + 0.34 * i : 0.06 + 0.47 * i);
       const [fx, fy] = ANCHORS[id];
       const ax = L + W * fx, ay = T + H * fy;
       const elbowX = side === 'left' ? bx + 26 : bx - 26;
@@ -569,16 +627,18 @@ function drawMainView() {
         d: `M${ax} ${ay} L${elbowX} ${by} L${bx + (side === 'left' ? 8 : -8)} ${by}`,
       }));
       grp.appendChild(svgEl('circle', { cx: ax, cy: ay, r: 1.8, fill: 'var(--ink-2)', stroke: 'none' }));
-      const on = state.equipped[id] && isLegal(partById(state.equipped[id]));
+      const filled = SLOTS[id].some((s) => state.equipped[s] && isLegal(partById(state.equipped[s])));
       grp.appendChild(svgEl('circle', {
-        cx: bx, cy: by, r: 8.5, fill: on ? 'var(--ink)' : 'var(--paper-2)',
+        cx: bx, cy: by, r: 8.5, fill: filled ? 'var(--ink)' : 'var(--paper-2)',
         stroke: 'var(--ink)', 'stroke-width': 1,
       }));
       grp.appendChild(svgEl('text', {
         x: bx, y: by, 'text-anchor': 'middle', 'dominant-baseline': 'central',
-        'font-size': 10, fill: on ? 'var(--paper-2)' : 'var(--ink)',
+        'font-size': 10, fill: filled ? 'var(--paper-2)' : 'var(--ink)',
       }, String(order[id])));
-      grp.addEventListener('click', () => openPicker(id));
+      grp.addEventListener('click', () => {
+        el(`cat-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       view.appendChild(grp);
     });
   }
@@ -587,17 +647,15 @@ function drawMainView() {
 }
 
 // ---------------------------------------------------------------------------
-// DETAIL 枠
+// DETAIL 枠：装着スロットの中身で見た目を変える
 // ---------------------------------------------------------------------------
 function drawWheelDetail() {
   const sv = el('detailWheel');
   sv.textContent = '';
   const cx = 60, cy = 52;
-  const light = state.equipped.aero_weight === 'aero_weight_light_02'
-    && isLegal(partById('aero_weight_light_02'));
-  const brake = state.equipped.brake;
-  const bigRotor = ['brake_rotor_01', 'brake_works_01'].includes(brake) && brake && isLegal(partById(brake));
-  const bigCaliper = ['brake_caliper_01', 'brake_works_01'].includes(brake) && brake && isLegal(partById(brake));
+  const light = inSlot('weight')?.id === 'aero_weight_light_02';
+  const bigRotor = ['brake_rotor_01', 'brake_works_01'].includes(inSlot('rotor')?.id);
+  const bigCaliper = ['brake_caliper_01', 'brake_works_01'].includes(inSlot('caliper')?.id);
 
   const g = svgEl('g', { fill: 'none', stroke: 'var(--car)', 'stroke-width': 1.1,
     'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
@@ -639,15 +697,14 @@ function drawWheelDetail() {
 function drawSuspDetail() {
   const sv = el('detailSusp');
   sv.textContent = '';
-  const id = state.equipped.suspension;
-  const legal = id && isLegal(partById(id));
-  const kind = !legal ? 'stock'
-    : id === 'suspension_damper_01' ? 'damper'
-    : id === 'suspension_coilover_01' ? 'coilover'
-    : ['suspension_coilover_02', 'suspension_works_01'].includes(id) ? 'race' : 'other';
+  const damper = inSlot('damper');
+  const kind = !damper ? 'stock'
+    : damper.id === 'suspension_damper_01' ? 'damper'
+    : damper.id === 'suspension_coilover_01' ? 'coilover'
+    : ['suspension_coilover_02', 'suspension_works_01'].includes(damper.id) ? 'race' : 'other';
   const spec = {
     stock:    { coils: 5,  knobs: 0, thread: false, label: '純正（調整不可）' },
-    other:    { coils: 6,  knobs: 0, thread: false, label: '社外アーム類' },
+    other:    { coils: 6,  knobs: 0, thread: false, label: '社外ダンパー' },
     damper:   { coils: 7,  knobs: 1, thread: false, label: '純正形状・減衰調整式' },
     coilover: { coils: 9,  knobs: 1, thread: true,  label: '車高調（全長調整）' },
     race:     { coils: 12, knobs: 3, thread: true,  label: 'レース用・3way 減衰' },
@@ -655,7 +712,7 @@ function drawSuspDetail() {
 
   const g = svgEl('g', { fill: 'none', stroke: 'var(--car)', 'stroke-width': 1.1,
     'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-  const topY = 14, botY = 84, cx = 52;
+  const topY = 12, botY = 78, cx = 52;
   g.appendChild(svgEl('path', { d: `M${cx - 14} ${topY} L${cx + 14} ${topY}` }));   // アッパーマウント
   g.appendChild(svgEl('path', { d: `M${cx} ${topY} L${cx} ${topY + 8}` }));
 
@@ -664,7 +721,7 @@ function drawSuspDetail() {
   const ratio = spec.thread
     ? 1 - (disp.ride_height_mm - settingValue('ride_height')) / 120
     : 1;
-  const springTop = topY + 10, springBot = botY - 16;
+  const springTop = topY + 10, springBot = botY - 14;
   const pitch = ((springBot - springTop) / spec.coils) * ratio;
   const w = 13;
   let d = `M${cx - w} ${springTop}`;
@@ -673,13 +730,12 @@ function drawSuspDetail() {
   }
   g.appendChild(svgEl('path', { d }));
   const shaftBot = springTop + pitch * spec.coils;
-  g.appendChild(svgEl('path', { d: `M${cx} ${springTop} L${cx} ${shaftBot + 10}` }));  // シャフト
-  g.appendChild(svgEl('path', { d: `M${cx - 10} ${shaftBot + 10} L${cx + 10} ${shaftBot + 10}` }));
-  g.appendChild(svgEl('path', { d: `M${cx - 6} ${shaftBot + 10} L${cx - 6} ${shaftBot + 18} M${cx + 6} ${shaftBot + 10} L${cx + 6} ${shaftBot + 18}` }));
+  g.appendChild(svgEl('path', { d: `M${cx} ${springTop} L${cx} ${shaftBot + 9}` }));  // シャフト
+  g.appendChild(svgEl('path', { d: `M${cx - 10} ${shaftBot + 9} L${cx + 10} ${shaftBot + 9}` }));
 
   if (spec.thread) {   // 車高調整のネジ山
     const tg = svgEl('g', { stroke: 'var(--ink-2)', 'stroke-width': .6, fill: 'none' });
-    for (let y = shaftBot + 1; y < shaftBot + 10; y += 2) {
+    for (let y = shaftBot + 1; y < shaftBot + 9; y += 2) {
       tg.appendChild(svgEl('path', { d: `M${cx - 9} ${y} L${cx + 9} ${y}` }));
     }
     g.appendChild(tg);
@@ -688,8 +744,24 @@ function drawSuspDetail() {
     g.appendChild(svgEl('circle', { cx: cx + 22, cy: topY + 14 + i * 11, r: 4,
       stroke: 'var(--ink)', 'stroke-width': .9 }));
   }
+
+  // スタビ：前後が揃っているかを記号で示す（単体だと balance が偏る）
+  const sf = inSlot('stabi_front'), sr = inSlot('stabi_rear');
+  const mark = (x, label, on) => {
+    g.appendChild(svgEl('rect', { x, y: 88, width: 20, height: 10, rx: 1,
+      stroke: on ? 'var(--car)' : 'var(--ink-3)', 'stroke-width': .8,
+      'stroke-dasharray': on ? 'none' : '2 2' }));
+    g.appendChild(svgEl('text', { x: x + 10, y: 93.5, 'text-anchor': 'middle',
+      'dominant-baseline': 'central', 'font-size': 6.5, stroke: 'none',
+      fill: on ? 'var(--car)' : 'var(--ink-3)' }, label));
+  };
+  mark(24, '前', !!sf);
+  mark(56, '後', !!sr);
   sv.appendChild(g);
-  el('suspSub').innerHTML = `${spec.label}<br>巻き数 ${spec.coils}・減衰調整 ${spec.knobs}way`;
+
+  const stabi = sf && sr ? '前後セット（balance 相殺）' : sf ? '前のみ' : sr ? '後のみ' : 'なし';
+  el('suspSub').innerHTML =
+    `${spec.label}<br>巻き数 ${spec.coils}・減衰 ${spec.knobs}way / スタビ ${stabi}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -743,24 +815,43 @@ function drawSliders() {
 }
 
 // ---------------------------------------------------------------------------
-// 部品表とパーツ選択
+// 部品表：カテゴリ見出しの下にスロット行が並ぶ
 // ---------------------------------------------------------------------------
 function drawBom() {
   const bom = el('bom');
   bom.textContent = '';
+
   CATEGORIES.forEach((cat, i) => {
-    const p = partById(state.equipped[cat.id]);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'bom-row';
-    const name = p
-      ? `<span class="name">${p.name}</span>${isLegal(p) ? '' : '<span class="badge">規定外</span>'}`
-      : '<span class="name empty">未装着</span>';
-    btn.innerHTML = `<span class="no">${i + 1}</span>
-      <span><span class="cat">${cat.label}</span><br>${name}</span>
-      <span class="chev">${state.openCategory === cat.id ? '閉じる ▲' : '選択 ▼'}</span>`;
-    btn.addEventListener('click', () => openPicker(cat.id));
-    bom.appendChild(btn);
+    const slots = SLOTS[cat.id];
+    const filled = slots.filter((s) => state.equipped[s]).length;
+    const head = document.createElement('div');
+    head.className = 'bom-cat';
+    head.id = `cat-${cat.id}`;
+    head.innerHTML = `<span class="no">${i + 1}</span><span>${cat.label}</span>
+      <span class="fill">${filled} / ${slots.length} スロット</span>`;
+    bom.appendChild(head);
+
+    for (const slot of slots) {
+      const p = partById(state.equipped[slot]);
+      const unit = coveredBy(slot);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bom-row';
+      let name;
+      if (unit) {
+        name = `<span class="name included">（${unit.name}に含む）</span>`;
+      } else if (p) {
+        name = `<span class="name">${p.name}</span>`
+          + (isLegal(p) ? '' : '<span class="badge">規定外</span>')
+          + (p.replaces?.length ? '<span class="badge unit">ユニット</span>' : '');
+      } else {
+        name = '<span class="name empty">未装着</span>';
+      }
+      btn.innerHTML = `<span class="slot">${SLOT_LABEL[slot]}</span><span>${name}</span>
+        <span class="chev">${state.openSlot === slot ? '閉じる ▲' : '選択 ▼'}</span>`;
+      btn.addEventListener('click', () => openPicker(slot));
+      bom.appendChild(btn);
+    }
   });
 
   const warn = el('illegalWarn');
@@ -777,63 +868,73 @@ function statLine(obj, cls) {
     .join('　');
 }
 
-function openPicker(catId) {
-  state.openCategory = state.openCategory === catId ? null : catId;
+function openPicker(slot) {
+  state.openSlot = state.openSlot === slot ? null : slot;
   drawBom();
   drawPicker();
-  if (state.openCategory) el('picker').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (state.openSlot) el('picker').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function drawPicker() {
   const box = el('picker');
-  if (!state.openCategory) { box.hidden = true; box.textContent = ''; return; }
-  const cat = CATEGORIES.find((c) => c.id === state.openCategory);
+  const slot = state.openSlot;
+  if (!slot) { box.hidden = true; box.textContent = ''; return; }
+  const cat = CATEGORIES.find((c) => c.id === slotCategory(slot));
   box.hidden = false;
   box.textContent = '';
 
   const head = document.createElement('div');
   head.className = 'picker-head';
-  head.innerHTML = `<span>${cat.label} — 選択</span>`;
+  head.innerHTML = `<span>${cat.label} / ${SLOT_LABEL[slot]}</span>`;
   const off = document.createElement('button');
   off.type = 'button';
-  off.textContent = state.equipped[cat.id] ? '外す' : '閉じる';
+  off.textContent = state.equipped[slot] ? '外す' : '閉じる';
   off.addEventListener('click', () => {
-    if (state.equipped[cat.id]) { state.equipped[cat.id] = null; renderAll(); }
-    else { state.openCategory = null; drawBom(); drawPicker(); }
+    if (state.equipped[slot]) { unequipSlot(slot); renderAll(); }
+    else { state.openSlot = null; drawBom(); drawPicker(); }
   });
   head.appendChild(off);
   box.appendChild(head);
 
+  // そのスロットを占有しうるパーツ（ユニット部品は占有する全スロットに出る）
   const list = DATA.parts
-    .filter((p) => p.category === cat.id)
+    .filter((p) => occupiedSlots(p).includes(slot))
     .sort((a, b) => a.class_required - b.class_required || a.price - b.price);
 
   for (const p of list) {
     const legal = isLegal(p);
-    const on = state.equipped[cat.id] === p.id;
+    const on = state.equipped[slot] === p.id;
     const div = document.createElement('div');
     div.className = `part${legal ? '' : ' locked'}${on ? ' on' : ''}`;
 
     const reasons = [];
     if (p.class_required > state.cls) reasons.push(`クラス${p.class_required}から`);
     if (p.sponsor_tier > state.tier) reasons.push(`スポンサー段階${p.sponsor_tier}から`);
+    // 付け替えで外れるパーツを先に知らせる
+    const evicts = equippedParts()
+      .filter((c) => c.id !== p.id && occupiedSlots(c).some((s) => occupiedSlots(p).includes(s)))
+      .map((c) => c.name);
 
     div.innerHTML = `
       <div class="hdr">
         <span class="pname">${p.name}</span>
         <span class="price">¥${p.price.toLocaleString('ja-JP')}</span>
       </div>
+      ${p.replaces?.length
+        ? `<div class="stats"><span class="badge unit">ユニット</span> ${occupiedSlots(p).map((s) => SLOT_LABEL[s]).join('・')} を占有</div>`
+        : ''}
       <div class="stats">${statLine(p.effects, 'e')}</div>
       <div class="stats">${statLine(p.side_effects, 's')}</div>
       <div class="note">${p.note}</div>
-      ${reasons.length ? `<div class="lockmsg">${reasons.join(' / ')}</div>` : ''}`;
+      ${reasons.length ? `<div class="lockmsg">${reasons.join(' / ')}</div>` : ''}
+      ${!on && legal && evicts.length ? `<div class="lockmsg">装着すると ${evicts.join('、')} が外れる</div>` : ''}`;
 
     const pick = document.createElement('button');
     pick.type = 'button';
     pick.className = 'pick';
     pick.textContent = on ? '装着中' : legal ? '装着する' : '装着できない';
     pick.disabled = !legal || on;
-    pick.addEventListener('click', () => { state.equipped[cat.id] = p.id; renderAll(); });
+    pick.addEventListener('click', () => { equipPart(p); renderAll(); });
     div.appendChild(pick);
     box.appendChild(div);
   }
