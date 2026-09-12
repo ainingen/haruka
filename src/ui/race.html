@@ -664,6 +664,8 @@ function constantTick(dt) {
 //   アナウンサーは事実、解説は理屈。神谷の車の解説は、ハルカの無線が出ていない周に。
 // ---------------------------------------------------------------------------
 function commentary(trigger, speaker, vars = {}) {
+  // スキップ中は途中の実況を出さない。結果が確定したチェッカーだけ残す
+  if (S.skipping && trigger !== 'checkered') return;
   const pool = S.commentary.triggers[trigger]?.[speaker];
   if (!pool?.length) return;
   say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}`, pool)), vars));
@@ -710,7 +712,8 @@ function lapCommentary(ev, traffic) {
   if (traffic.overtook || traffic.overtaken) {
     commentary('position_change', 'announcer', { ...vars, car: car.name, pos: traffic.rank });
     if (S.lineRng() < 0.5) commentary('position_change', 'analyst', vars);
-  } else if (traffic.gapAheadDelta != null && Math.abs(traffic.gapAheadDelta) >= 0.8) {
+  } else if (traffic.gapAheadDelta != null && Math.abs(traffic.gapAheadDelta) >= 0.8
+             && !car.finished && traffic.aheadCar && !traffic.aheadCar.finished) {
     const key = traffic.gapAheadDelta < 0 ? 'gap_shrink' : 'gap_grow';
     commentary(key, 'announcer', { ...vars, car: car.name, pos: traffic.rank, gap: traffic.gapAhead.toFixed(1) });
     if (S.lineRng() < 0.5) commentary(key, 'analyst', vars);
@@ -924,6 +927,7 @@ function renderStandings() {
     let gap = '—';
     if (car.retired) gap = `${car.retiredLap}周目 OUT`;
     else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
+    else if (car.finished && leader.finished) gap = `+${(car.raceTime - leader.raceTime).toFixed(1)}s`;   // 確定後は総時間差
     else {
       const d = progress(leader, S.courseLen) - progress(car, S.courseLen);
       const lapsDown = Math.floor(d / S.courseLen);
@@ -956,8 +960,10 @@ function renderPanel() {
   const secIdx = me.plan ? Math.min(me.segIdx, me.plan.length - 1) : 0;
   const sec = S.course.sectors[secIdx];
   const last = me.lapTimes.at(-1);
-  const gapA = ahead && !ahead.retired && !me.retired ? `+${gapSeconds(ahead, me).toFixed(1)}s ${ahead.name}` : '—';
-  const gapB = behind && !behind.retired && !me.retired ? `−${gapSeconds(me, behind).toFixed(1)}s ${behind.name}` : '—';
+  // 確定した2台の間は総時間差、走行中は速度差ベース
+  const gapTo = (a, b) => (a.finished && b.finished ? b.raceTime - a.raceTime : gapSeconds(a, b));
+  const gapA = ahead && !ahead.retired && !me.retired ? `+${gapTo(ahead, me).toFixed(1)}s ${ahead.name}` : '—';
+  const gapB = behind && !behind.retired && !me.retired ? `−${gapTo(me, behind).toFixed(1)}s ${behind.name}` : '—';
 
   const bar = (ratio, cls = '', mark = null) =>
     `<div class="bar"><i class="${cls}" style="width:${clamp(ratio * 100, 0, 100).toFixed(1)}%"></i>${mark != null ? `<b style="left:${clamp(mark * 100, 0, 100).toFixed(1)}%"></b>` : ''}</div>`;

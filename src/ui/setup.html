@@ -215,13 +215,13 @@ h2 {
 /* --- ラップ計算 ---------------------------------------------------------- */
 /* --- ピットでの一言（docs/設計/無線.md）。無線とは別枠で、画面の隅に置く ---- */
 .pitline {
-  position: fixed; left: 8px; bottom: 10px; z-index: 6; max-width: min(300px, calc(100% - 150px));
-  border: 1px solid var(--rule); background: var(--field);
-  padding: 5px 9px; font-size: 11.5px; line-height: 1.45;
-  box-shadow: 0 2px 6px var(--shadow);
+  display: flex; align-items: baseline; gap: 8px; margin-top: 12px;
+  border: 1px solid var(--rule); border-left: 3px solid var(--car); background: var(--field);
+  padding: 5px 9px; font-size: 12px; line-height: 1.45; min-height: 30px;
 }
-.pitline .k { font-size: 8.5px; letter-spacing: .2em; color: var(--ink-2); display: block; }
-@media (max-width: 520px) { .pitline { display: none; } }
+.pitline[hidden] { display: none; }
+.pitline .k { font-size: 8.5px; letter-spacing: .2em; color: var(--ink-2); white-space: nowrap; flex: none; }
+.pitline span:last-child { color: var(--car); }
 
 .calcbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
@@ -337,6 +337,11 @@ h2 {
   <h2>セッティング / 連続値</h2>
   <div id="sliders"></div>
 
+  <div class="pitline" id="pitline" hidden>
+    <span class="k">PIT — ハルカ</span>
+    <span id="pitlineText"></span>
+  </div>
+
   <h2>部品表 / スロット</h2>
   <div class="bom" id="bom"></div>
   <div class="picker" id="picker" hidden></div>
@@ -374,11 +379,6 @@ h2 {
   </div>
 
 </div></div>
-
-<div class="pitline" id="pitline" hidden>
-  <span class="k">PIT — ハルカ</span>
-  <span id="pitlineText"></span>
-</div>
 
 <div class="calcbar">
   <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
