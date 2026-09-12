@@ -202,7 +202,7 @@
     "price": 40000,
     "durability": 90,
     "effects": { "stability": 3, "road_compliance": 1 },
-    "side_effects": { "driver_demand": 2, "reliability": -1 },
+    "side_effects": { "driver_demand": 1, "reliability": -1 },
     "note": "減衰は答えじゃない。返事だ。バネに合っていなければ跳ねるか沈む。合っているかは、縁石を踏んだときの収まりで判る。"
   },
   {
@@ -432,7 +432,7 @@
     "price": 55000,
     "durability": 100,
     "effects": { "turn_in": 4, "braking": 2 },
-    "side_effects": { "driver_demand": 4, "stability": -2 },
+    "side_effects": { "driver_demand": 2, "stability": -2 },
     "note": "後ろに寄せれば頭が入る。寄せすぎればリアがロックして回る。一目盛りずつ。二目盛り動かすな。"
   },
   {
