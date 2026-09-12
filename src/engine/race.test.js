@@ -187,6 +187,35 @@ test('8. スロット: 前後スタビは別スロットなので同時装着で
   assert.equal(resolveLoadout({ pad: null, rotor: undefined }).length, 0);
 });
 
+test('9. スロット: 内装・外板・ホイールは別スロットなので併用でき、重量が合算される', () => {
+  const interior = part('aero_weight_light_01');   // 内装剥がし     weight -12
+  const wheel = part('aero_weight_light_02');      // 軽量ホイール   unsprung_weight -8
+  const body = part('aero_weight_light_04');       // カーボン外板   weight -35
+  assert.equal(interior.slot, 'interior');
+  assert.equal(wheel.slot, 'wheel');
+  assert.equal(body.slot, 'body');
+
+  const all = buildPerformance([part('tire_compound_02'), interior, wheel, body], haruka, sedan);
+  assert.equal(all.stats.weight, -47, '内装 −12 と外板 −35 が合算されるはず');
+  assert.equal(all.stats.unsprung_weight, -8, 'ホイールはばね下に乗る');
+
+  // 有効重量はセクターで違う（ばね下はコーナーで5倍相当）
+  assert.equal(all.weightEff.straight, -55);
+  assert.equal(all.weightEff.fast_corner, -87);
+  console.log(`  3点併用: weight ${all.stats.weight} / ばね下 ${all.stats.unsprung_weight}`
+    + ` → 有効重量 直線 ${all.weightEff.straight} / コーナー ${all.weightEff.fast_corner}`);
+
+  // 大幅軽量化は interior と body をまとめて占有するので、上の2点とは同時装着できない
+  const heavyCut = part('aero_weight_light_03');
+  assert.deepEqual(occupiedSlots(heavyCut), ['interior', 'body']);
+  assert.throws(() => buildPerformance([heavyCut, interior], haruka, sedan), /スロット "interior" が重複/);
+  assert.throws(() => buildPerformance([heavyCut, body], haruka, sedan), /スロット "body" が重複/);
+  // ホイールと空力は別スロットなので大幅軽量化と併用できる
+  const mixed = buildPerformance([heavyCut, wheel, part('aero_weight_aero_02')], haruka, sedan);
+  assert.equal(mixed.stats.weight, -28 + 7);
+  console.log(`  大幅軽量化 + ホイール + エアロ: weight ${mixed.stats.weight} / ばね下 ${mixed.stats.unsprung_weight}`);
+});
+
 test('補足: 乱数ありでも同じシードなら同じ結果、reliability が低いとリタイアが起きうる', () => {
   const perf = buildPerformance([part('tire_compound_02'), part('engine_turbo_02')], haruka, sedan);
   const r1 = simulateRace(perf, course(BALANCED), 30, haruka, { seed: 7 });

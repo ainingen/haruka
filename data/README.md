@@ -63,7 +63,7 @@
 | `suspension` | `damper` / `camber` / `toe` / `stabi_front` / `stabi_rear` |
 | `tire` | `compound` |
 | `brake` | `pad` / `rotor` / `caliper` / `bias` |
-| `aero_weight` | `weight` / `aero` |
+| `aero_weight` | `interior` / `body` / `wheel` / `aero` |
 
 ### replaces の仕様
 
@@ -91,8 +91,15 @@
 | `suspension_works_01` ワークス専用サスペンション | suspension 全5スロット |
 | `brake_works_01` カーボンブレーキシステム | brake 全4スロット（`bias` を含むため、前後配分スライダーはこのパーツ単体でも解禁される） |
 
+`aero_weight_light_03`（大幅軽量化）もユニットで、`interior` と `body` を占有する。
+ケージ一体でアクリル窓に替える工事なので、内装剥がしと外板交換を同時に済ませてしまう、という扱い。
+
 `tire_works_01` と `aero_weight_works_01` はユニットではない。前者はコンパウンドそのもの、
-後者は空力パッケージであって軽量化ではない（`weight` を +6 する側なので、`weight` スロットは空けてある）。
+後者は空力パッケージであって軽量化ではない（`weight` を +6 する側なので、軽量化のスロットは空けてある）。
+
+`aero_weight` を `interior` / `body` / `wheel` / `aero` に分けてあるのは、
+内装剥がし・外板交換・ホイール交換が現実には独立した作業だから。まとめて1スロットにすると
+「内装を剥がすと軽量ホイールが履けない」という嘘の制約が生まれる。
 
 ### 符号の規約
 

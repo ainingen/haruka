@@ -31,7 +31,7 @@ export const SLOTS = Object.freeze({
   suspension:  ['damper', 'camber', 'toe', 'stabi_front', 'stabi_rear'],
   tire:        ['compound'],
   brake:       ['pad', 'rotor', 'caliper', 'bias'],
-  aero_weight: ['weight', 'aero'],
+  aero_weight: ['interior', 'body', 'wheel', 'aero'],
 });
 
 /** そのパーツが占有するスロット。ユニット部品は replaces で複数を埋める。 */

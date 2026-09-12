@@ -355,7 +355,7 @@ const SLOT_LABEL = {
   stabi_front: 'スタビ（前）', stabi_rear: 'スタビ（後）',
   compound: 'コンパウンド',
   pad: 'パッド', rotor: 'ローター', caliper: 'キャリパー', bias: '前後配分',
-  weight: '軽量化', aero: '空力',
+  interior: '内装', body: '外板', wheel: 'ホイール', aero: '空力',
 };
 const CATEGORIES = [
   { id: 'engine',      label: 'エンジン' },
@@ -653,7 +653,7 @@ function drawWheelDetail() {
   const sv = el('detailWheel');
   sv.textContent = '';
   const cx = 60, cy = 52;
-  const light = inSlot('weight')?.id === 'aero_weight_light_02';
+  const light = inSlot('wheel')?.id === 'aero_weight_light_02';
   const bigRotor = ['brake_rotor_01', 'brake_works_01'].includes(inSlot('rotor')?.id);
   const bigCaliper = ['brake_caliper_01', 'brake_works_01'].includes(inSlot('caliper')?.id);
 
