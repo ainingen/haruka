@@ -213,6 +213,16 @@ h2 {
 }
 
 /* --- ラップ計算 ---------------------------------------------------------- */
+/* --- ピットでの一言（docs/設計/無線.md）。無線とは別枠で、画面の隅に置く ---- */
+.pitline {
+  position: fixed; left: 8px; bottom: 10px; z-index: 6; max-width: min(300px, calc(100% - 150px));
+  border: 1px solid var(--rule); background: var(--field);
+  padding: 5px 9px; font-size: 11.5px; line-height: 1.45;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+.pitline .k { font-size: 8.5px; letter-spacing: .2em; color: var(--ink-2); display: block; }
+@media (max-width: 520px) { .pitline { display: none; } }
+
 .calcbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
   display: flex; justify-content: flex-end; padding: 8px;
@@ -349,6 +359,11 @@ h2 {
 
 </div></div>
 
+<div class="pitline" id="pitline" hidden>
+  <span class="k">PIT — ハルカ</span>
+  <span id="pitlineText"></span>
+</div>
+
 <div class="calcbar">
   <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
   <button id="raceBtn" type="button">レース開始</button>
@@ -357,7 +372,7 @@ h2 {
 <script type="module">
 import {
   buildPerformance, simulateRace, formatTime,
-  SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots,
+  SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment,
 } from '../engine/race.js';
 
 // ---------------------------------------------------------------------------
@@ -513,15 +528,16 @@ async function loadCarSvg(id) {
 }
 
 async function loadAll() {
-  const [parts, chassisData, courses, drivers] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radio] = await Promise.all([
     json('../../data/parts.json'),
     json('../../data/chassis.json'),
     json('../../data/courses.json'),
     json('../../data/drivers.json'),
+    json('../../data/radio.json'),
   ]);
   const cars = {};
   for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
-  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], cars };
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, cars };
 }
 
 // ---------------------------------------------------------------------------
@@ -994,6 +1010,27 @@ function drawStatus() {
 }
 
 // ---------------------------------------------------------------------------
+// ピットでの一言（docs/設計/無線.md）
+//
+// 無線ではなく、ピットでの会話。判定は race.js の pitComment、台詞は data/radio.json。
+// 答えは言わない。無視してもいい（無視するとタイムが落ちるのは計算式が証明している）。
+// ---------------------------------------------------------------------------
+/** いま出している一言の ID。変わったときだけ台詞を引き直す（触るたびに喋り直さない）。 */
+let pitShown = null;
+
+function drawPitLine() {
+  const id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings() });
+  const box = el('pitline');
+  const def = id ? DATA.radio.pit[id] : null;
+  if (!def) { box.hidden = true; pitShown = null; return; }
+  if (id !== pitShown) {
+    pitShown = id;
+    el('pitlineText').textContent = def.lines[Math.floor(Math.random() * def.lines.length)];
+  }
+  box.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
 // ラップ計算
 // ---------------------------------------------------------------------------
 /** 直前の計算結果。次の計算で「何秒変わったか」を出すための基準。 */
@@ -1083,6 +1120,7 @@ function renderAll() {
   drawBom();
   drawPicker();
   drawStatus();
+  drawPitLine();
   if (el('selCourse').dataset.ready) drawCourses();
   clearLaps();
 }

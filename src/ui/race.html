@@ -98,6 +98,30 @@ body {
 .row .rt { text-align: right; font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ink-2); }
 .row .rt b { display: block; font-size: 11.5px; color: var(--ink); font-weight: 600; }
 
+/* --- 無線（docs/設計/無線.md） --------------------------------------------
+   吹き出しは1つだけ。新しい交信が来たら前のものは消える。
+   顔の枠は将来の差し替え用に空けてある（図面の「部品未配置」と同じ扱い）。 */
+.side { display: grid; gap: 10px; align-content: start; }
+.radio {
+  border: 1px solid var(--rule); background: var(--field);
+  display: grid; grid-template-columns: 48px 1fr; gap: 8px; padding: 8px;
+}
+.radio .face {
+  border: 1px dashed var(--ink-3); height: 48px;
+  display: grid; place-content: center; text-align: center;
+  font-size: 8.5px; line-height: 1.35; letter-spacing: .06em; color: var(--ink-3);
+}
+.radio .face b { display: block; font-size: 10px; color: var(--ink-2); font-weight: 600; }
+.radio .who { font-size: 9px; letter-spacing: .2em; color: var(--ink-2); }
+.radio .line { font-size: 12.5px; margin-top: 1px; }
+.radio .replies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.radio .replies button {
+  font: inherit; font-size: 11px; padding: 4px 8px; cursor: pointer;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3);
+}
+.radio .answer { font-size: 11.5px; color: var(--ink-2); margin-top: 5px; }
+.radio .answer .k { font-size: 9px; letter-spacing: .14em; }
+
 /* --- 操作 ----------------------------------------------------------------- */
 .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
 .controls button {
@@ -161,9 +185,21 @@ body {
       </div>
     </div>
 
-    <div class="standings">
-      <h3>順位表</h3>
-      <div id="standings"></div>
+    <div class="side">
+      <div class="radio" id="radio" hidden>
+        <div class="face"><span><b id="radioMood">通常</b>ハルカ<br>（顔は後日）</span></div>
+        <div>
+          <div class="who">RADIO — ハルカ</div>
+          <div class="line" id="radioLine"></div>
+          <div class="replies" id="radioReplies"></div>
+          <div class="answer" id="radioAnswer" hidden></div>
+        </div>
+      </div>
+
+      <div class="standings">
+        <h3>順位表</h3>
+        <div id="standings"></div>
+      </div>
     </div>
   </div>
 
@@ -185,6 +221,7 @@ import {
   buildPerformance, effectiveStats, sectorSpeed, driverTimeFactor,
   createTireState, advanceTire, createBrakeState, advanceBrakes, courseLoad,
   tireGripLoss, brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
+  createRadioState, radioForLap,
 } from '../engine/race.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -293,16 +330,16 @@ const pointAt = (distance) => S.toView(rawPoint(distance));
  * ここを固定してあるので「ストレート主体では A が速く、コーナー主体では B が速い」が必ず起きる。
  */
 const AI_PROFILES = [
-  { name: '青 2号車', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 }, skill: +3 },
-  { name: '青 5号車', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 }, skill: +2 },
-  { name: '青 7号車', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 }, skill: +5 },
-  { name: '青 11号車', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 }, skill: -4 },
-  { name: '青 14号車', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 }, skill: -1 },
+  { name: '青 2号車', radio: 'straight', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 }, skill: +3 },
+  { name: '青 5号車', radio: 'corner', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 }, skill: +2 },
+  { name: '青 7号車', radio: 'aggressive', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 }, skill: +5 },
+  { name: '青 11号車', radio: 'straight', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 }, skill: -4 },
+  { name: '青 14号車', radio: 'slow', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 }, skill: -1 },
 ];
 
-function makeCar({ id, name, color, perf, driver, seed, isPlayer = false }) {
+function makeCar({ id, name, color, perf, driver, seed, isPlayer = false, radio = null }) {
   return {
-    id, name, color, perf, driver, isPlayer,
+    id, name, color, perf, driver, isPlayer, radio,
     rng: createRng(seed),
     tire: createTireState(), brake: createBrakeState(),
     lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
@@ -345,6 +382,13 @@ function planLap(car, course, load) {
 }
 
 function completeLap(car, course, load, totalLaps) {
+  // 無線は「いま走り終えた周」の状態を見る。摩耗と温度を進める前に控えておく。
+  if (car.isPlayer) {
+    S.pendingRadio.push({
+      lap: car.lap + 1, tire: car.tire, brake: car.brake, driver: car.driver,
+      lapTime: car.plannedLap, bestTime: car.best,
+    });
+  }
   car.lapTimes.push(car.plannedLap);
   car.raceTime += car.plannedLap;
   if (car.plannedLap < car.best) car.best = car.plannedLap;
@@ -376,18 +420,165 @@ const progress = (car, courseLen) => car.lap * courseLen + car.lapDist;
 const currentSpeed = (car) => (car.plan ? car.plan[Math.min(car.segIdx, car.plan.length - 1)].speed : 0);
 
 // ---------------------------------------------------------------------------
+// 無線（docs/設計/無線.md）
+//
+// 判定は race.js の radioForLap がやる。ここは「順位まわりの状況を渡す」ことと
+// 「トリガー ID に対応する台詞を data/radio.json から選んで出す」ことだけを担当する。
+// レース中にセッティングは変えられない。返事はハルカの調子（consistency）にだけ効く。
+// ---------------------------------------------------------------------------
+const MOOD = { 通常: '通常', 不機嫌: '不機嫌', 楽しい: '楽しい', 焦り: '焦り' };
+
+/** 配列から1本引く。シード固定の乱数なので、同じレースなら同じ台詞になる。 */
+const pick = (list) => list[Math.floor(S.lineRng() * list.length)];
+
+/** セクター種別ごとの平均速度。どこで負けているかの判定に使う。 */
+function avgSpeedByType(car) {
+  const out = { straight: 0, corner: 0 };
+  if (!car.plan) return out;
+  let sLen = 0, cLen = 0;
+  car.plan.forEach((seg, i) => {
+    if (S.course.sectors[i].type === 'straight') { out.straight += seg.speed * seg.len; sLen += seg.len; }
+    else { out.corner += seg.speed * seg.len; cLen += seg.len; }
+  });
+  if (sLen) out.straight /= sLen;
+  if (cLen) out.corner /= cLen;
+  return out;
+}
+
+/** 順位の絡む症状。engine には無い情報なので、ここで作って渡す。 */
+function trafficForPlayer() {
+  const me = S.cars[0];
+  const list = ranked();
+  const idx = list.indexOf(me);
+  const rank = idx + 1;
+  const t = { overtook: false, overtaken: false, straightLoss: false, cornerLoss: false };
+
+  if (me.lastRank != null && !me.finished) {
+    if (rank < me.lastRank) t.overtook = true;
+    else if (rank > me.lastRank) t.overtaken = true;
+  }
+  me.lastRank = rank;
+
+  // 後続に詰められているなら、直線とコーナーのどちらで詰められたかを速度差で見る
+  const behind = list[idx + 1];
+  if (behind && !behind.retired) {
+    const gap = progress(me, S.courseLen) - progress(behind, S.courseLen);
+    if (me.lastGap != null && gap < me.lastGap - 5) {
+      const mine = avgSpeedByType(me), theirs = avgSpeedByType(behind);
+      const dStraight = theirs.straight - mine.straight;
+      const dCorner = theirs.corner - mine.corner;
+      if (dStraight > 0 && dStraight >= dCorner) t.straightLoss = true;
+      else if (dCorner > 0) t.cornerLoss = true;
+    }
+    me.lastGap = gap;
+    me.nearestId = behind.id;
+  }
+  return t;
+}
+
+/** いま出す雑談を1本選ぶ。近くに他車がいれば、その車の性格に触れる。 */
+function chatLine() {
+  const chat = S.radioData.chat;
+  const me = S.cars[0];
+  const near = S.cars.find((c) => c.id === me.nearestId && !c.retired);
+  const gap = near ? Math.abs(progress(me, S.courseLen) - progress(near, S.courseLen)) : Infinity;
+
+  if (near && gap < 60 && S.lineRng() < 0.5) {
+    // 一度絡んだ相手ともう一度並んだら「またあいつ」になる
+    const pool = (S.metRivals.has(near.id) ? chat.ai.rival : chat.ai[near.radio]) ?? chat.ai.rival;
+    S.metRivals.add(near.id);
+    return { text: pick(pool), replies: [] };
+  }
+  if (S.lineRng() < 0.05) return { text: pick(chat.rare), replies: [] };
+  if (S.lineRng() < 0.25) {
+    const entry = pick(chat.with_reply);
+    return { text: entry.text, replies: entry.replies };
+  }
+  return { text: pick(chat.general), replies: [] };
+}
+
+/**
+ * 吹き出しを出す。前の吹き出しは消える（同時に2つ出さない）。
+ * replies は [{ label, answer, consistency }]。空なら選択肢は出さない。
+ */
+function showBubble({ text, mood = '通常', replies = [] }) {
+  el('radio').hidden = false;
+  el('radioMood').textContent = MOOD[mood] ?? '通常';
+  el('radioLine').textContent = text;
+  el('radioAnswer').hidden = true;
+  el('radioAnswer').textContent = '';
+
+  const box = el('radioReplies');
+  box.textContent = '';
+  for (const reply of replies) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = reply.label;
+    btn.addEventListener('click', () => answer(reply));
+    box.appendChild(btn);
+  }
+}
+
+/** 返事。セッティングは動かない。動くのはハルカの調子だけ。 */
+function answer(reply) {
+  el('radioReplies').textContent = '';
+  const driver = S.cars[0].driver;
+  let note = '';
+  if (reply.consistency) {
+    const before = driver.consistency;
+    driver.consistency = clamp(before + reply.consistency, 20, 95);
+    const d = driver.consistency - before;
+    if (d) note = `（調子 ${d > 0 ? '+' : ''}${d}）`;
+  }
+  const box = el('radioAnswer');
+  box.hidden = false;
+  box.innerHTML = `<span class="k">ハルカ：</span>${pick(reply.reactions)} ${note}`;
+}
+
+/**
+ * 終わった周のぶんだけ無線を処理する。engine が「出さない」と言えば何も出さない。
+ * スキップ中は何周も一度に片付くが、吹き出しは最後の1本だけが残る。
+ */
+function radioTick() {
+  if (!S.radioData || !S.pendingRadio.length) return;
+  const queue = S.pendingRadio;
+  S.pendingRadio = [];
+
+  for (const snapshot of queue) {
+    snapshot.traffic = trafficForPlayer();
+    const call = radioForLap(S.cars[0].perf, snapshot, S.radio, S.radioRng);
+    if (!call) continue;
+
+    if (call.kind === 'chat') {
+      const line = chatLine();
+      showBubble({
+        text: line.text,
+        mood: '通常',
+        replies: (line.replies ?? []).map((r) => ({ label: r.label, reactions: [r.answer], consistency: 0 })),
+      });
+      continue;
+    }
+    const def = S.radioData.info[call.id];
+    if (def) showBubble({ text: pick(def.lines), mood: def.mood, replies: S.radioData.replies });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 起動
 // ---------------------------------------------------------------------------
 const S = {
   cars: [], course: null, load: null, totalLaps: 10,
   masterPath: null, pathLen: 0, courseLen: 0, ratio: 1, toView: (p) => p,
   speed: 1, paused: false, done: false, last: 0, raf: 0,
+  radioData: null, radio: null, radioRng: null, lineRng: null,
+  pendingRadio: [], metRivals: new Set(),
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
+    json('../../data/radio.json'),
   ]);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
@@ -426,7 +617,7 @@ async function boot() {
       preferred_balance: driver.preferred_balance + Math.round((aiRng() - 0.5) * 4),
     };
     return makeCar({
-      id: `ai${i}`, name: prof.name, color: 'var(--ai)',
+      id: `ai${i}`, name: prof.name, color: 'var(--ai)', radio: prof.radio,
       perf: buildPerformance([...mine, tune], aiDriver, chassis, settings),
       driver: aiDriver, seed: baseSeed + i * 977,
     });
@@ -446,6 +637,14 @@ async function boot() {
     `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周`
     + `<br>${course.description}`;
   el('backLink').href = `setup.html${location.search}`;
+
+  // --- 無線 ---------------------------------------------------------------
+  S.radioData = radioData;
+  S.radio = createRadioState();
+  S.radioRng = createRng(baseSeed + 101);   // 出す／出さないの判断
+  S.lineRng = createRng(baseSeed + 202);    // どの台詞を引くか
+  const intro = radioData.chat.course_start[course.id];
+  if (intro) showBubble({ text: pick(intro), mood: '通常' });
 
   for (const car of S.cars) planLap(car, course, S.load);
   renderStandings();
@@ -469,6 +668,7 @@ function tick(now) {
 
 function step(dt) {
   for (const car of S.cars) advance(car, dt, S.course, S.load, S.totalLaps);
+  radioTick();      // 自車が1周終えていれば、その周の無線を1本だけ出す
   if (S.cars.every((c) => c.finished || c.retired)) finish();
 }
 

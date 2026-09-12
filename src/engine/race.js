@@ -144,6 +144,52 @@ export const WEIGHTS = {
 };
 
 /**
+ * 無線（docs/設計/無線.md）。判定の条件と抑制はここに集約する。
+ * **台詞は持たない。** トリガー ID だけを返し、文言は data/radio.json から UI が選ぶ。
+ */
+export const RADIO = {
+  /** 優先順。先にあるものから判定し、1本出したらその周は終わり。 */
+  priority: [
+    'retire_sign', 'brake_fade', 'tire_wear', 'understeer', 'oversteer', 'cold_tire',
+    'straight_loss', 'corner_loss', 'overtaken', 'overtake', 'good_lap',
+  ],
+  /** 1周あたりのリタイア確率がこれを超えたら「嫌な音がする」 */
+  retireRisk: 0.005,
+  /** ブレーキ温度がフェード閾値のこの割合を超えたら */
+  fadeRatio: 0.9,
+  /** 摩耗によるグリップ低下が「使い切り」（gripLossAtFullWear）のこの割合を超えたら */
+  wearRatio: 0.25,
+  /** 好みからの balance のズレがこれ以上なら アンダー／オーバー */
+  balanceDev: 3,
+  /** 同じトリガーは原則1レース1回。2回目は深刻さがこの倍率を超えて悪化したときだけ */
+  worsen: 1.15,
+  /** 同じトリガーの上限回数 */
+  maxPerTrigger: 2,
+  /** 情報系が何も立たなかった周に雑談を出す確率と、1レースの上限 */
+  chatChance: 0.3,
+  chatMax: 3,
+
+  /**
+   * ピットでの一言（セッティング画面）。無線とは別枠。
+   *
+   * バランスのズレを先に言い、好みどおりに収まっているときだけスタビの片側装着に触れる
+   * （片側だけでも狙ってバランスを取っているなら、それは文句の対象ではない）。
+   */
+  pit: {
+    priority: [
+      'too_demanding', 'pressure_high', 'understeer', 'oversteer',
+      'stabi_front_only', 'stabi_rear_only', 'just_right',
+    ],
+    /** 好みからの balance のズレがこれ以上なら口を出す（無線より早い段階で言う） */
+    balanceDev: 1.5,
+    /** これ以上の空気圧は「予選用？」 */
+    pressureHigh: 2.35,
+    /** driver_demand がこれ以上で、技量が demandSkillRef に届いていないとき */
+    demand: 6,
+  },
+};
+
+/**
  * 連続値セッティング。パーツとは別に、走行前に決める数値。
  *
  * `unlockedBy` が null なら常に触れる。配列なら、そのいずれかのパーツを装着したときだけ解禁される。
@@ -415,6 +461,142 @@ export function lapTime(perf, course, tire, driver, brake = createBrakeState()) 
 }
 
 // ---------------------------------------------------------------------------
+// 無線（docs/設計/無線.md）
+//
+// 判定はここだけで行い、UI は結果（トリガー ID）を受け取って台詞を選ぶだけにする。
+// ハルカは計器を読んでいない。症状だけを言い、原因も対策も言わない。
+// ---------------------------------------------------------------------------
+
+/** 無線の状態。1レースにつき1つ作って周回をまたいで持ち回る。 */
+export function createRadioState() {
+  return { fired: {}, chats: 0, lastChatLap: -99, lastLap: -99, calls: [] };
+}
+
+/**
+ * その周に立っている症状と、その深刻さ。
+ *
+ * 深刻さは「1.0 でちょうど閾値」に正規化した値。同じトリガーの2回目を許すかどうかの
+ * 判断（悪化したか）にこの値を使う。
+ *
+ * @param {object} perf buildPerformance の戻り値
+ * @param {object} snapshot
+ *   @param {number} snapshot.lap      これから数える周（1始まり）
+ *   @param {object} snapshot.tire     その周を走ったときのタイヤ状態
+ *   @param {object} snapshot.brake    その周を走ったときのブレーキ状態
+ *   @param {object} snapshot.driver   drivers.json の要素
+ *   @param {number} [snapshot.lapTime]  その周のタイム
+ *   @param {number} [snapshot.bestTime] その周より前の自己ベスト
+ *   @param {object} [snapshot.traffic]  { straightLoss, cornerLoss, overtook, overtaken }
+ *                                       順位と相対速度は UI 側にしか無いので受け取る
+ */
+export function radioSymptoms(perf, snapshot) {
+  const { tire, brake, driver, lapTime, bestTime, traffic = {} } = snapshot;
+  const stats = perf.stats;
+  const out = {};
+
+  const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -stats.reliability);
+  if (retireP >= RADIO.retireRisk) out.retire_sign = retireP / RADIO.retireRisk;
+
+  const threshold = WEIGHTS.brake.thresholdBase + WEIGHTS.brake.thresholdPerFadeResistance * stats.fade_resistance;
+  const heat = brake.temp / (threshold * RADIO.fadeRatio);
+  if (heat >= 1) out.brake_fade = heat;
+
+  const loss = tireGripLoss(stats, tire);
+  const worn = loss.worn / WEIGHTS.tire.gripLossAtFullWear / RADIO.wearRatio;
+  if (worn >= 1) out.tire_wear = worn;
+
+  const dev = stats.balance - (driver?.preferred_balance ?? 0);
+  if (dev <= -RADIO.balanceDev) out.understeer = -dev / RADIO.balanceDev;
+  else if (dev >= RADIO.balanceDev) out.oversteer = dev / RADIO.balanceDev;
+
+  if (loss.cold > 0) out.cold_tire = loss.cold / WEIGHTS.tire.coldGripLoss;
+
+  if (traffic.straightLoss) out.straight_loss = 1;
+  if (traffic.cornerLoss) out.corner_loss = 1;
+  if (traffic.overtaken) out.overtaken = 1;
+  if (traffic.overtook) out.overtake = 1;
+
+  // 好調は「他に何も起きていない周の自己ベスト更新」だけ。だから軽く扱われない。
+  const clean = Object.keys(out).length === 0;
+  if (clean && Number.isFinite(lapTime) && Number.isFinite(bestTime) && lapTime < bestTime) out.good_lap = bestTime / lapTime;
+
+  return out;
+}
+
+/**
+ * その周に出す無線を1本決める。出さない周は null。
+ *
+ * 優先度の高いものから見て、抑制（1レース1回・連続では出さない・悪化したときだけ2回目）に
+ * 引っかからない最初の1本を返す。情報系が何も残らなければ、確率で雑談を1本。
+ *
+ * state は呼び出し側が持ち回る（この関数が書き換える）。
+ */
+export function radioForLap(perf, snapshot, state, rng = Math.random) {
+  const lap = snapshot.lap;
+  const symptoms = radioSymptoms(perf, snapshot);
+
+  for (const id of RADIO.priority) {
+    const severity = symptoms[id];
+    if (severity === undefined) continue;
+    const prev = state.fired[id];
+    if (prev) {
+      if (prev.count >= RADIO.maxPerTrigger) continue;      // 何度も同じことを言わない
+      if (prev.lap >= lap - 1) continue;                    // 連続する周では出さない
+      if (severity <= prev.severity * RADIO.worsen) continue;  // 悪化していなければ黙っている
+    }
+    state.fired[id] = { count: (prev?.count ?? 0) + 1, lap, severity };
+    state.lastLap = lap;
+    const call = { lap, id, kind: 'info', severity };
+    state.calls.push(call);
+    return call;
+  }
+
+  // 雑談。情報系が立たなかった周にだけ、直後の周を空けて出す。
+  if (state.chats < RADIO.chatMax && lap > state.lastChatLap + 1 && rng() < RADIO.chatChance) {
+    state.chats += 1;
+    state.lastChatLap = lap;
+    state.lastLap = lap;
+    const call = { lap, id: 'chat', kind: 'chat', severity: 0 };
+    state.calls.push(call);
+    return call;
+  }
+  return null;
+}
+
+/**
+ * セッティング画面での一言（無線とは別枠のピット会話）。ID を1つ返す。言うことが無ければ null。
+ *
+ * @param {object} perf    buildPerformance の戻り値
+ * @param {object} driver  drivers.json の要素
+ * @param {object} [context]
+ *   @param {object[]} [context.parts]     装着中のパーツ（スタビの片側判定に使う）
+ *   @param {object}   [context.settings]  連続値セッティング（空気圧を見る）
+ */
+export function pitComment(perf, driver, context = {}) {
+  const { parts = [], settings = {} } = context;
+  const stats = perf.stats;
+  const P = RADIO.pit;
+  const said = {};
+
+  if (stats.driver_demand >= P.demand && (driver?.skill ?? 100) < WEIGHTS.driver.demandSkillRef) {
+    said.too_demanding = true;
+  }
+  const pressure = settings.tire_pressure;
+  if (pressure !== undefined && pressure !== null && pressure >= P.pressureHigh) said.pressure_high = true;
+
+  const slots = new Set(parts.flatMap(occupiedSlots));
+  if (slots.has('stabi_front') && !slots.has('stabi_rear')) said.stabi_front_only = true;
+  if (slots.has('stabi_rear') && !slots.has('stabi_front')) said.stabi_rear_only = true;
+
+  const dev = stats.balance - (driver?.preferred_balance ?? 0);
+  if (dev <= -P.balanceDev) said.understeer = true;
+  else if (dev >= P.balanceDev) said.oversteer = true;
+  else said.just_right = true;
+
+  return RADIO.pit.priority.find((id) => said[id]) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // レース
 // ---------------------------------------------------------------------------
 
@@ -434,13 +616,19 @@ export function lapTime(perf, course, tire, driver, brake = createBrakeState()) 
  * 溜まりやすく、fade_resistance が閾値を押し上げる。
  */
 export function simulateRace(perf, course, laps, driver, options = {}) {
-  const { seed = 1, noise = true, retire = true } = options;
+  const { seed = 1, noise = true, retire = true, radio = false } = options;
   const rng = createRng(seed);
+  // 無線の乱数は別系統。無線を切ったときと走行結果が変わらないようにする。
+  const radioRng = createRng(seed + 101);
+  const radioState = radio ? createRadioState() : null;
   const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (driver?.consistency ?? 100)) / 100;
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -perf.stats.reliability);
 
   const load = courseLoad(course);
-  const result = { courseId: course.id, laps: [], total: 0, best: Infinity, retired: false, retiredLap: null };
+  const result = {
+    courseId: course.id, laps: [], total: 0, best: Infinity, retired: false, retiredLap: null,
+    radio: radio ? [] : null,
+  };
   let tire = createTireState();
   let brake = createBrakeState();
 
@@ -454,11 +642,19 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
     let time = lt.time;
     if (noise) time *= 1 + sigma * gaussian(rng);
 
-    result.laps.push({
+    const entry = {
       lap: i + 1, time, sectors: lt.sectors,
       wear: tire.wear, gripLoss: lt.gripLoss.total,
       brakeTemp: brake.temp, brakeFade: lt.brakeFade,
-    });
+    };
+    if (radioState) {
+      // 順位の絡む症状（直線／コーナーで負け、抜いた・抜かれた）は1台走行では立たない
+      entry.radio = radioForLap(
+        perf, { lap: i + 1, tire, brake, driver, lapTime: time, bestTime: result.best }, radioState, radioRng,
+      );
+      if (entry.radio) result.radio.push(entry.radio);
+    }
+    result.laps.push(entry);
     result.total += time;
     if (time < result.best) result.best = time;
     tire = advanceTire(tire, perf.stats);

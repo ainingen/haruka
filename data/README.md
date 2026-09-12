@@ -8,6 +8,7 @@
 | `chassis.json` | 車両クラス4種のベース値と基準速度 |
 | `courses.json` | コース（形状 path ＋ セクター配列）。5コース |
 | `drivers.json` | ドライバー（技量、好みのバランス、安定性） |
+| `radio.json` | 無線とピットの台詞（トリガー ID → 台詞配列）。判定は持たない |
 
 これらを読んで走らせるのが `src/engine/race.js`。エンジンは I/O を持たないので、Node でもブラウザでも同じファイルが動く。
 挙動テストは `npm test`（＝ `node --test src/engine/race.test.js`）。
@@ -313,6 +314,54 @@
 
 **基準値が常に最適ではない。** 空気圧はレース長で、車高はコース特性で、ブレーキ配分は車の `balance` と
 ドライバーの `preferred_balance` との関係で最適点が動く。
+
+## radio.json
+
+無線（`docs/設計/無線.md`）の台詞。**このファイルは台詞しか持たない。**
+「いつ出すか」は `src/engine/race.js` の `RADIO` と `radioForLap` が決め、UI は返ってきた
+トリガー ID に対応する台詞を引くだけ。台詞を足しても挙動は変わらないし、逆に
+条件を変えたいときにこのファイルを触る必要はない。
+
+| セクション | 内容 |
+|---|---|
+| `info` | 情報系。トリガー ID → `{ label, mood, lines }`。`lines` から毎回ランダムに1本引く |
+| `chat` | 雑談系。`general` / `with_reply`（一言返せるもの）/ `rare`（稀な一言）/ `ai`（相手車の性格別）/ `course_start`（コース ID → 開始直後の一言） |
+| `replies` | 情報系への返事3択。`consistency` が返事による調子の増減（レース中にセッティングは変えられない） |
+| `pit` | セッティング画面での一言。`pitComment()` が返す ID → `{ mood, lines }` |
+
+`mood` は表情の指定で、`通常` / `不機嫌` / `楽しい` / `焦り` の4種だけを使う。
+
+### トリガー ID（`RADIO.priority` の順）
+
+| ID | 出る条件 |
+|---|---|
+| `retire_sign` | `reliability` 由来の1周あたりリタイア確率が `RADIO.retireRisk` を超えた |
+| `brake_fade` | ブレーキ温度がフェード閾値の `RADIO.fadeRatio`（9割）を超えた |
+| `tire_wear` | 摩耗によるグリップ低下が使い切り（`gripLossAtFullWear`）の `RADIO.wearRatio` を超えた |
+| `understeer` / `oversteer` | `balance` が `preferred_balance` から `RADIO.balanceDev` 以上ズレた |
+| `cold_tire` | 冷間でグリップが落ちている（`warmup` 不足） |
+| `straight_loss` / `corner_loss` | 後続に詰められ、その差が直線／コーナーどちらの速度差によるものか |
+| `overtake` / `overtaken` | 前の周と順位が変わった |
+| `good_lap` | 症状が何も出ていない周に自己ベストを更新した |
+
+順位が絡む4つは engine からは見えないので、UI（`src/ui/race.html`）が `traffic` として渡す。
+
+**抑制の決まりは3つ。** 1周に出るのは1本だけ。同じトリガーは1レースに原則1回で、
+`RADIO.worsen` を超えて悪化したときだけ2回目を許す。連続する周では同じことを言わない。
+
+### ピットの一言（`RADIO.pit.priority` の順）
+
+`too_demanding`（要求技量が足りない）→ `pressure_high`（空気圧が高すぎ）→
+`understeer` / `oversteer`（好みからのズレ）→ `stabi_front_only` / `stabi_rear_only`（スタビが片側だけ）→
+`just_right`（好みどおり）。バランスのズレを先に言い、好みに収まっているときだけ片側装着に触れる
+（狙って片側だけにしているなら、それは文句の対象ではない）。
+
+### 台詞を書き足すときのルール
+
+1. **答えを言わない。** 「滑る」とは言うが「空気圧を下げろ」とは言わない
+2. **数字を言わない。** ハルカは計器を読んでいない。感じている
+3. 同じ症状に3本以上用意する。同じ台詞が続くと聞き流される
+4. ノートを「ハルノート」と呼ばせない（`docs/シナリオ/キャラクター.md` の呼称ルール）
 
 ## レース計算で使っているキー・いないキー
 

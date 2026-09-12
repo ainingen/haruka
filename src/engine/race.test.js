@@ -12,7 +12,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout } from './race.js';
+import {
+  buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
+  RADIO, pitComment,
+} from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (name) => JSON.parse(readFileSync(join(ROOT, 'data', name), 'utf8'));
@@ -39,6 +42,7 @@ const STRAIGHT = 'nagasawa';      // ストレート主体
 const CORNER = 'misaki';         // 低速コーナー主体（テクニカル）
 const BALANCED = 'hibaridaira';  // バランス型
 const FAST = 'kazahaya';         // 高速コーナー主体
+const STOPGO = 'asahina';        // ストップ＆ゴー（ブレーキが一番厳しい）
 
 /** テストは決定的に。乱数要素（ばらつき・リタイア）は切る。 */
 const OPTIONS = { noise: false, retire: false, seed: 1 };
@@ -47,9 +51,9 @@ const BASE_PARTS = ['tire_compound_02'];
 /** 目安の範囲。外れてもテストは落とさず、出力に印を付ける。 */
 const PERCEPTIBLE = { min: 0.3, max: 2.0 };
 
-function race({ parts = BASE_PARTS, extra = [], courseId, laps, driver = haruka }) {
-  const perf = buildPerformance([...parts.map(part), ...extra], driver, sedan);
-  return simulateRace(perf, course(courseId), laps, driver, OPTIONS);
+function race({ parts = BASE_PARTS, extra = [], courseId, laps, driver = haruka, settings = null, options = {} }) {
+  const perf = buildPerformance([...parts.map(part), ...extra], driver, sedan, settings);
+  return simulateRace(perf, course(courseId), laps, driver, { ...OPTIONS, ...options });
 }
 
 /** A と B のレース結果から、B − A の 1周あたり差（秒）を出力して返す。正なら A が速い。 */
@@ -234,4 +238,92 @@ test('補足: 乱数ありでも同じシードなら同じ結果、reliability 
   }
   console.log(`  ビッグタービン（reliability −10）30周 × 50レース: リタイア ${retired} 回`);
   assert.ok(retired > 0 && retired < 50, 'リタイアは起きるが毎回ではないはず');
+});
+
+// ---------------------------------------------------------------------------
+// 無線（docs/設計/無線.md）。判定だけをテストする。台詞は data/radio.json の担当。
+// ---------------------------------------------------------------------------
+
+/** 無線の記録を「3周目 アンダー」の形で並べる。 */
+const radioLog = (result) => result.radio.map((c) => `${c.lap}周目 ${c.id}`).join(' / ') || 'なし';
+
+test('10. 無線: アンダーに振った車でみさきを10周すると「アンダー」が出る', () => {
+  // フロントスタビだけ（balance −3）＋ ブレーキ前後配分を前寄り（balance −2.5）
+  const r = race({
+    parts: ['tire_compound_02', 'suspension_stabi_01', 'brake_bias_01'],
+    settings: { brake_bias: 70 },
+    courseId: CORNER, laps: 10, options: { radio: true },
+  });
+  console.log(`  みさき10周の無線: ${radioLog(r)}`);
+
+  const under = r.radio.filter((c) => c.id === 'understeer');
+  assert.ok(under.length >= 1, 'アンダーが少なくとも1回は出るはず');
+  assert.ok(!r.radio.some((c) => c.id === 'oversteer'), 'アンダー側なのにオーバーは出ないはず');
+
+  // 1周に出るのは1本まで
+  const perLap = new Map();
+  for (const c of r.radio) perLap.set(c.lap, (perLap.get(c.lap) ?? 0) + 1);
+  assert.ok([...perLap.values()].every((n) => n === 1), '1周につき1本までのはず');
+
+  // 同じトリガーは連続する周では出さず、上限を超えない
+  for (const id of new Set(r.radio.map((c) => c.id))) {
+    const laps = r.radio.filter((c) => c.id === id).map((c) => c.lap);
+    assert.ok(laps.length <= RADIO.maxPerTrigger, `${id} が ${laps.length} 回出ている`);
+    assert.ok(laps.every((lap, i) => i === 0 || lap > laps[i - 1] + 1), `${id} が連続する周で出ている`);
+  }
+
+  // バランスを好みどおりに戻せば、アンダーは出ない（前後スタビで相殺する）
+  const balanced = race({
+    parts: ['tire_compound_02', 'suspension_stabi_01', 'suspension_stabi_02'],
+    courseId: CORNER, laps: 10, options: { radio: true },
+  });
+  console.log(`  前後スタビで相殺した場合: ${radioLog(balanced)}`);
+  assert.ok(!balanced.radio.some((c) => c.id === 'understeer'), '好みどおりならアンダーは出ないはず');
+});
+
+test('11. 無線: あさひなを25周するとブレーキフェードが出る', () => {
+  const r = race({ courseId: STOPGO, laps: 25, options: { radio: true } });
+  console.log(`  あさひな25周の無線: ${radioLog(r)}`);
+
+  const fade = r.radio.filter((c) => c.id === 'brake_fade');
+  assert.ok(fade.length >= 1, 'ブレーキフェードが少なくとも1回は出るはず');
+
+  // 言い出す周には、もう実際に温度が閾値の9割へ来ている
+  const lap = r.laps[fade[0].lap - 1];
+  console.log(`  初出 ${fade[0].lap}周目（ブレーキ温度 ${Math.round(lap.brakeTemp)}・警告は閾値の ${RADIO.fadeRatio * 100}%）`);
+  assert.ok(lap.brakeTemp >= 100 * RADIO.fadeRatio, '温度が閾値の9割に達しているはず');
+
+  // 耐フェードを十分に積めば黙る（症状が出ていないのだから言うことがない）
+  const withBrakes = race({ extra: [part('brake_works_01')], courseId: STOPGO, laps: 25, options: { radio: true } });
+  console.log(`  カーボンブレーキ（耐フェード +14）の場合: ${radioLog(withBrakes)}`);
+  assert.ok(!withBrakes.radio.some((c) => c.id === 'brake_fade'), '閾値が上がれば出ないはず');
+});
+
+test('12. 無線: ピットの一言は好みからのズレと無理をしている設定を拾う', () => {
+  const pit = (parts, settings) => {
+    const list = parts.map(part);
+    return pitComment(buildPerformance(list, haruka, sedan, settings), haruka, { parts: list, settings });
+  };
+
+  // 素のセダン（balance 0）はハルカの好み（+2）に対してアンダー寄り。何も足していなくても口は出る
+  assert.equal(pit(['tire_compound_02'], {}), 'understeer');
+  assert.equal(pit(['tire_compound_02', 'suspension_stabi_01'], {}), 'understeer', 'フロントスタビで更にアンダー側へ');
+
+  // リアスタビだけで好みの範囲に入る。バランスに文句がないので、片側装着のほうを言う
+  assert.equal(pit(['tire_compound_02', 'suspension_stabi_02'], {}), 'stabi_rear_only');
+
+  // 前後スタビを揃えて配分で好みに合わせれば「これが好き」
+  assert.equal(
+    pit(['tire_compound_02', 'suspension_stabi_01', 'suspension_stabi_02', 'brake_bias_01'], { brake_bias: 52 }),
+    'just_right',
+  );
+  // 後ろに振りすぎればオーバー側だと言う
+  assert.equal(
+    pit(['tire_compound_02', 'suspension_stabi_02', 'brake_bias_01'], { brake_bias: 50 }), 'oversteer',
+  );
+
+  assert.equal(pit(['tire_compound_02'], { tire_pressure: 2.5 }), 'pressure_high', '空気圧はバランスより先に言う');
+  assert.equal(pit(['tire_compound_02', 'suspension_works_01'], {}), 'too_demanding',
+    '要求技量（+6）が最優先で拾われるはず');
+  console.log(`  ハルカ（技量 ${haruka.skill} / 好み ${haruka.preferred_balance}）に対するピットの一言を7通り確認`);
 });
