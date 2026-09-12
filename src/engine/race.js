@@ -78,7 +78,7 @@ export const WEIGHTS = {
       drag: -0.35, weight_eff: -0.06,
     },
     fast_corner: {
-      downforce: 0.60, cornering_grip: 0.35, stability: 0.15, rigidity: 0.10, road_compliance: 0.10,
+      downforce: 0.47, cornering_grip: 0.35, stability: 0.15, rigidity: 0.10, road_compliance: 0.10,
       weight_eff: -0.04, balance_dev: -0.60,
     },
     slow_corner: {
