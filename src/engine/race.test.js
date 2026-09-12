@@ -35,9 +35,10 @@ const course = (id) => {
 
 const haruka = DRIVERS.find((d) => d.id === 'haruka');
 const sedan = CHASSIS.sedan;
-const STRAIGHT = 'nagasawa';
-const CORNER = 'misaki';
-const BALANCED = 'hibaridaira';
+const STRAIGHT = 'nagasawa';      // ストレート主体
+const CORNER = 'misaki';         // 低速コーナー主体（テクニカル）
+const BALANCED = 'hibaridaira';  // バランス型
+const FAST = 'kazahaya';         // 高速コーナー主体
 
 /** テストは決定的に。乱数要素（ばらつき・リタイア）は切る。 */
 const OPTIONS = { noise: false, retire: false, seed: 1 };
@@ -80,19 +81,24 @@ test('2. コーナー主体では final_01（加速寄り）が final_02（最�
   assert.ok(diff > 0, 'final_01 が速いはず');
 });
 
-test('3. aero_02 はコーナー主体で速くなり、ストレート主体で遅くなる', () => {
+test('3. aero_02 は高速コーナー主体で速くなり、ストレート主体で遅くなる（低速コーナーでは効かない）', () => {
   const laps = 10;
   const aero = part('aero_weight_aero_02');
+  const diffOn = (courseId, label) => {
+    const on = race({ extra: [aero], courseId, laps });
+    const off = race({ courseId, laps });
+    return report(label, on, off);      // 正なら「あり」が速い
+  };
 
-  const cornerWith = race({ extra: [aero], courseId: CORNER, laps });
-  const cornerWithout = race({ courseId: CORNER, laps });
-  const gain = report('aero_02 あり − なし @ みさき', cornerWith, cornerWithout);
-  assert.ok(gain > 0, 'コーナー主体では速くなるはず');
+  const fast = diffOn(FAST, 'aero_02 あり − なし @ かざはや（高速コーナー主体）');
+  assert.ok(fast > 0, '高速コーナー主体では速くなるはず');
 
-  const straightWith = race({ extra: [aero], courseId: STRAIGHT, laps });
-  const straightWithout = race({ courseId: STRAIGHT, laps });
-  const loss = report('aero_02 なし − あり @ ながさわ', straightWithout, straightWith);
-  assert.ok(loss > 0, 'ストレート主体では遅くなるはず');
+  const straight = diffOn(STRAIGHT, 'aero_02 あり − なし @ ながさわ（ストレート主体）');
+  assert.ok(straight < 0, 'ストレート主体ではドラッグと重量ぶん遅くなるはず');
+
+  // ダウンフォースが効くのは高速コーナーだけ。低速主体のコースでは割に合わない。
+  const slow = diffOn(CORNER, 'aero_02 あり − なし @ みさき（低速コーナー主体）');
+  assert.ok(slow < fast, '低速コーナー主体では高速コーナー主体ほど報われないはず');
 });
 
 test('4. ソフトタイヤは5周ならハードより速いが、25周ではハードが逆転する', () => {

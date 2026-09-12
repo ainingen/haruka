@@ -337,6 +337,8 @@ h2 {
       <option value="10" selected>10 周</option>
       <option value="20">20 周</option>
     </select></label>
+    <span class="note" id="courseNote"></span>
+    <span class="note" id="courseHidden" style="color:var(--bad)"></span>
     <span class="note">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
   </div>
 
@@ -393,6 +395,10 @@ const CATEGORIES = [
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const CLASS_LABEL = { 1: '走行会・草レース', 2: '地方選手権', 3: '全国耐久', 4: '上位GT', 5: 'トップカテゴリー' };
 const TIER_LABEL = ['なし（自腹）', '地元スポンサー', '地方チェーン', '全国企業', '大手メーカー'];
+const PROFILE_LABEL = {
+  straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型',
+  fast: '高速コーナー主体', stopgo: 'ストップ＆ゴー',
+};
 /** ポイント → 表示単位の換算（data/README.md：換算は表示側で行う） */
 const KG_PER_POINT = 2;
 const PS_PER_POINT = 2.5;
@@ -1001,22 +1007,42 @@ function clearLaps(resetBaseline = false) {
     <span class="cprof">セッティングを変更しました。${lapBaseline ? '前回との差を見るには' : ''}もう一度ラップ計算してください</span></div></div>`;
 }
 
+/** 選びたいコース。クラスを変えて走れなくなったら、走れるものへ寄せる。 */
+const wanted = { course: null };
+
+function drawCourses() {
+  const list = usableCourses();
+  const sel = el('selCourse');
+  sel.innerHTML = list
+    .map((c) => `<option value="${c.id}">${c.name}（${PROFILE_LABEL[c.profile] ?? ''}・${c.length.toLocaleString('ja-JP')}m）</option>`)
+    .join('');
+  if (wanted.course && list.some((c) => c.id === wanted.course)) sel.value = wanted.course;
+  else wanted.course = sel.value;
+  const cur = list.find((c) => c.id === sel.value);
+  el('courseNote').textContent = cur ? cur.description : '';
+  const hidden = DATA.courses.length - list.length;
+  el('courseHidden').textContent = hidden
+    ? `クラス${state.cls}では走れないコースが ${hidden} 本あります（規定でクラスが決まっています）。` : '';
+}
+
+/** そのクラスで走れるコースだけ。classes が無いデータは全クラス可とみなす。 */
+const usableCourses = () => DATA.courses.filter((c) => !c.classes || c.classes.includes(state.cls));
+
 function calcLaps() {
   const p = perf();
-  const rows = DATA.courses.map((c) => {
+  const rows = usableCourses().map((c) => {
     const r = simulateRace(p, c, 10, DATA.driver, { noise: false, retire: false });
     return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1) };
   });
   const prev = lapBaseline;
   lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.avg]));
 
-  const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型' };
   el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="laps">${rows.map((r) => {
     const d = prev?.[r.course.id] != null ? r.avg - prev[r.course.id] : null;
     const dTxt = d == null ? ''
       : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒/周</div>`;
     return `<div class="lap">
-      <div class="cname">${r.course.name}<div class="cprof">${PROFILE[r.course.profile] ?? ''}
+      <div class="cname">${r.course.name}<div class="cprof">${PROFILE_LABEL[r.course.profile] ?? ''}
         ・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${r.last.brakeFade > 0 ? `（フェード −${r.last.brakeFade.toFixed(1)}）` : ''}</div></div>
       <div><div class="t">${formatTime(r.avg)}</div>${dTxt}</div>
     </div>`;
@@ -1057,6 +1083,7 @@ function renderAll() {
   drawBom();
   drawPicker();
   drawStatus();
+  if (el('selCourse').dataset.ready) drawCourses();
   clearLaps();
 }
 
@@ -1075,12 +1102,10 @@ try {
   el('calcBtn').addEventListener('click', calcLaps);
 
   // コース選択肢。URL に course があればそれを初期値にする（レースから戻ったとき用）
-  const PROFILE_LABEL = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型' };
   const back = new URLSearchParams(location.search);
-  el('selCourse').innerHTML = DATA.courses
-    .map((c) => `<option value="${c.id}">${c.name}（${PROFILE_LABEL[c.profile] ?? ''}）</option>`).join('');
-  if (back.get('course')) el('selCourse').value = back.get('course');
+  if (back.get('course')) wanted.course = back.get('course');
   if (back.get('laps')) el('selLaps').value = back.get('laps');
+  el('selCourse').addEventListener('change', () => { wanted.course = el('selCourse').value; drawCourses(); });
   el('raceBtn').addEventListener('click', () => { location.href = raceUrl(); });
 
   // レース画面から戻ってきたときは、そのときのクラス・スポンサー・装着を復元する
@@ -1100,6 +1125,8 @@ try {
     if (back.get(short) !== null) state.settings[key] = Number(back.get(short));
   }
 
+  el('selCourse').dataset.ready = '1';
+  drawCourses();
   renderAll();
 } catch (err) {
   document.body.insertAdjacentHTML('afterbegin',
