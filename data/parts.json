@@ -31,7 +31,7 @@
     "sponsor_tier": 1,
     "price": 120000,
     "durability": 90,
-    "effects": { "power": 7, "top_end_power": 3 },
+    "effects": { "power": 7, "top_end_power": 3, "weight": -3 },
     "side_effects": { "heat": 3, "noise": 3, "reliability": -1 },
     "note": "揃えれば脈動が消えて上まで気持ちよく回る。ただし熱がエンジンルームに籠もる。夏の耐久で使うなら遮熱を先に考えろ。"
   },
@@ -178,7 +178,7 @@
     "durability": 70,
     "effects": { "acceleration": 10, "driver_demand": -2 },
     "side_effects": { "reliability": -4, "noise": 3, "heat": 2 },
-    "note": "叩くだけで入る。腕の差が減る。壊れるときは一瞬だ。ドグの音が変わったら、その周でピットに入れ。"
+    "note": "叩くだけで入る、クラッチも要らん。代わりにシフトミスは即ブローだ。ドグの音が変わったら、その周でピットに入れ。"
   },
   {
     "id": "drivetrain_works_01",
@@ -408,7 +408,7 @@
     "price": 160000,
     "durability": 90,
     "effects": { "braking": 6, "fade_resistance": 5, "heat": -2 },
-    "side_effects": { "weight": 6, "road_compliance": -2, "acceleration": -1 },
+    "side_effects": { "weight": 6, "acceleration": -1 },
     "note": "熱に余裕ができる。その代わりばね下が重くなって路面の追従が落ちる。ブレーキで稼ぐ分と足で失う分を天秤にかけろ。"
   },
   {
@@ -529,8 +529,8 @@
     "price": 900000,
     "durability": 60,
     "effects": { "weight": -35 },
-    "side_effects": { "rigidity": -6, "reliability": -5 },
-    "note": "軽い。薄い。当たれば割れる。混走のレースで前に出る車か、逃げる車か、それで決めろ。"
+    "side_effects": { "reliability": -5 },
+    "note": "軽い。硬い。ぶつけたら板金じゃ直らん、丸ごと交換だ。混走で前に出る車か、逃げる車か、それで決めろ。"
   },
   {
     "id": "aero_weight_aero_03",
