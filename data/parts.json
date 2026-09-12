@@ -480,7 +480,7 @@
     "sponsor_tier": 1,
     "price": 120000,
     "durability": 90,
-    "effects": { "weight": -8, "road_compliance": 2, "acceleration": 2 },
+    "effects": { "weight": -8, "acceleration": 2 },
     "side_effects": { "rigidity": -2, "reliability": -2 },
     "note": "ばね下が軽いと足がよく動く。縁石で割れることもある。攻める場所と守る場所を決めてから履け。"
   },
