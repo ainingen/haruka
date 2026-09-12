@@ -77,9 +77,9 @@
 |---|---|---|---|
 | `cornering_grip` | 機械的なコーナリンググリップ | 有利 | 高速・低速コーナー |
 | `braking` | 制動力 | 有利 | 低速コーナー進入 |
-| `fade_resistance` | ブレーキの耐フェード性 | 有利 | 周回後半の低速コーナー進入 |
+| `fade_resistance` | ブレーキの耐フェード性。フェードが始まる温度を押し上げる | 有利 | 周回後半の低速コーナー進入 |
 | `turn_in` | 回頭性（切り始めの反応） | 有利 | 低速コーナー進入 |
-| `stability` | 安定性（直進、高速域、挙動の収まり） | 有利 | ストレート、高速コーナー |
+| `stability` | 安定性（直進、高速域、挙動の収まり） | 有利 | 高速コーナー、ストレート（弱め） |
 | `road_compliance` | 路面追従性（荒れた路面・縁石でのグリップ維持） | 有利 | 縁石を使うコーナー |
 | `rigidity` | 剛性 | 有利 | 高速コーナー |
 | `balance` | 前後バランス。**方向値**：正＝リア寄り（オーバー傾向）、負＝フロント寄り（アンダー傾向） | — | 全コーナー |
@@ -93,9 +93,9 @@
 | `downforce` | ダウンフォース | 有利 | 高速コーナー |
 | `drag` | 空気抵抗 | **不利** | ストレート |
 | `weight` | 車重（ばね上） | **不利** | 全域 |
-| `unsprung_weight` | ばね下重量（ホイール、ローター、キャリパー） | **不利** | 全域。計算では `weight` の **5倍相当** として扱う |
+| `unsprung_weight` | ばね下重量（ホイール、ローター、キャリパー） | **不利** | 全域。計算ではコーナーで `weight` の **5倍相当**、直線では等倍 |
 
-ばね下重量は路面追従性にも効くため、`weight` とは別キー `unsprung_weight` で持つ。レース計算では有効重量 `weight + 5 × unsprung_weight` として合算する（`src/engine/race.js`）。ホイール・ローター・キャリパーの重量変化は必ず `unsprung_weight` に置き、`weight` に混ぜない。
+ばね下重量は路面追従性にも効くため、`weight` とは別キー `unsprung_weight` で持つ。レース計算ではコーナーで `weight + 5 × unsprung_weight`、直線では `weight + unsprung_weight`（直線ではばね下も単なる質量）として合算する（`src/engine/race.js`）。ホイール・ローター・キャリパーの重量変化は必ず `unsprung_weight` に置き、`weight` に混ぜない。
 
 #### 消耗・熱・信頼性
 
@@ -103,7 +103,7 @@
 |---|---|---|---|
 | `warmup` | 温まりの早さ（タイヤ・ブレーキ共通） | 有利 | 予選・スタート直後に効く。負なら冷間時に効かない |
 | `tire_wear` | タイヤ摩耗率 | **不利** | 耐久で効く。ピット回数を左右する |
-| `heat` | 発熱 | **不利** | 高いと周回後半に出力とグリップがタレる |
+| `heat` | 発熱 | **不利** | タイヤ摩耗とブレーキ温度の上昇を早める。負なら放熱が良い（ブレーキのみ） |
 | `fuel_consumption` | 燃料消費率 | **不利** | 耐久で効く |
 | `reliability` | 車両の信頼性 | 有利 | 負が積み重なるほどリタイア率が上がる |
 
@@ -197,6 +197,7 @@
 |---|---|
 | セクター速度 | `power` `top_speed` `top_end_power` `drag` `downforce` `cornering_grip` `stability` `rigidity` `road_compliance` `acceleration` `traction` `braking` `turn_in` `low_end_torque` `throttle_response` `weight` `unsprung_weight` `balance`（`preferred_balance` とのズレ） |
 | タイヤ状態 | `tire_wear` `heat` `warmup` |
+| ブレーキ温度 | `fade_resistance` `heat`。低速コーナー比率の高いコースで温度が溜まり、閾値を超えると `braking` が減衰 |
 | ドライバー係数 | `driver_demand` |
 | リタイア判定 | `reliability` |
-| **未使用** | `fade_resistance`（ブレーキの周回後半の低下）、`fuel_consumption`（耐久のピット戦略）、`noise`（音量規定による出走可否）。パーツの `durability` もレース間の消耗として別途扱う予定 |
+| **未使用** | `fuel_consumption`（耐久のピット戦略）、`noise`（音量規定による出走可否）。パーツの `durability` もレース間の消耗として別途扱う予定 |

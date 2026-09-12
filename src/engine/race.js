@@ -28,14 +28,14 @@ export const SECTOR_TYPES = Object.freeze(['straight', 'fast_corner', 'slow_corn
  * sector.* の値は「性能1ポイントあたり、そのセクターの速度が何％変わるか」。
  */
 export const WEIGHTS = {
-  /** ばね下重量は weight の何倍相当か */
-  unsprungFactor: 5,
+  /** ばね下重量は weight の何倍相当か（セクター別）。直線では単なる質量、コーナーでは路面追従に効く */
+  unsprungFactor: { straight: 1, fast_corner: 5, slow_corner: 5 },
   /** 速度係数の下限（副作用を積みすぎても止まらないように） */
   minSpeedFactor: 0.2,
 
   sector: {
     straight: {
-      power: 0.30, top_speed: 0.40, top_end_power: 0.15,
+      power: 0.30, top_speed: 0.40, top_end_power: 0.15, stability: 0.10,
       drag: -0.35, weight_eff: -0.06,
     },
     fast_corner: {
@@ -81,6 +81,21 @@ export const WEIGHTS = {
     demandSkillRef: 85,
     /** consistency 0 のときのラップごとのばらつき（標準偏差、比率） */
     noiseAtZeroConsistency: 0.01,
+  },
+
+  brake: {
+    /** 1周あたりの温度上昇 = loadGain × (低速コーナー距離 / 周長) × (1 + heatPerPoint × heat) */
+    loadGain: 150,
+    /** 1周あたりの放熱率（温度に比例）。直線比率が高いほど冷える */
+    coolBase: 0.15,
+    coolPerStraightRatio: 0.30,
+    /** heat 1ポイントあたりの温度上昇の増分（負なら放熱が良い） */
+    heatPerPoint: 0.05,
+    /** フェードが始まる温度。fade_resistance で上がる */
+    thresholdBase: 100,
+    thresholdPerFadeResistance: 12,
+    /** 閾値を超えた1度あたり、braking から引くポイント数 */
+    lossPerDegree: 0.15,
   },
 
   reliability: {
@@ -140,13 +155,16 @@ export function buildPerformance(parts, driver, chassis) {
     addStats(stats, part.effects, part.id);
     addStats(stats, part.side_effects, part.id);
   }
-  const weightEff = stats.weight + WEIGHTS.unsprungFactor * stats.unsprung_weight;
+  const weightEff = Object.fromEntries(
+    SECTOR_TYPES.map((t) => [t, stats.weight + WEIGHTS.unsprungFactor[t] * stats.unsprung_weight]),
+  );
   const balanceDev = Math.abs(stats.balance - (driver?.preferred_balance ?? 0));
   return {
     chassisId: chassis.id,
     baseSpeed: chassis.base_speed,
     partIds: parts.map((p) => p.id),
     stats,
+    /** セクター種別ごとの有効重量 */
     weightEff,
     balanceDev,
   };
@@ -182,16 +200,47 @@ export function advanceTire(tire, stats) {
 }
 
 // ---------------------------------------------------------------------------
+// ブレーキ温度（フェード）
+// ---------------------------------------------------------------------------
+
+export function createBrakeState() {
+  return { temp: 0 };
+}
+
+/** コースの負荷プロファイル。周長に対する低速コーナー比率と直線比率。 */
+export function courseLoad(course) {
+  const total = course.sectors.reduce((a, s) => a + s.length, 0);
+  const sum = (type) => course.sectors.filter((s) => s.type === type).reduce((a, s) => a + s.length, 0);
+  return { total, slowRatio: sum('slow_corner') / total, straightRatio: sum('straight') / total };
+}
+
+/** 1周走った後のブレーキ温度。低速コーナーで溜まり、直線で冷える。 */
+export function advanceBrakes(brake, stats, load) {
+  const B = WEIGHTS.brake;
+  const gain = B.loadGain * load.slowRatio * Math.max(0.3, 1 + B.heatPerPoint * stats.heat);
+  const cool = B.coolBase + B.coolPerStraightRatio * load.straightRatio;
+  return { temp: Math.max(0, brake.temp * (1 - cool) + gain) };
+}
+
+/** フェードで braking から引くポイント数。閾値以下なら 0。 */
+export function brakeFadeLoss(stats, brake) {
+  const B = WEIGHTS.brake;
+  const threshold = B.thresholdBase + B.thresholdPerFadeResistance * stats.fade_resistance;
+  return Math.max(0, brake.temp - threshold) * B.lossPerDegree;
+}
+
+// ---------------------------------------------------------------------------
 // セクター通過時間
 // ---------------------------------------------------------------------------
 
-/** タイヤ状態を反映した実効性能。セクター計算はこれを見る。 */
-export function effectiveStats(perf, tire) {
+/** タイヤ・ブレーキ状態を反映した実効性能。セクター計算はこれを見る。 */
+export function effectiveStats(perf, tire, brake = createBrakeState()) {
   const loss = tireGripLoss(perf.stats, tire);
   return {
     ...perf.stats,
     cornering_grip: perf.stats.cornering_grip - loss.total,
     traction: perf.stats.traction - loss.total * WEIGHTS.tire.tractionShare,
+    braking: perf.stats.braking - brakeFadeLoss(perf.stats, brake),
     weight_eff: perf.weightEff,
     balance_dev: perf.balanceDev,
   };
@@ -202,7 +251,10 @@ export function sectorSpeed(type, eff, baseSpeed) {
   const weights = WEIGHTS.sector[type];
   if (!weights) throw new Error(`未知のセクター種別 "${type}"`);
   let pct = 0;
-  for (const [key, coef] of Object.entries(weights)) pct += coef * eff[key];
+  for (const [key, coef] of Object.entries(weights)) {
+    const value = key === 'weight_eff' ? eff.weight_eff[type] : eff[key];
+    pct += coef * value;
+  }
   return baseSpeed[type] * Math.max(WEIGHTS.minSpeedFactor, 1 + pct / 100);
 }
 
@@ -223,14 +275,15 @@ export function driverTimeFactor(driver, stats) {
 }
 
 /** 1周の所要時間（乱数なし）。 */
-export function lapTime(perf, course, tire, driver) {
-  const eff = effectiveStats(perf, tire);
+export function lapTime(perf, course, tire, driver, brake = createBrakeState()) {
+  const eff = effectiveStats(perf, tire, brake);
   const factor = driverTimeFactor(driver, perf.stats);
   const sectors = course.sectors.map((s) => sectorTime(s, eff, perf.baseSpeed) * factor);
   return {
     time: sectors.reduce((a, b) => a + b, 0),
     sectors,
     gripLoss: tireGripLoss(perf.stats, tire),
+    brakeFade: brakeFadeLoss(perf.stats, brake),
   };
 }
 
@@ -249,6 +302,9 @@ export function lapTime(perf, course, tire, driver) {
  * @param {number}  [options.seed=1]     乱数シード
  * @param {boolean} [options.noise=true] consistency によるラップのばらつきを入れる
  * @param {boolean} [options.retire=true] reliability によるリタイア判定を入れる
+ *
+ * 周回ごとにタイヤ摩耗とブレーキ温度が進む。ブレーキは低速コーナー比率の高いコースで
+ * 溜まりやすく、fade_resistance が閾値を押し上げる。
  */
 export function simulateRace(perf, course, laps, driver, options = {}) {
   const { seed = 1, noise = true, retire = true } = options;
@@ -256,8 +312,10 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
   const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (driver?.consistency ?? 100)) / 100;
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -perf.stats.reliability);
 
+  const load = courseLoad(course);
   const result = { courseId: course.id, laps: [], total: 0, best: Infinity, retired: false, retiredLap: null };
   let tire = createTireState();
+  let brake = createBrakeState();
 
   for (let i = 0; i < laps; i++) {
     if (retire && rng() < retireP) {
@@ -265,14 +323,19 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
       result.retiredLap = i + 1;
       break;
     }
-    const lt = lapTime(perf, course, tire, driver);
+    const lt = lapTime(perf, course, tire, driver, brake);
     let time = lt.time;
     if (noise) time *= 1 + sigma * gaussian(rng);
 
-    result.laps.push({ lap: i + 1, time, sectors: lt.sectors, wear: tire.wear, gripLoss: lt.gripLoss.total });
+    result.laps.push({
+      lap: i + 1, time, sectors: lt.sectors,
+      wear: tire.wear, gripLoss: lt.gripLoss.total,
+      brakeTemp: brake.temp, brakeFade: lt.brakeFade,
+    });
     result.total += time;
     if (time < result.best) result.best = time;
     tire = advanceTire(tire, perf.stats);
+    brake = advanceBrakes(brake, perf.stats, load);
   }
   result.average = result.laps.length ? result.total / result.laps.length : NaN;
   return result;

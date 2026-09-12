@@ -140,6 +140,23 @@ test('6. 同じ −8 でも unsprung_weight の方が weight より速い', () =
   assert.ok(diff > 0, 'ばね下軽量化の方が速いはず');
 });
 
+test('7. brake_rotor_01 はひばり平5周では基準車より遅いが、コーナー主体25周では速い', () => {
+  const rotor = part('brake_rotor_01');
+
+  const shortWith = race({ extra: [rotor], courseId: BALANCED, laps: 5 });
+  const shortWithout = race({ courseId: BALANCED, laps: 5 });
+  const shortDiff = report('基準車 − ローター @ ひばり平 5周', shortWithout, shortWith);
+  assert.ok(shortDiff > 0, '短いレースではばね下重量の分だけ遅いはず');
+
+  const longWith = race({ extra: [rotor], courseId: CORNER, laps: 25 });
+  const longWithout = race({ courseId: CORNER, laps: 25 });
+  const longDiff = report('ローター − 基準車 @ みさき 25周', longWith, longWithout);
+  assert.ok(longDiff > 0, 'ブレーキの厳しい長いレースではフェードの差で速いはず');
+
+  const last = longWithout.laps[24];
+  console.log(`  基準車のブレーキ温度 最終周 ${last.brakeTemp.toFixed(0)}（フェード −${last.brakeFade.toFixed(1)} pt）/ ローター車 ${longWith.laps[24].brakeTemp.toFixed(0)}（−${longWith.laps[24].brakeFade.toFixed(1)} pt）`);
+});
+
 test('補足: 乱数ありでも同じシードなら同じ結果、reliability が低いとリタイアが起きうる', () => {
   const perf = buildPerformance([part('tire_compound_02'), part('engine_turbo_02')], haruka, sedan);
   const r1 = simulateRace(perf, course(BALANCED), 30, haruka, { seed: 7 });
