@@ -19,6 +19,9 @@ import { dirname, join } from 'node:path';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'data', 'courses.json');
 
+/** クラス別の出走台数。コースの grid は、そのコースを使えるクラスぶんだけこの表から引く。 */
+const GRID_SIZE = { 1: 8, 2: 12, 3: 16, 4: 20, 5: 20 };
+
 /** 半径からセクター種別を決める境界（m）。data/README.md の表と同じ。 */
 const RADIUS_BOUNDS = { slow: 120, fast: 320 };
 
@@ -218,6 +221,7 @@ function buildCourse(design) {
     profile: design.profile,
     description: design.description,
     classes: design.classes,
+    grid: Object.fromEntries(design.classes.map((c) => [c, GRID_SIZE[c]])),
     length,
     path,
     sectors,

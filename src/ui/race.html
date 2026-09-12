@@ -124,6 +124,10 @@ h3.cap {
 
 /* --- 順位表（小さく） ------------------------------------------------------ */
 .standings { border: 1px solid var(--rule); background: var(--field); }
+.standings h3 button { float: right; font: inherit; font-size: 9px; letter-spacing: .1em; padding: 0 6px; cursor: pointer; background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3); }
+.standings h3 button.on { background: var(--car); color: #fff; border-color: var(--car); }
+.standings .full { max-height: 150px; overflow-y: auto; border-top: 2px solid var(--rule); }
+.row.gapline { display: block; text-align: center; color: var(--ink-3); font-size: 9px; padding: 0; line-height: 1.4; }
 .row {
   display: grid; grid-template-columns: 16px 1fr auto auto; gap: 6px; align-items: baseline;
   padding: 2px 7px; border-bottom: 1px solid var(--ink-3); font-size: 11px; line-height: 1.5;
@@ -200,8 +204,9 @@ h3.cap {
 
   <!-- 4. 順位表 -->
   <div class="standings">
-    <h3 class="cap">順位表</h3>
+    <h3 class="cap">順位表 <button type="button" id="standingsAll">全車</button></h3>
     <div id="standings"></div>
+    <div id="standingsFull" class="full" hidden></div>
   </div>
 
   <!-- 5. 操作 -->
@@ -301,7 +306,7 @@ function setupTrack(course) {
   svg.appendChild(dots);
   for (const car of [...S.cars].reverse()) {
     car.dotEl = svgEl('circle', {
-      r: car.isPlayer ? 5.5 : 3.2, fill: car.color,
+      r: car.isPlayer ? 5.5 : 2.4, fill: car.color,
       stroke: 'var(--field)', 'stroke-width': car.isPlayer ? 1.4 : 1,
     });
     dots.appendChild(car.dotEl);
@@ -327,18 +332,51 @@ function highlightSector(idx) {
 // ---------------------------------------------------------------------------
 // 出走車
 // ---------------------------------------------------------------------------
-/** AI の性格。radio は雑談と解説の語り口を選ぶキー（data/radio.json chat.ai、commentary.json analyst_traits）。 */
-const AI_PROFILES = [
-  { name: '青 2号車', radio: 'straight', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 }, skill: +3 },
-  { name: '青 5号車', radio: 'corner', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 }, skill: +2 },
-  { name: '青 7号車', radio: 'aggressive', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 }, skill: +5 },
-  { name: '青 11号車', radio: 'straight', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 }, skill: -4 },
-  { name: '青 14号車', radio: 'slow', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 }, skill: -1 },
-];
+/**
+ * AI の性格（5種）。data/rivals.json の profile がこのキーを指す。
+ * radio は雑談と解説の語り口（data/radio.json chat.ai、commentary.json analyst_traits）。
+ * 同クラス想定なので、得意分野を散らして総合力は近づける。
+ */
+const AI_PROFILES = {
+  straight: { radio: 'straight', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 } },
+  corner:   { radio: 'corner', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 } },
+  balanced: { radio: 'aggressive', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 } },
+  power:    { radio: 'straight', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 } },
+  stopgo:   { radio: 'slow', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 } },
+};
+/** 強さ3段階。技量の差と、全域に薄く乗せる性能差。同じ性格・同じ強さでも個体差はこの上に乗る。 */
+const AI_STRENGTH = {
+  fast:   { skill: +5, boost: 3 },
+  normal: { skill: 0, boost: 0 },
+  slow:   { skill: -5, boost: -3 },
+};
 
-function makeCar({ id, name, color, perf, driver, seed, isPlayer = false, radio = null }) {
+/** 名簿の1行から AI 車を組む。 */
+function makeRival(entry, i, { mine, driver, chassis, settings, rng, baseSeed }) {
+  const prof = AI_PROFILES[entry.profile] ?? AI_PROFILES.balanced;
+  const str = AI_STRENGTH[entry.strength] ?? AI_STRENGTH.normal;
+  const jitter = {};
+  for (const key of ['power', 'cornering_grip', 'downforce', 'acceleration', 'braking']) {
+    jitter[key] = str.boost + Math.round((rng() - 0.5) * 6);
+  }
+  const tune = { id: `ai_tune_${i}`, effects: prof.tune, side_effects: jitter };
+  const aiDriver = {
+    ...driver,
+    skill: clamp(driver.skill + str.skill + Math.round((rng() - 0.5) * 6), 30, 99),
+    consistency: clamp(driver.consistency + Math.round((rng() - 0.5) * 30), 20, 95),
+    preferred_balance: driver.preferred_balance + Math.round((rng() - 0.5) * 4),
+  };
+  return makeCar({
+    id: `ai${i}`, name: `${entry.number}号車 ${entry.name}`, short: `#${entry.number} ${entry.name}`,
+    number: entry.number, color: 'var(--ai)', radio: prof.radio,
+    perf: buildPerformance([...mine, tune], aiDriver, chassis, settings),
+    driver: aiDriver, seed: baseSeed + i * 977,
+  });
+}
+
+function makeCar({ id, name, short = name, number = null, color, perf, driver, seed, isPlayer = false, radio = null }) {
   return {
-    id, name, color, perf, driver, isPlayer, radio,
+    id, name, short, number, color, perf, driver, isPlayer, radio,
     rng: createRng(seed),
     tire: createTireState(), brake: createBrakeState(),
     lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
@@ -676,6 +714,7 @@ function baseVars() {
   const me = S.cars[0];
   return {
     course: S.course.name, length: S.course.length.toLocaleString('ja-JP'), laps: S.totalLaps,
+    cars: S.cars.length, rivals: S.cars.length - 1,
     leader: list[0]?.name ?? '—', pos: list.indexOf(me) + 1,
     lap: Math.min((list[0]?.lap ?? 0) + 1, S.totalLaps), left: S.totalLaps - (list[0]?.lap ?? 0),
   };
@@ -793,10 +832,10 @@ const S = {
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData, commentaryData] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
-    json('../../data/radio.json'), json('../../data/commentary.json'),
+    json('../../data/radio.json'), json('../../data/commentary.json'), json('../../data/rivals.json'),
   ]);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
@@ -820,33 +859,19 @@ async function boot() {
 
   const baseSeed = Number(Q.get('seed') ?? 20260912);
   const aiRng = createRng(baseSeed);
-  const ai = AI_PROFILES.map((prof, i) => {
-    const jitter = {};
-    for (const key of ['power', 'cornering_grip', 'downforce', 'acceleration', 'braking']) {
-      jitter[key] = Math.round((aiRng() - 0.5) * 6);
-    }
-    const tune = { id: `ai_tune_${i}`, effects: prof.tune, side_effects: jitter };
-    const aiDriver = {
-      ...driver,
-      skill: clamp(driver.skill + prof.skill + Math.round((aiRng() - 0.5) * 6), 30, 99),
-      consistency: clamp(driver.consistency + Math.round((aiRng() - 0.5) * 30), 20, 95),
-      preferred_balance: driver.preferred_balance + Math.round((aiRng() - 0.5) * 4),
-    };
-    return makeCar({
-      id: `ai${i}`, name: prof.name, color: 'var(--ai)', radio: prof.radio,
-      perf: buildPerformance([...mine, tune], aiDriver, chassis, settings),
-      driver: aiDriver, seed: baseSeed + i * 977,
-    });
-  });
+  // 出走台数はコース × クラスで決まる（courses.json の grid）。名簿の先頭から自車ぶんを除いて使う
+  const gridSize = clamp(Number(course.grid?.[cls] ?? 6), 2, rivals.length + 1);
+  const ai = rivals.slice(0, gridSize - 1)
+    .map((entry, i) => makeRival(entry, i, { mine, driver, chassis, settings, rng: aiRng, baseSeed }));
 
   S.cars = [
-    makeCar({ id: 'me', name: '神谷ハルカ（自車）', color: 'var(--car)', perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),
+    makeCar({ id: 'me', name: '神谷ハルカ', short: '神谷（自車）', color: 'var(--car)', perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),
     ...ai,
   ];
 
   setupTrack(course);
   el('courseName').textContent = course.name;
-  el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周`;
+  el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周・${S.cars.length} 台`;
   el('backLink').href = `setup.html${location.search}`;
 
   // --- 無線と実況 ---------------------------------------------------------
@@ -919,28 +944,50 @@ function ranked() {
   return [...running, ...S.cars.filter((c) => c.retired)];
 }
 
+function standingRow(car, i, leader) {
+  const last = car.lapTimes.at(-1);
+  let gap = '—';
+  if (car.retired) gap = `${car.retiredLap}周目 OUT`;
+  else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
+  else if (car.finished && leader.finished) gap = `+${(car.raceTime - leader.raceTime).toFixed(1)}s`;   // 確定後は総時間差
+  else {
+    const d = progress(leader, S.courseLen) - progress(car, S.courseLen);
+    const lapsDown = Math.floor(d / S.courseLen);
+    gap = lapsDown >= 1 ? `+${lapsDown} LAP` : `+${gapSeconds(leader, car).toFixed(1)}s`;
+  }
+  return `<div class="row ${car.isPlayer ? 'me' : ''} ${car.retired ? 'out' : ''}">
+    <span class="pos">${car.retired ? '—' : i + 1}</span>
+    <span class="nm"><b style="background:${car.color}"></b><span>${esc(car.short)}</span></span>
+    <span class="rt">${last ? formatTime(last) : '--:--.---'}</span>
+    <span class="gap">${gap}</span>
+  </div>`;
+}
+
+/** 常時表示は先頭＋自車の前後3台。全車はスクロールする別枠。 */
 function renderStandings() {
   const list = ranked();
   const leader = list[0];
-  el('standings').innerHTML = list.slice(0, 6).map((car, i) => {
-    const last = car.lapTimes.at(-1);
-    let gap = '—';
-    if (car.retired) gap = `${car.retiredLap}周目 OUT`;
-    else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
-    else if (car.finished && leader.finished) gap = `+${(car.raceTime - leader.raceTime).toFixed(1)}s`;   // 確定後は総時間差
-    else {
-      const d = progress(leader, S.courseLen) - progress(car, S.courseLen);
-      const lapsDown = Math.floor(d / S.courseLen);
-      gap = lapsDown >= 1 ? `+${lapsDown} LAP` : `+${gapSeconds(leader, car).toFixed(1)}s`;
-    }
-    return `<div class="row ${car.isPlayer ? 'me' : ''} ${car.retired ? 'out' : ''}">
-      <span class="pos">${car.retired ? '—' : i + 1}</span>
-      <span class="nm"><b style="background:${car.color}"></b><span>${car.name}</span></span>
-      <span class="rt">${last ? formatTime(last) : '--:--.---'}</span>
-      <span class="gap">${gap}</span>
-    </div>`;
-  }).join('');
+  const meIdx = list.indexOf(S.cars[0]);
+  const from = Math.max(0, meIdx - 3), to = Math.min(list.length, meIdx + 4);
+  const rows = [];
+  if (from > 0) {
+    rows.push(standingRow(leader, 0, leader));
+    if (from > 1) rows.push(`<div class="row gapline">⋯ ${from - 1} 台</div>`);
+  }
+  for (let i = from; i < to; i++) rows.push(standingRow(list[i], i, leader));
+  if (to < list.length) rows.push(`<div class="row gapline">⋯ ${list.length - to} 台</div>`);
+  el('standings').innerHTML = rows.join('');
+  if (!el('standingsFull').hidden) {
+    el('standingsFull').innerHTML = list.map((car, i) => standingRow(car, i, leader)).join('');
+  }
 }
+
+el('standingsAll').addEventListener('click', () => {
+  const box = el('standingsFull');
+  box.hidden = !box.hidden;
+  el('standingsAll').classList.toggle('on', !box.hidden);
+  renderStandings();
+});
 
 /** 車両情報。engine の値をそのまま出す。燃料だけは表示用の見積もり（race.js fuelLevel 参照）。 */
 function renderPanel() {

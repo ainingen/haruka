@@ -6,7 +6,7 @@
 
   "vars": {
     "car": "車名", "pos": "順位", "gap": "差（秒）", "lap": "いまの周", "laps": "全周回数",
-    "left": "残り周回", "time": "タイム", "course": "コース名", "leader": "先頭の車名"
+    "left": "残り周回", "time": "タイム", "course": "コース名", "leader": "先頭の車名", "cars": "出走台数", "rivals": "AI車の台数"
   },
 
   "triggers": {
@@ -14,16 +14,16 @@
       "announcer": [
         { "text": "{course}、{laps}周のレースがスタートしました", "sound_cue": "" },
         { "text": "スタートしました。全{laps}周、{course}", "sound_cue": "" },
-        { "text": "さあ始まりました。{course}を{laps}周、6台での争いです", "sound_cue": "" },
+        { "text": "さあ始まりました。{course}を{laps}周、{cars}台での争いです", "sound_cue": "" },
         { "text": "フラッグが振られました。{laps}周の戦い、{course}です", "sound_cue": "" },
-        { "text": "スタート。赤い車が神谷、青い5台がライバルです", "sound_cue": "" },
+        { "text": "スタート。赤い車が神谷、青い{rivals}台がライバルです", "sound_cue": "" },
         { "text": "スタートしました。今日の{course}は路面が乾いています", "sound_cue": "" }
       ],
       "analyst": [
         { "text": "{course}は1周{length}メートル。序盤はタイヤが温まるまで無理をしない周になります", "sound_cue": "" },
         { "text": "スタート直後はグリップが出ません。ここで突っ込む車は後で払うことになる", "sound_cue": "" },
         { "text": "最初の周はセッティングの答え合わせです。合っていれば静かに離れていく", "sound_cue": "" },
-        { "text": "6台とも同じクラスの規定ですから、差が出るとすれば作り方の違いですね", "sound_cue": "" },
+        { "text": "{cars}台とも同じクラスの規定ですから、差が出るとすれば作り方の違いですね", "sound_cue": "" },
         { "text": "今日の{course}、どこで勝負するかは車を見ればだいたい分かります", "sound_cue": "" }
       ]
     },

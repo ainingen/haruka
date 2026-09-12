@@ -9,6 +9,7 @@
 | `courses.json` | コース（形状 path ＋ セクター配列）。5コース |
 | `drivers.json` | ドライバー（技量、好みのバランス、安定性） |
 | `radio.json` | 無線とピットの台詞（トリガー ID → 台詞配列）。判定は持たない |
+| `rivals.json` | AI車の名簿（ゼッケン、名前、性格、強さ）。出走台数ぶん先頭から使う |
 
 これらを読んで走らせるのが `src/engine/race.js`。エンジンは I/O を持たないので、Node でもブラウザでも同じファイルが動く。
 挙動テストは `npm test`（＝ `node --test src/engine/race.test.js`）。
@@ -242,6 +243,7 @@
 | `profile` | `straight` / `corner` / `balanced` / `fast` / `stopgo`。表示用のタグで、計算には使わない |
 | `description` | プレイヤー向けの一言。何で決まるコースかを書く |
 | `classes` | このコースを使えるクラスの配列。規定でクラスが決まる |
+| `grid` | クラス → 出走台数（自車を含む）。クラス1＝8、2＝12、3＝16、4〜5＝20。`tools/generate-courses.mjs` の `GRID_SIZE` から引く |
 | `length` | 1周の距離（m）。`path` の全長と一致する |
 | `path` | SVG の `d` 文字列。**閉じたループで、座標系の単位はメートル** |
 | `sectors` | 走行順のセクター列。`{ type, start, length }`、いずれも m |

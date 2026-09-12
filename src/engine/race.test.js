@@ -425,6 +425,22 @@ test('15. notes.json: 全ノートが装着できて規定を満たす。クラ�
   console.log(`  ノート ${NOTES.length} 冊：クラス別 ${[1, 2, 3, 4].map((k) => `${k}=${NOTES.filter((n) => n.class === k).length}`).join(' ')}`);
 });
 
+test('17. 出走台数：コースの grid はクラス別に 8/12/16/20、名簿は20台ぶんある', () => {
+  const RIVALS = load('rivals.json');
+  const want = { 1: 8, 2: 12, 3: 16, 4: 20, 5: 20 };
+  for (const c of COURSES) {
+    for (const cls of c.classes) assert.equal(c.grid[cls], want[cls], `${c.id} クラス${cls} の grid`);
+    assert.deepEqual(Object.keys(c.grid).map(Number).sort(), [...c.classes].sort(), `${c.id} の grid は classes と対応`);
+  }
+  assert.ok(RIVALS.length >= 19, '最大20台（自車1＋19）ぶんの名簿');
+  assert.equal(new Set(RIVALS.map((r) => r.number)).size, RIVALS.length, 'ゼッケンが重複');
+  assert.equal(new Set(RIVALS.map((r) => r.name)).size, RIVALS.length, '名前が重複');
+  const profiles = new Set(RIVALS.map((r) => r.profile)), strengths = new Set(RIVALS.map((r) => r.strength));
+  assert.equal(profiles.size, 5, '性格は5種');
+  assert.deepEqual([...strengths].sort(), ['fast', 'normal', 'slow']);
+  console.log(`  名簿 ${RIVALS.length} 台：性格 ${[...profiles].join('/')} × 強さ ${[...strengths].join('/')}`);
+});
+
 test('16. パネル用の値：フェード閾値、摩耗の前後、燃料', () => {
   const perf = buildPerformance([part('tire_compound_02'), part('suspension_stabi_01')], haruka, sedan);
   assert.equal(brakeThreshold(perf.stats), 100);
