@@ -42,7 +42,7 @@
 ### 4. 素の HTML5 + SVG + JS のみ
 
 - **フレームワーク・ビルドツール禁止**（React、Vue、Svelte、webpack、Vite 等）。PLiCy 公開の制約。
-- npm 依存を追加しない。CDN から外部ライブラリを読み込まない。
+- npm 依存を追加しない。CDN から外部ライブラリを読み込まない。`package.json` は `"type": "module"` を宣言するためだけにあり、`dependencies` は空のまま。
 - ブラウザがそのまま開ける静的ファイル構成を保つ。`index.html` を開けば動く状態が正。
 - ES Modules（`<script type="module">`）は使ってよい。物理演算ライブラリは使わない
   — 走行は進行距離の毎フレーム加算方式（`docs/設計/レース方式.md`）。
@@ -56,6 +56,7 @@
 | `docs/設計/` | クラス構成、レース方式、画面設計 |
 | `docs/チューニング/` | パーツ設計（6カテゴリ） |
 | `docs/シナリオ/` | プロローグ台本、キャラクター |
+| `src/engine/` | レース計算エンジン（純関数、I/O なし）とそのテスト。`node --test src/engine/race.test.js` |
 
 ## 実装するときの指針
 

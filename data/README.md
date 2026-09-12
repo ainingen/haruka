@@ -5,6 +5,12 @@
 | ファイル | 内容 |
 |---|---|
 | `parts.json` | チューニングパーツ（6カテゴリ、全46点） |
+| `chassis.json` | 車両クラス4種のベース値と基準速度 |
+| `courses.json` | コース（セクター配列）。3コース |
+| `drivers.json` | ドライバー（技量、好みのバランス、安定性） |
+
+これらを読んで走らせるのが `src/engine/race.js`。エンジンは I/O を持たないので、Node でもブラウザでも同じファイルが動く。
+挙動テストは `node --test src/engine/race.test.js`。
 
 ## parts.json
 
@@ -49,7 +55,7 @@
 - レース計算側は `effects` と `side_effects` を区別せず**合算**してよい。区別は UI 表示（何を得て何を失うか）のためにある。
 - 単位は無次元ポイント。目安はクラス1で ±1〜6、クラス5で ±10〜40。kg や PS への換算は表示側で行う。
 
-### パラメータキー一覧（全25）
+### パラメータキー一覧（全26）
 
 6カテゴリ共通。**ここにないキーを新設しない。** 必要なら先にこの表に追加し、意味と向きを定義する。
 
@@ -86,9 +92,10 @@
 |---|---|---|---|
 | `downforce` | ダウンフォース | 有利 | 高速コーナー |
 | `drag` | 空気抵抗 | **不利** | ストレート |
-| `weight` | 車重 | **不利** | 全域 |
+| `weight` | 車重（ばね上） | **不利** | 全域 |
+| `unsprung_weight` | ばね下重量（ホイール、ローター、キャリパー） | **不利** | 全域。計算では `weight` の **5倍相当** として扱う |
 
-ばね下重量（ホイール、ローター、キャリパー）は `road_compliance` に影響するが、現状は `weight` に一括している。レース計算側でばね下／ばね上を分ける場合は `unsprung_weight` キーを新設して分離すること。
+ばね下重量は路面追従性にも効くため、`weight` とは別キー `unsprung_weight` で持つ。レース計算では有効重量 `weight + 5 × unsprung_weight` として合算する（`src/engine/race.js`）。ホイール・ローター・キャリパーの重量変化は必ず `unsprung_weight` に置き、`weight` に混ぜない。
 
 #### 消耗・熱・信頼性
 
@@ -149,3 +156,47 @@
 - **空気圧** — `warmup` と `tire_wear` に効く。高いと温まりは早いが終盤でタレる。ハルカの領分。
 - **ブレーキ前後配分の数値** — `brake_bias_01` を装着すると調整可能になる。数値そのものは走行前に決める。
 - **減衰力・車高の数値** — 車高調装着で調整可能になる。
+
+## chassis.json
+
+車両クラスごとのベース。キーは `hatchback` / `sedan` / `gt` / `formula`。
+
+| フィールド | 意味 |
+|---|---|
+| `base_speed` | セクター種別ごとの基準速度（m/s）。`straight` / `fast_corner` / `slow_corner` |
+| `base` | 性能ポイントの初期値。parts.json と同じ語彙。書いていないキーは 0 |
+
+性能ポイントは「その車種の基準からの差分」。クラス間の速さの差は `base_speed` が担い、
+パーツのポイントは全クラスで同じ意味を持つ。
+
+## courses.json
+
+配列。各コースは `sectors` にセクターを走行順で並べる。
+
+```json
+{ "type": "straight" | "fast_corner" | "slow_corner", "length": 1200 }
+```
+
+`length` は m。`profile`（`straight` / `corner` / `balanced`）は説明用のタグで、計算には使わない。
+セクター種別ごとに効く性能キーは `src/engine/race.js` の `WEIGHTS.sector` を見る。
+
+## drivers.json
+
+| フィールド | 意味 |
+|---|---|
+| `skill` | 技量 0〜100。全セクターの時間に係数として掛かる。`driver_demand` の高い車ほど低 skill の損が大きい。成長するので初期値 |
+| `preferred_balance` | 好みの前後バランス（`balance` と同じ向き。正＝オーバー寄り）。車両の `balance` がここからズレるほど遅くなる。**0 が最適ではない** |
+| `consistency` | 周回タイムのばらつきの小ささ 0〜100。乱数ありのレースでのみ効く |
+
+## レース計算で使っているキー・いないキー
+
+`src/engine/race.js` が現時点で参照するキーと、まだ計算に入っていないキー。
+未使用のキーもデータには残す（UI 表示と将来の計算のため）。
+
+| 扱い | キー |
+|---|---|
+| セクター速度 | `power` `top_speed` `top_end_power` `drag` `downforce` `cornering_grip` `stability` `rigidity` `road_compliance` `acceleration` `traction` `braking` `turn_in` `low_end_torque` `throttle_response` `weight` `unsprung_weight` `balance`（`preferred_balance` とのズレ） |
+| タイヤ状態 | `tire_wear` `heat` `warmup` |
+| ドライバー係数 | `driver_demand` |
+| リタイア判定 | `reliability` |
+| **未使用** | `fade_resistance`（ブレーキの周回後半の低下）、`fuel_consumption`（耐久のピット戦略）、`noise`（音量規定による出走可否）。パーツの `durability` もレース間の消耗として別途扱う予定 |

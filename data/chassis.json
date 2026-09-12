@@ -1,0 +1,30 @@
+{
+  "hatchback": {
+    "id": "hatchback",
+    "name": "ハッチバック",
+    "classes": [1],
+    "base_speed": { "straight": 48, "fast_corner": 33, "slow_corner": 17 },
+    "base": {}
+  },
+  "sedan": {
+    "id": "sedan",
+    "name": "セダン",
+    "classes": [2, 3],
+    "base_speed": { "straight": 56, "fast_corner": 40, "slow_corner": 19 },
+    "base": { "stability": 2 }
+  },
+  "gt": {
+    "id": "gt",
+    "name": "GT",
+    "classes": [3, 4, 5],
+    "base_speed": { "straight": 68, "fast_corner": 50, "slow_corner": 22 },
+    "base": { "downforce": 10, "drag": 4, "rigidity": 5 }
+  },
+  "formula": {
+    "id": "formula",
+    "name": "フォーミュラ",
+    "classes": [5],
+    "base_speed": { "straight": 82, "fast_corner": 62, "slow_corner": 26 },
+    "base": { "downforce": 25, "drag": 8, "weight": -40, "driver_demand": 6 }
+  }
+}

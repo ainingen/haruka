@@ -1,0 +1,52 @@
+[
+  {
+    "id": "nagasawa",
+    "name": "ながさわ高速周回路",
+    "profile": "straight",
+    "description": "長いストレートが3本。コーナーは少なく、最高速と空気抵抗で決まる。",
+    "sectors": [
+      { "type": "straight", "length": 1200 },
+      { "type": "slow_corner", "length": 150 },
+      { "type": "straight", "length": 800 },
+      { "type": "fast_corner", "length": 400 },
+      { "type": "slow_corner", "length": 120 },
+      { "type": "straight", "length": 600 },
+      { "type": "fast_corner", "length": 300 }
+    ]
+  },
+  {
+    "id": "misaki",
+    "name": "みさき山道コース",
+    "profile": "corner",
+    "description": "切り返しの連続。ストレートは短く、立ち上がりと旋回で決まる。",
+    "sectors": [
+      { "type": "straight", "length": 300 },
+      { "type": "slow_corner", "length": 150 },
+      { "type": "fast_corner", "length": 300 },
+      { "type": "slow_corner", "length": 120 },
+      { "type": "fast_corner", "length": 250 },
+      { "type": "slow_corner", "length": 140 },
+      { "type": "straight", "length": 250 },
+      { "type": "fast_corner", "length": 250 },
+      { "type": "slow_corner", "length": 160 },
+      { "type": "straight", "length": 150 },
+      { "type": "slow_corner", "length": 130 }
+    ]
+  },
+  {
+    "id": "hibaridaira",
+    "name": "ひばり平サーキット",
+    "profile": "balanced",
+    "description": "ストレートと高速・低速コーナーがほぼ均等。基準にするコース。",
+    "sectors": [
+      { "type": "straight", "length": 800 },
+      { "type": "fast_corner", "length": 500 },
+      { "type": "slow_corner", "length": 200 },
+      { "type": "straight", "length": 500 },
+      { "type": "fast_corner", "length": 400 },
+      { "type": "slow_corner", "length": 180 },
+      { "type": "straight", "length": 400 },
+      { "type": "slow_corner", "length": 150 }
+    ]
+  }
+]
