@@ -104,6 +104,80 @@ export const WEIGHTS = {
   },
 };
 
+/**
+ * 連続値セッティング。パーツとは別に、走行前に決める数値。
+ *
+ * `unlockedBy` が null なら常に触れる。配列なら、そのいずれかのパーツを装着したときだけ解禁される。
+ * `toStats(value, chassis)` が返す差分は、パーツの effects / side_effects と同じ語彙・同じ向きで合算される。
+ */
+export const SETTINGS = {
+  tire_pressure: {
+    key: 'tire_pressure',
+    label: '空気圧',
+    unit: 'bar',
+    step: 0.05,
+    unlockedBy: null,
+    rangeFor: () => ({ min: 1.6, max: 2.6 }),
+    defaultValue: () => 2.1,
+    /** 高いほど早く温まるが早くタレる。基準から離れるほど接地形状が崩れてグリップが落ちる。 */
+    toStats(value) {
+      const d = (value - this.defaultValue()) / 0.1;
+      return { warmup: 1.2 * d, tire_wear: 0.8 * d, cornering_grip: -0.4 * Math.abs(d) };
+    },
+  },
+
+  ride_height: {
+    key: 'ride_height',
+    label: '車高',
+    unit: 'mm',
+    step: 5,
+    unlockedBy: ['suspension_coilover_01', 'suspension_coilover_02', 'suspension_works_01'],
+    rangeFor: (chassis) => {
+      const base = chassis.display.ride_height_mm;
+      return { min: base - 40, max: base + 20 };
+    },
+    defaultValue: (chassis) => chassis.display.ride_height_mm,
+    /** 下げれば重心が下がって空力も効くが、ストロークが減って路面追従が落ちる。 */
+    toStats(value, chassis) {
+      const drop = (chassis.display.ride_height_mm - value) / 10;
+      return { downforce: 1.5 * drop, drag: -0.3 * drop, cornering_grip: 0.5 * drop, road_compliance: -1.8 * drop };
+    },
+  },
+
+  brake_bias: {
+    key: 'brake_bias',
+    label: 'ブレーキ前後配分',
+    unit: '% 前',
+    step: 1,
+    unlockedBy: ['brake_bias_01'],
+    rangeFor: () => ({ min: 50, max: 70 }),
+    defaultValue: () => 60,
+    /**
+     * 後ろに寄せれば頭が入り、前後バランスもオーバー寄りに動く。代わりに安定を失い、
+     * どちらに振ってもロックしやすくなって制動距離は伸びる。
+     * balance に効くので「アンダーな車を配分で釣り合わせる」使い方ができる
+     * ＝ 基準の 60% が常に最適ではない。
+     */
+    toStats(value) {
+      const d = this.defaultValue() - value;
+      return { turn_in: 0.5 * d, stability: -0.4 * d, braking: -0.08 * d * d, balance: 0.25 * d };
+    },
+  },
+};
+
+/** そのパーツ構成でこのセッティングを触れるか。 */
+export function isSettingUnlocked(def, parts) {
+  if (!def.unlockedBy) return true;
+  return parts.some((p) => def.unlockedBy.includes(p.id));
+}
+
+/** 現在のパーツ構成で触れるセッティングの一覧（UI 用）。 */
+export function availableSettings(parts, chassis) {
+  return Object.values(SETTINGS)
+    .filter((def) => isSettingUnlocked(def, parts))
+    .map((def) => ({ def, ...def.rangeFor(chassis), step: def.step, defaultValue: def.defaultValue(chassis) }));
+}
+
 // ---------------------------------------------------------------------------
 // 乱数（シード固定できるように自前で持つ）
 // ---------------------------------------------------------------------------
@@ -143,17 +217,28 @@ function addStats(stats, delta, source) {
  * 装着パーツ一覧から performance を合成する。
  * effects と side_effects は符号付きで単純合算（data/README.md の規約）。
  *
- * @param {object[]} parts   parts.json の要素
- * @param {object}   driver  drivers.json の要素（preferred_balance を使う）
- * @param {object}   chassis chassis.json の要素（base_speed と base）
+ * 連続値セッティング（空気圧・車高・ブレーキ前後配分）を渡すと、解禁されているものだけが
+ * 同じ語彙の差分として合算される。渡さなければ基準値（差分ゼロ）として扱う。
+ *
+ * @param {object[]} parts    parts.json の要素
+ * @param {object}   driver   drivers.json の要素（preferred_balance を使う）
+ * @param {object}   chassis  chassis.json の要素（base_speed と base）
+ * @param {object}   [settings] { tire_pressure, ride_height, brake_bias } の一部または全部
  */
-export function buildPerformance(parts, driver, chassis) {
+export function buildPerformance(parts, driver, chassis, settings = null) {
   if (!chassis?.base_speed) throw new Error('chassis に base_speed がない');
   const stats = Object.fromEntries(KEYS.map((k) => [k, 0]));
   addStats(stats, chassis.base, `chassis:${chassis.id}`);
   for (const part of parts) {
     addStats(stats, part.effects, part.id);
     addStats(stats, part.side_effects, part.id);
+  }
+  for (const [key, value] of Object.entries(settings ?? {})) {
+    const def = SETTINGS[key];
+    if (!def) throw new Error(`未知のセッティング "${key}"`);
+    if (!isSettingUnlocked(def, parts)) continue;
+    if (value === null || value === undefined) continue;
+    addStats(stats, def.toStats(value, chassis), `setting:${key}`);
   }
   const weightEff = Object.fromEntries(
     SECTOR_TYPES.map((t) => [t, stats.weight + WEIGHTS.unsprungFactor[t] * stats.unsprung_weight]),
@@ -163,6 +248,7 @@ export function buildPerformance(parts, driver, chassis) {
     chassisId: chassis.id,
     baseSpeed: chassis.base_speed,
     partIds: parts.map((p) => p.id),
+    settings: settings ?? {},
     stats,
     /** セクター種別ごとの有効重量 */
     weightEff,

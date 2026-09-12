@@ -156,7 +156,8 @@
 - **空気圧** — `warmup` と `tire_wear` に効く。高いと温まりは早いが終盤でタレる。ハルカの領分。
 - **ブレーキ前後配分の数値** — `brake_bias_01` を装着すると調整可能になる。数値そのものは走行前に決める。
   `brake_bias_01` は性能パーツではなく、セッティング画面で前後ブレーキ配分の連続値スライダーを解禁するパーツ。
-  単体数値は暫定で、スライダー実装後にコース適合による性能差へ置き換える予定。
+  スライダーは実装済み（`src/engine/race.js` の `SETTINGS.brake_bias`）。配分は `balance` にも効くので、
+  アンダーな車を配分で釣り合わせることができる＝基準の 60% が常に最適ではない。
 - **減衰力・車高の数値** — 車高調装着で調整可能になる。
 
 ## chassis.json
@@ -167,6 +168,10 @@
 |---|---|
 | `base_speed` | セクター種別ごとの基準速度（m/s）。`straight` / `fast_corner` / `slow_corner` |
 | `base` | 性能ポイントの初期値。parts.json と同じ語彙。書いていないキーは 0 |
+| `display` | 画面表示と換算のための実寸。`length_mm` / `wheelbase_mm` / `ride_height_mm` / `weight_kg` / `power_ps` |
+
+`display` は寸法線の数値と、ポイント → kg・ps の換算基準に使う（換算は表示側で行う）。
+`ride_height_mm` は車高スライダーの基準値でもあり、そこから −40〜+20mm の範囲で動かせる。
 
 性能ポイントは「その車種の基準からの差分」。クラス間の速さの差は `base_speed` が担い、
 パーツのポイントは全クラスで同じ意味を持つ。
@@ -190,6 +195,21 @@
 | `preferred_balance` | 好みの前後バランス（`balance` と同じ向き。正＝オーバー寄り）。車両の `balance` がここからズレるほど遅くなる。**0 が最適ではない** |
 | `consistency` | 周回タイムのばらつきの小ささ 0〜100。乱数ありのレースでのみ効く |
 
+## 連続値セッティング
+
+パーツとは別に、走行前に決める数値。定義は `src/engine/race.js` の `SETTINGS`。
+`buildPerformance(parts, driver, chassis, settings)` の第4引数で渡すと、
+パーツの `effects` / `side_effects` と同じ語彙・同じ向きの差分として合算される。
+
+| キー | 範囲 | 解禁条件 | 効果と代償 |
+|---|---|---|---|
+| `tire_pressure` | 1.6〜2.6 bar（基準 2.1） | 常時 | 高いほど `warmup` が上がるが `tire_wear` も増える。基準から離れるほど `cornering_grip` が落ちる（接地形状） |
+| `ride_height` | 基準 −40〜+20 mm | 車高調系を装着 | 下げると `downforce` `cornering_grip` が上がり `drag` が減るが、`road_compliance` を失う |
+| `brake_bias` | 50〜70 %前（基準 60） | `brake_bias_01` を装着 | 後ろへ寄せると `turn_in` と `balance` が上がり `stability` を失う。どちらに振っても `braking` は二次で落ちる |
+
+**基準値が常に最適ではない。** 空気圧はレース長で、車高はコース特性で、ブレーキ配分は車の `balance` と
+ドライバーの `preferred_balance` との関係で最適点が動く。
+
 ## レース計算で使っているキー・いないキー
 
 `src/engine/race.js` が現時点で参照するキーと、まだ計算に入っていないキー。
@@ -201,5 +221,6 @@
 | タイヤ状態 | `tire_wear` `heat` `warmup` |
 | ブレーキ温度 | `fade_resistance` `heat`。低速コーナー比率の高いコースで温度が溜まり、閾値を超えると `braking` が減衰 |
 | ドライバー係数 | `driver_demand` |
+| 連続値セッティング | `tire_pressure` `ride_height` `brake_bias`（上表。合算後は通常のキーと区別されない） |
 | リタイア判定 | `reliability` |
 | **未使用** | `fuel_consumption`（耐久のピット戦略）、`noise`（音量規定による出走可否）。パーツの `durability` もレース間の消耗として別途扱う予定 |

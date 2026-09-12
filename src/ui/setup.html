@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>セッティング — ハルカのセッティングノート</title>
+<style>
+/* ===========================================================================
+   図面様式のセッティング画面（docs/設計/画面設計.md）
+   色はすべて CSS 変数。テーマ差し替えはここだけを書き換える。
+   =========================================================================== */
+:root {
+  --paper:      #f2efe6;  /* 図面紙 */
+  --paper-2:    #e9e5d9;  /* 枠内の淡い地 */
+  --ink:        #23211c;  /* 主線・本文 */
+  --ink-2:      #6b665c;  /* 補助線・注記 */
+  --ink-3:      #9a9488;  /* 未装着・無効 */
+  --rule:       #3a372f;  /* 図面枠 */
+  --car:        #c0392b;  /* 自車＝赤 */
+  --ai:         #1b4f9c;  /* AI車＝青（凡例のみ） */
+  --dim:        #7a7468;  /* 寸法線 */
+  --accent:     #8a6d1f;  /* 見出しの下線・強調 */
+  --good:       #2f6b3a;  /* 効果 */
+  --bad:        #9c3b2e;  /* 副作用 */
+  --lock-bg:    #e2ded1;
+  --field:      #fbf9f3;
+  --shadow:     rgba(0,0,0,.08);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:   #14171c;  /* 青焼き風 */
+    --paper-2: #1a1e25;
+    --ink:     #d6dde6;
+    --ink-2:   #8b96a4;
+    --ink-3:   #5d6673;
+    --rule:    #7f8b9a;
+    --car:     #e8604f;
+    --ai:      #6aa6ff;
+    --dim:     #7f8b9a;
+    --accent:  #d2b357;
+    --good:    #74c98a;
+    --bad:     #e08878;
+    --lock-bg: #1f242c;
+    --field:   #11141a;
+    --shadow:  rgba(0,0,0,.4);
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  padding: 8px;
+  padding-bottom: 72px;            /* 固定フッターぶん */
+}
+
+/* --- 図面枠：外枠と内枠の二重線 ----------------------------------------- */
+.sheet {
+  max-width: 720px; margin: 0 auto;
+  border: 2px solid var(--rule);
+  padding: 4px;
+  background: var(--paper);
+}
+.sheet-inner {
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  padding: 10px;
+}
+
+/* --- タイトルブロック ---------------------------------------------------- */
+.titleblock {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 8px; border-bottom: 1px solid var(--rule); padding-bottom: 8px;
+}
+.projectbar .k { font-size: 10px; letter-spacing: .12em; color: var(--ink-2); }
+.projectbar .driver { font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+.projectbar .cls { font-size: 11px; color: var(--ink-2); }
+.sheetno {
+  text-align: right; font-size: 10px; color: var(--ink-2);
+  border: 1px solid var(--ink-3); padding: 3px 6px; line-height: 1.4; white-space: nowrap;
+}
+.sheetno b { display: block; font-size: 13px; color: var(--ink); letter-spacing: .08em; }
+
+/* --- セクション見出し ---------------------------------------------------- */
+h2 {
+  font-size: 10px; letter-spacing: .2em; color: var(--ink-2);
+  margin: 14px 0 6px; padding-bottom: 3px; border-bottom: 1px solid var(--ink-3);
+  font-weight: 600;
+}
+
+/* --- デバッグ切替 -------------------------------------------------------- */
+.debug {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center;
+  background: var(--lock-bg); border: 1px dashed var(--ink-3);
+  padding: 6px 8px; margin-top: 8px; font-size: 11px;
+}
+.debug .tag { font-size: 9px; letter-spacing: .14em; color: var(--ink-2); }
+.debug label { display: flex; align-items: center; gap: 5px; }
+.debug select {
+  font: inherit; font-size: 11px; padding: 2px 4px;
+  background: var(--field); color: var(--ink); border: 1px solid var(--ink-3);
+}
+
+/* --- 主ビュー ------------------------------------------------------------ */
+.mainview { width: 100%; height: auto; display: block; margin-top: 6px; }
+/* fill は各要素の属性で指定する（ここで指定すると装着済みバルーンの番号が潰れる） */
+.mainview text { font-family: inherit; }
+.note-scale { font-size: 10px; color: var(--ink-2); text-align: right; margin-top: -2px; }
+
+/* --- DETAIL 枠 ----------------------------------------------------------- */
+.details { display: flex; gap: 8px; margin-top: 10px; }
+.detail { flex: 1 1 0; border: 1px solid var(--rule); background: var(--field); padding: 4px; min-width: 0; }
+.detail .cap {
+  font-size: 9px; letter-spacing: .14em; color: var(--ink-2);
+  border-bottom: 1px solid var(--ink-3); padding-bottom: 2px; margin-bottom: 2px;
+}
+.detail svg { width: 100%; max-width: 168px; height: auto; display: block; margin: 0 auto; }
+.detail .sub { font-size: 10px; color: var(--ink-2); margin-top: 2px; line-height: 1.35; }
+
+/* --- スライダー ---------------------------------------------------------- */
+.slider { margin: 10px 0; }
+.slider .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; }
+.slider .val { font-variant-numeric: tabular-nums; font-weight: 700; }
+.slider input[type=range] { width: 100%; margin: 2px 0 0; accent-color: var(--car); }
+.slider .hint { font-size: 10px; color: var(--ink-2); }
+.slider .locked { color: var(--ink-3); font-size: 10px; }
+
+/* --- 部品表（引き出しラベル） -------------------------------------------- */
+.bom { border: 1px solid var(--rule); }
+.bom-row {
+  display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; align-items: center;
+  padding: 7px 8px; border-bottom: 1px solid var(--ink-3);
+  background: none; width: 100%; text-align: left; cursor: pointer;
+  font: inherit; color: inherit;
+}
+.bom-row:last-child { border-bottom: 0; }
+.bom-row:hover { background: var(--lock-bg); }
+.bom-row .no {
+  width: 22px; height: 22px; border: 1px solid var(--ink); border-radius: 50%;
+  display: grid; place-items: center; font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.bom-row .cat { font-size: 10px; letter-spacing: .1em; color: var(--ink-2); }
+.bom-row .name { font-size: 13px; }
+.bom-row .name.empty {
+  color: var(--ink-3); border: 1px dashed var(--ink-3);
+  padding: 1px 8px; display: inline-block; font-size: 12px;
+}
+.bom-row .chev { font-size: 11px; color: var(--ink-2); }
+.badge {
+  font-size: 9px; letter-spacing: .08em; border: 1px solid var(--bad); color: var(--bad);
+  padding: 0 4px; margin-left: 6px; white-space: nowrap;
+}
+
+/* --- パーツ選択 ---------------------------------------------------------- */
+.picker { border: 1px solid var(--rule); border-top: 0; background: var(--field); }
+.picker-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 8px; border-bottom: 1px solid var(--ink-3);
+  font-size: 11px; letter-spacing: .1em; color: var(--ink-2);
+}
+.picker-head button {
+  font: inherit; font-size: 11px; background: none; border: 1px solid var(--ink-3);
+  color: var(--ink); padding: 2px 8px; cursor: pointer;
+}
+.part { padding: 8px; border-bottom: 1px solid var(--ink-3); }
+.part:last-child { border-bottom: 0; }
+.part.locked { background: var(--lock-bg); color: var(--ink-3); }
+.part.on { box-shadow: inset 3px 0 0 var(--car); }
+.part .hdr { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.part .pname { font-size: 13px; font-weight: 600; }
+.part.locked .pname { font-weight: 500; }
+.part .price { font-size: 11px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.part .stats { font-size: 11px; margin-top: 3px; line-height: 1.5; }
+.part .stats .e { color: var(--good); }
+.part .stats .s { color: var(--bad); }
+.part.locked .stats .e, .part.locked .stats .s { color: var(--ink-3); }
+.part .note {
+  font-size: 11px; color: var(--ink-2); margin-top: 5px; padding-left: 8px;
+  border-left: 2px solid var(--accent); font-style: italic;
+}
+.part .lockmsg { font-size: 10px; color: var(--bad); margin-top: 3px; }
+.part .pick {
+  margin-top: 6px; font: inherit; font-size: 11px; padding: 3px 12px; cursor: pointer;
+  background: var(--paper); border: 1px solid var(--ink); color: var(--ink);
+}
+.part .pick[disabled] { cursor: not-allowed; border-color: var(--ink-3); color: var(--ink-3); }
+
+/* --- 下段ステータス ------------------------------------------------------ */
+.status {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+  background: var(--ink-3); border: 1px solid var(--rule); margin-top: 12px;
+}
+.status div { background: var(--paper-2); padding: 6px 8px; }
+.status .k { font-size: 9px; letter-spacing: .14em; color: var(--ink-2); }
+.status .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.status .u { font-size: 10px; font-weight: 400; color: var(--ink-2); }
+.status .sub { font-size: 10px; color: var(--ink-2); }
+.warn {
+  margin-top: 8px; border: 1px solid var(--bad); color: var(--bad);
+  padding: 5px 8px; font-size: 11px;
+}
+
+/* --- ラップ計算 ---------------------------------------------------------- */
+.calcbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; justify-content: flex-end; padding: 8px;
+  background: linear-gradient(to top, var(--paper) 60%, transparent);
+  pointer-events: none;
+}
+.calcbar button {
+  pointer-events: auto; font: inherit; font-size: 13px; font-weight: 700;
+  padding: 10px 18px; cursor: pointer; letter-spacing: .08em;
+  background: var(--car); color: #fff; border: 1px solid var(--rule);
+  box-shadow: 0 2px 6px var(--shadow);
+}
+.laps { margin-top: 10px; border: 1px solid var(--rule); }
+.laps .lap {
+  display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline;
+  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
+}
+.laps .lap:last-child { border-bottom: 0; }
+.laps .cname { min-width: 0; }
+.laps .cprof { font-size: 10px; color: var(--ink-2); }
+.laps .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
+.laps .d { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.legend { font-size: 10px; color: var(--ink-2); margin-top: 8px; display: flex; gap: 12px; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.err { border: 1px solid var(--bad); color: var(--bad); padding: 10px; font-size: 12px; }
+
+@media (max-width: 400px) {
+  body { padding: 4px; }
+  .sheet-inner { padding: 7px; }
+  .details { flex-direction: column; }
+  .status { grid-template-columns: 1fr 1fr; }
+  .status div:last-child { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+
+<div class="sheet"><div class="sheet-inner">
+
+  <div class="titleblock">
+    <div class="projectbar">
+      <div class="k">DRIVER</div>
+      <div class="driver" id="driverName">—</div>
+      <div class="cls" id="classLine">—</div>
+    </div>
+    <div class="sheetno">
+      <span>SHEET</span>
+      <b id="sheetNo">—</b>
+      <span id="chassisName">—</span>
+    </div>
+  </div>
+
+  <div class="debug">
+    <span class="tag">DEBUG</span>
+    <label>クラス
+      <select id="selClass">
+        <option value="1">1 走行会</option>
+        <option value="2" selected>2 地方選手権</option>
+        <option value="3">3 全国耐久</option>
+        <option value="4">4 上位GT</option>
+        <option value="5">5 トップ</option>
+      </select>
+    </label>
+    <label>スポンサー
+      <select id="selTier">
+        <option value="0">0 なし</option>
+        <option value="1" selected>1 地元</option>
+        <option value="2">2 地方チェーン</option>
+        <option value="3">3 全国企業</option>
+        <option value="4">4 大手メーカー</option>
+      </select>
+    </label>
+  </div>
+
+  <h2>主ビュー / 側面</h2>
+  <svg class="mainview" id="mainview" viewBox="0 0 400 184" role="img" aria-label="車体側面図と寸法"></svg>
+  <div class="note-scale" id="scaleNote"></div>
+
+  <div class="details">
+    <div class="detail">
+      <div class="cap">DETAIL A — ホイール</div>
+      <svg id="detailWheel" viewBox="0 0 120 104"></svg>
+      <div class="sub" id="wheelSub"></div>
+    </div>
+    <div class="detail">
+      <div class="cap">DETAIL B — サスペンション</div>
+      <svg id="detailSusp" viewBox="0 0 120 104"></svg>
+      <div class="sub" id="suspSub"></div>
+    </div>
+  </div>
+
+  <h2>セッティング / 連続値</h2>
+  <div id="sliders"></div>
+
+  <h2>部品表</h2>
+  <div class="bom" id="bom"></div>
+  <div class="picker" id="picker" hidden></div>
+  <div id="illegalWarn"></div>
+
+  <h2>ステータス</h2>
+  <div class="status" id="status"></div>
+
+  <div id="lapsWrap"></div>
+
+  <div class="legend">
+    <span><i style="background:var(--car)"></i> 自車</span>
+    <span><i style="background:var(--ai)"></i> AI車</span>
+  </div>
+
+</div></div>
+
+<div class="calcbar"><button id="calcBtn" type="button">ラップ計算</button></div>
+
+<script type="module">
+import {
+  buildPerformance, simulateRace, formatTime,
+  SETTINGS, isSettingUnlocked,
+} from '../engine/race.js';
+
+// ---------------------------------------------------------------------------
+// 表示用の語彙（data/README.md のキー → 日本語）
+// ---------------------------------------------------------------------------
+const STAT_LABEL = {
+  power: '出力', top_end_power: '高回転の伸び', low_end_torque: '低速トルク',
+  throttle_response: 'レスポンス', acceleration: '加速', top_speed: '最高速',
+  traction: 'トラクション', cornering_grip: '旋回グリップ', braking: '制動力',
+  fade_resistance: '耐フェード', turn_in: '回頭性', stability: '安定性',
+  road_compliance: '路面追従', rigidity: '剛性', balance: '前後バランス',
+  downforce: 'ダウンフォース', drag: '空気抵抗', weight: '重量',
+  unsprung_weight: 'ばね下重量', warmup: '温まり', tire_wear: 'タイヤ摩耗',
+  heat: '発熱', fuel_consumption: '燃料消費', reliability: '信頼性',
+  noise: '騒音', driver_demand: '要求技量',
+};
+const CATEGORIES = [
+  { id: 'engine',      label: 'エンジン' },
+  { id: 'drivetrain',  label: '駆動系' },
+  { id: 'suspension',  label: '足回り' },
+  { id: 'tire',        label: 'タイヤ' },
+  { id: 'brake',       label: 'ブレーキ' },
+  { id: 'aero_weight', label: '軽量化・空力' },
+];
+/** クラス → 車体。docs/設計/クラス構成.md の車両欄に対応（3 はセダンを使う）。 */
+const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
+const CLASS_LABEL = { 1: '走行会・草レース', 2: '地方選手権', 3: '全国耐久', 4: '上位GT', 5: 'トップカテゴリー' };
+const TIER_LABEL = ['なし（自腹）', '地元スポンサー', '地方チェーン', '全国企業', '大手メーカー'];
+/** ポイント → 表示単位の換算（data/README.md：換算は表示側で行う） */
+const KG_PER_POINT = 2;
+const PS_PER_POINT = 2.5;
+/** 車高の図示だけを誇張する倍率。寸法の数値は実寸のまま。 */
+const RIDE_EXAGGERATION = 4;
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const el = (id) => document.getElementById(id);
+const svgEl = (name, attrs = {}, text = null) => {
+  const n = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  if (text !== null) n.textContent = text;
+  return n;
+};
+
+// ---------------------------------------------------------------------------
+// 状態
+// ---------------------------------------------------------------------------
+const state = {
+  cls: 2,
+  tier: 1,
+  equipped: Object.fromEntries(CATEGORIES.map((c) => [c.id, null])), // category -> part id
+  settings: {},      // key -> 値（未設定なら既定値）
+  openCategory: null,
+};
+let DATA = null;
+
+const chassis = () => DATA.chassis[CLASS_CHASSIS[state.cls]];
+const partById = (id) => DATA.parts.find((p) => p.id === id) ?? null;
+const equippedParts = () =>
+  CATEGORIES.map((c) => partById(state.equipped[c.id])).filter(Boolean);
+/** 規定とスポンサー段階を満たしているか。 */
+const isLegal = (p) => p.class_required <= state.cls && p.sponsor_tier <= state.tier;
+/** 性能計算に乗るのは「装着済み かつ 規定を満たす」パーツだけ。 */
+const activeParts = () => equippedParts().filter(isLegal);
+const illegalParts = () => equippedParts().filter((p) => !isLegal(p));
+
+function settingValue(key) {
+  const def = SETTINGS[key];
+  return state.settings[key] ?? def.defaultValue(chassis());
+}
+/** 解禁されているセッティングだけを race.js に渡す。 */
+function activeSettings() {
+  const parts = activeParts();
+  const out = {};
+  for (const [key, def] of Object.entries(SETTINGS)) {
+    if (isSettingUnlocked(def, parts)) out[key] = settingValue(key);
+  }
+  return out;
+}
+const perf = () => buildPerformance(activeParts(), DATA.driver, chassis(), activeSettings());
+
+// ---------------------------------------------------------------------------
+// データ読み込み
+// ---------------------------------------------------------------------------
+const json = (path) => fetch(new URL(path, import.meta.url)).then((r) => {
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+});
+
+async function loadCarSvg(id) {
+  const res = await fetch(new URL(`../../assets/svg/car-${id}.svg`, import.meta.url));
+  if (!res.ok) throw new Error(`car-${id}.svg: ${res.status}`);
+  const doc = new DOMParser().parseFromString(await res.text(), 'image/svg+xml');
+  const root = doc.documentElement;
+  const [, , vbW, vbH] = root.getAttribute('viewBox').split(/\s+/).map(Number);
+  // 描画要素だけを取り出す（metadata と title は捨てる）
+  const groups = [...root.querySelectorAll('g')].map((g) => g.cloneNode(true));
+  return { vbW, vbH, groups };
+}
+
+async function loadAll() {
+  const [parts, chassisData, courses, drivers] = await Promise.all([
+    json('../../data/parts.json'),
+    json('../../data/chassis.json'),
+    json('../../data/courses.json'),
+    json('../../data/drivers.json'),
+  ]);
+  const cars = {};
+  for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], cars };
+}
+
+// ---------------------------------------------------------------------------
+// 主ビュー：車体 + 寸法線 + 引き出し（バルーン）
+// ---------------------------------------------------------------------------
+
+/** パスの y 座標をまとめてずらす。車高を下げるとボディだけが沈み、ホイールは残る。 */
+function shiftPathY(d, dy) {
+  return d.replace(/([MLCSQTA])\s*(-?[\d.]+)\s+(-?[\d.]+)/g,
+    (_, cmd, x, y) => `${cmd}${x} ${(Number(y) + dy).toFixed(2)}`);
+}
+
+/** 引き出しの取り付け点（車体 bbox に対する比率）。車種が変わっても破綻しない。 */
+const ANCHORS = {
+  engine:      [0.20, 0.42],
+  suspension:  [0.30, 0.66],
+  brake:       [0.24, 0.90],
+  aero_weight: [0.88, 0.20],
+  drivetrain:  [0.56, 0.74],
+  tire:        [0.76, 0.94],
+};
+/** 左列・右列それぞれ上から順に並べるカテゴリ。 */
+const BALLOON_COLUMNS = {
+  left:  ['engine', 'suspension', 'brake'],
+  right: ['aero_weight', 'drivetrain', 'tire'],
+};
+
+const DIM = { stroke: 'var(--dim)', 'stroke-width': .7, fill: 'none' };
+
+function drawMainView() {
+  const view = el('mainview');
+  view.textContent = '';
+  const car = DATA.cars[chassis().id];
+  const disp = chassis().display;
+
+  // --- 車体 ---------------------------------------------------------------
+  const scale = 236 / car.vbW;
+  const originX = (400 - car.vbW * scale) / 2;
+  const originY = 16;
+  const g = svgEl('g', {
+    transform: `translate(${originX} ${originY}) scale(${scale})`,
+    color: 'var(--car)',
+  });
+  // 車高：基準からの下げ幅ぶんボディだけを沈める（ホイールは残る＝図示のみ誇張）
+  const rideDelta = disp.ride_height_mm - settingValue('ride_height');
+  const mmPerUnit = disp.length_mm / car.vbW;
+  const dy = (rideDelta / mmPerUnit) * RIDE_EXAGGERATION;
+  for (const grp of car.groups) {
+    const cloned = grp.cloneNode(true);
+    for (const path of cloned.querySelectorAll('path')) {
+      path.setAttribute('d', shiftPathY(path.getAttribute('d'), dy));
+    }
+    g.appendChild(cloned);
+  }
+  view.appendChild(g);
+
+  // getBBox() はその要素のローカル座標を返す（自分の transform は未適用）。
+  // 主ビュー座標に直してから寸法線と引き出しを引く。
+  const toViewX = (x) => originX + x * scale;
+  const toViewY = (y) => originY + y * scale;
+  const local = g.getBBox();
+  const L = toViewX(local.x), R = toViewX(local.x + local.width);
+  const T = toViewY(local.y), B = toViewY(local.y + local.height);
+  const W = R - L, H = B - T;
+  // ホイール中心＝ホイールベース、パス下端＝サイドシル（地上高の基準）
+  const cxs = [...g.querySelectorAll('circle')].map((c) => Number(c.getAttribute('cx'))).sort((a, b) => a - b);
+  const wbL = toViewX(cxs[0]), wbR = toViewX(cxs.at(-1));
+  const sillY = toViewY(Math.max(...[...g.querySelectorAll('path')].map((n) => {
+    const b = n.getBBox();
+    return b.y + b.height;
+  })));
+
+  // --- 寸法線のヘルパー ----------------------------------------------------
+  const line = (d, extra = {}) => view.appendChild(svgEl('path', { ...DIM, ...extra, d }));
+  const arrowsH = (x1, x2, y) => line(
+    `M${x1} ${y} L${x1 + 4} ${y - 2.2} M${x1} ${y} L${x1 + 4} ${y + 2.2}` +
+    ` M${x2} ${y} L${x2 - 4} ${y - 2.2} M${x2} ${y} L${x2 - 4} ${y + 2.2}`);
+  const arrowsV = (x, y1, y2) => line(
+    `M${x} ${y1} L${x - 2.2} ${y1 + 4} M${x} ${y1} L${x + 2.2} ${y1 + 4}` +
+    ` M${x} ${y2} L${x - 2.2} ${y2 - 4} M${x} ${y2} L${x + 2.2} ${y2 - 4}`);
+  /** 数値は線上に白抜きで乗せる（画面設計.md） */
+  const dimText = (x, y, label, rotate = 0) => view.appendChild(svgEl('text', {
+    x, y, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 9.5,
+    fill: 'var(--ink)', 'paint-order': 'stroke', stroke: 'var(--paper-2)', 'stroke-width': 3.5,
+    ...(rotate ? { transform: `rotate(${rotate} ${x} ${y})` } : {}),
+  }, label));
+
+  // 接地線
+  line(`M${L - 30} ${B} L${R + 30} ${B}`, { 'stroke-dasharray': '3 3' });
+
+  // 全長（最下段）／ホイールベース（その上）
+  const yLen = 170, yWb = 152;
+  line(`M${L} ${B + 3} L${L} ${yLen + 6}`);
+  line(`M${R} ${B + 3} L${R} ${yLen + 6}`);
+  line(`M${L} ${yLen} L${R} ${yLen}`);
+  arrowsH(L, R, yLen);
+  dimText((L + R) / 2, yLen, `全長 ${disp.length_mm} mm`);
+
+  line(`M${wbL} ${B + 3} L${wbL} ${yWb + 6}`);
+  line(`M${wbR} ${B + 3} L${wbR} ${yWb + 6}`);
+  line(`M${wbL} ${yWb} L${wbR} ${yWb}`);
+  arrowsH(wbL, wbR, yWb);
+  dimText((wbL + wbR) / 2, yWb, `WB ${disp.wheelbase_mm} mm`);
+
+  // 全高（左・縦）：図示は誇張、数値は実寸で計算する
+  const xH = L - 22;
+  // 基準車高のときの全高だけをシルエットから割り出して覚え、以降は実寸で引き算する
+  // （図示は誇張しているので、誇張ぶんを戻して計算すると 1mm 単位で揺れる）
+  car.overallBaseMm ??= Math.round(disp.length_mm * (H / W));
+  const overall = car.overallBaseMm - rideDelta;
+  line(`M${xH - 5} ${T} L${L} ${T}`);
+  line(`M${xH - 5} ${B} L${L} ${B}`);
+  line(`M${xH} ${T} L${xH} ${B}`);
+  arrowsV(xH, T, B);
+  dimText(xH, (T + B) / 2, `全高 ${overall} mm`, -90);
+
+  // 車高＝地上高（右・縦）：スライダーの値がそのまま寸法値になる
+  const xR = R + 16;
+  line(`M${R - 10} ${sillY} L${xR + 5} ${sillY}`);
+  line(`M${xR} ${sillY} L${xR} ${B}`);
+  arrowsV(xR, sillY, B);
+  dimText(xR + 15, (sillY + B) / 2, `車高 ${settingValue('ride_height')} mm`, -90);
+
+  // --- 引き出し線とバルーン ------------------------------------------------
+  const order = Object.fromEntries(CATEGORIES.map((c, i) => [c.id, i + 1]));
+  for (const [side, ids] of Object.entries(BALLOON_COLUMNS)) {
+    const bx = side === 'left' ? 18 : 382;
+    ids.forEach((id, i) => {
+      const by = T + H * (0.06 + 0.47 * i);
+      const [fx, fy] = ANCHORS[id];
+      const ax = L + W * fx, ay = T + H * fy;
+      const elbowX = side === 'left' ? bx + 26 : bx - 26;
+      const grp = svgEl('g', { style: 'cursor:pointer' });
+      grp.appendChild(svgEl('path', {
+        stroke: 'var(--ink-2)', 'stroke-width': .7, fill: 'none',
+        d: `M${ax} ${ay} L${elbowX} ${by} L${bx + (side === 'left' ? 8 : -8)} ${by}`,
+      }));
+      grp.appendChild(svgEl('circle', { cx: ax, cy: ay, r: 1.8, fill: 'var(--ink-2)', stroke: 'none' }));
+      const on = state.equipped[id] && isLegal(partById(state.equipped[id]));
+      grp.appendChild(svgEl('circle', {
+        cx: bx, cy: by, r: 8.5, fill: on ? 'var(--ink)' : 'var(--paper-2)',
+        stroke: 'var(--ink)', 'stroke-width': 1,
+      }));
+      grp.appendChild(svgEl('text', {
+        x: bx, y: by, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-size': 10, fill: on ? 'var(--paper-2)' : 'var(--ink)',
+      }, String(order[id])));
+      grp.addEventListener('click', () => openPicker(id));
+      view.appendChild(grp);
+    });
+  }
+
+  el('scaleNote').textContent = `注記：車高の変化は図示のみ ${RIDE_EXAGGERATION} 倍に誇張。寸法値は実寸。`;
+}
+
+// ---------------------------------------------------------------------------
+// DETAIL 枠
+// ---------------------------------------------------------------------------
+function drawWheelDetail() {
+  const sv = el('detailWheel');
+  sv.textContent = '';
+  const cx = 60, cy = 52;
+  const light = state.equipped.aero_weight === 'aero_weight_light_02'
+    && isLegal(partById('aero_weight_light_02'));
+  const brake = state.equipped.brake;
+  const bigRotor = ['brake_rotor_01', 'brake_works_01'].includes(brake) && brake && isLegal(partById(brake));
+  const bigCaliper = ['brake_caliper_01', 'brake_works_01'].includes(brake) && brake && isLegal(partById(brake));
+
+  const g = svgEl('g', { fill: 'none', stroke: 'var(--car)', 'stroke-width': 1.1,
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  g.appendChild(svgEl('circle', { cx, cy, r: 40 }));           // タイヤ外径
+  g.appendChild(svgEl('circle', { cx, cy, r: 32 }));           // リム
+  g.appendChild(svgEl('circle', { cx, cy, r: 7 }));            // ハブ
+
+  // スポーク：軽量ホイールは本数が増えて細くなる
+  const spokes = light ? 10 : 5;
+  const sg = svgEl('g', { stroke: 'var(--car)', 'stroke-width': light ? 1.0 : 2.2, fill: 'none' });
+  for (let i = 0; i < spokes; i++) {
+    const a = (i / spokes) * Math.PI * 2 - Math.PI / 2;
+    sg.appendChild(svgEl('path', {
+      d: `M${cx + Math.cos(a) * 7} ${cy + Math.sin(a) * 7} L${cx + Math.cos(a) * 31} ${cy + Math.sin(a) * 31}`,
+    }));
+  }
+  g.appendChild(sg);
+
+  // ローター（径が変わる）とキャリパー
+  const rr = bigRotor ? 26 : 20;
+  g.appendChild(svgEl('circle', { cx, cy, r: rr, stroke: 'var(--ink-2)', 'stroke-width': .8 }));
+  g.appendChild(svgEl('circle', { cx, cy, r: rr - 3, stroke: 'var(--ink-2)', 'stroke-width': .5,
+    'stroke-dasharray': '2 3' }));
+  const cw = bigCaliper ? 18 : 12, ch = bigCaliper ? 13 : 9;
+  g.appendChild(svgEl('rect', { x: cx - cw / 2, y: cy - rr - ch + 3, width: cw, height: ch,
+    rx: 2, stroke: 'var(--ink)', 'stroke-width': 1 }));
+  if (bigCaliper) {
+    for (const dx of [-5, 0, 5]) {
+      g.appendChild(svgEl('circle', { cx: cx + dx, cy: cy - rr - ch / 2 + 3, r: 1.6,
+        stroke: 'var(--ink-2)', 'stroke-width': .6 }));
+    }
+  }
+  sv.appendChild(g);
+  el('wheelSub').innerHTML =
+    `${light ? '軽量ホイール' : '純正ホイール'} / ${bigCaliper ? '対向キャリパー' : '標準キャリパー'}<br>
+     スポーク ${spokes}本・ローター ${bigRotor ? '大径' : '標準'}`;
+}
+
+function drawSuspDetail() {
+  const sv = el('detailSusp');
+  sv.textContent = '';
+  const id = state.equipped.suspension;
+  const legal = id && isLegal(partById(id));
+  const kind = !legal ? 'stock'
+    : id === 'suspension_damper_01' ? 'damper'
+    : id === 'suspension_coilover_01' ? 'coilover'
+    : ['suspension_coilover_02', 'suspension_works_01'].includes(id) ? 'race' : 'other';
+  const spec = {
+    stock:    { coils: 5,  knobs: 0, thread: false, label: '純正（調整不可）' },
+    other:    { coils: 6,  knobs: 0, thread: false, label: '社外アーム類' },
+    damper:   { coils: 7,  knobs: 1, thread: false, label: '純正形状・減衰調整式' },
+    coilover: { coils: 9,  knobs: 1, thread: true,  label: '車高調（全長調整）' },
+    race:     { coils: 12, knobs: 3, thread: true,  label: 'レース用・3way 減衰' },
+  }[kind];
+
+  const g = svgEl('g', { fill: 'none', stroke: 'var(--car)', 'stroke-width': 1.1,
+    'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+  const topY = 14, botY = 84, cx = 52;
+  g.appendChild(svgEl('path', { d: `M${cx - 14} ${topY} L${cx + 14} ${topY}` }));   // アッパーマウント
+  g.appendChild(svgEl('path', { d: `M${cx} ${topY} L${cx} ${topY + 8}` }));
+
+  // 車高を下げるほどバネが縮む（巻きの間隔が詰まる）
+  const disp = chassis().display;
+  const ratio = spec.thread
+    ? 1 - (disp.ride_height_mm - settingValue('ride_height')) / 120
+    : 1;
+  const springTop = topY + 10, springBot = botY - 16;
+  const pitch = ((springBot - springTop) / spec.coils) * ratio;
+  const w = 13;
+  let d = `M${cx - w} ${springTop}`;
+  for (let i = 0; i < spec.coils; i++) {
+    d += ` L${cx + w} ${springTop + pitch * (i + .5)} L${cx - w} ${springTop + pitch * (i + 1)}`;
+  }
+  g.appendChild(svgEl('path', { d }));
+  const shaftBot = springTop + pitch * spec.coils;
+  g.appendChild(svgEl('path', { d: `M${cx} ${springTop} L${cx} ${shaftBot + 10}` }));  // シャフト
+  g.appendChild(svgEl('path', { d: `M${cx - 10} ${shaftBot + 10} L${cx + 10} ${shaftBot + 10}` }));
+  g.appendChild(svgEl('path', { d: `M${cx - 6} ${shaftBot + 10} L${cx - 6} ${shaftBot + 18} M${cx + 6} ${shaftBot + 10} L${cx + 6} ${shaftBot + 18}` }));
+
+  if (spec.thread) {   // 車高調整のネジ山
+    const tg = svgEl('g', { stroke: 'var(--ink-2)', 'stroke-width': .6, fill: 'none' });
+    for (let y = shaftBot + 1; y < shaftBot + 10; y += 2) {
+      tg.appendChild(svgEl('path', { d: `M${cx - 9} ${y} L${cx + 9} ${y}` }));
+    }
+    g.appendChild(tg);
+  }
+  for (let i = 0; i < spec.knobs; i++) {   // 減衰調整ノブ
+    g.appendChild(svgEl('circle', { cx: cx + 22, cy: topY + 14 + i * 11, r: 4,
+      stroke: 'var(--ink)', 'stroke-width': .9 }));
+  }
+  sv.appendChild(g);
+  el('suspSub').innerHTML = `${spec.label}<br>巻き数 ${spec.coils}・減衰調整 ${spec.knobs}way`;
+}
+
+// ---------------------------------------------------------------------------
+// スライダー
+// ---------------------------------------------------------------------------
+function drawSliders() {
+  const wrap = el('sliders');
+  wrap.textContent = '';
+  const parts = activeParts();
+  const ch = chassis();
+
+  for (const def of Object.values(SETTINGS)) {
+    const unlocked = isSettingUnlocked(def, parts);
+    const box = document.createElement('div');
+    box.className = 'slider';
+    if (!unlocked) {
+      // 未解禁のものは存在だけ見せる（「まだここに何か付く」の予告）
+      const need = def.unlockedBy.map((id) => partById(id)?.name).filter(Boolean);
+      box.innerHTML = `<div class="row"><span style="color:var(--ink-3)">${def.label}</span>
+        <span class="locked">未解禁</span></div>
+        <div class="locked">${need.join(' / ')} を装着すると調整できる</div>`;
+      wrap.appendChild(box);
+      continue;
+    }
+    const { min, max } = def.rangeFor(ch);
+    const value = settingValue(def.key);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<span>${def.label}</span>
+      <span class="val">${value}<span class="u"> ${def.unit}</span></span>`;
+    const input = document.createElement('input');
+    Object.assign(input, { type: 'range', min, max, step: def.step, value });
+    input.addEventListener('input', () => {
+      state.settings[def.key] = Number(input.value);
+      row.querySelector('.val').innerHTML = `${input.value}<span class="u"> ${def.unit}</span>`;
+      // 車高はシルエットと寸法に直結するので即再描画
+      if (def.key === 'ride_height') { drawMainView(); drawSuspDetail(); }
+      drawStatus();
+      clearLaps();
+    });
+    const hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.textContent = {
+      tire_pressure: '高いほど温まりが早く、早くタレる。基準から離すと接地が崩れる',
+      ride_height: '下げると重心と空力で得るが、ストロークを失う',
+      brake_bias: '後ろへ寄せると頭が入り、安定を失う。振るほど制動距離は伸びる',
+    }[def.key] ?? '';
+    box.append(row, input, hint);
+    wrap.appendChild(box);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 部品表とパーツ選択
+// ---------------------------------------------------------------------------
+function drawBom() {
+  const bom = el('bom');
+  bom.textContent = '';
+  CATEGORIES.forEach((cat, i) => {
+    const p = partById(state.equipped[cat.id]);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bom-row';
+    const name = p
+      ? `<span class="name">${p.name}</span>${isLegal(p) ? '' : '<span class="badge">規定外</span>'}`
+      : '<span class="name empty">未装着</span>';
+    btn.innerHTML = `<span class="no">${i + 1}</span>
+      <span><span class="cat">${cat.label}</span><br>${name}</span>
+      <span class="chev">${state.openCategory === cat.id ? '閉じる ▲' : '選択 ▼'}</span>`;
+    btn.addEventListener('click', () => openPicker(cat.id));
+    bom.appendChild(btn);
+  });
+
+  const warn = el('illegalWarn');
+  const bad = illegalParts();
+  warn.innerHTML = bad.length
+    ? `<div class="warn">規定外のパーツが ${bad.length} 点あります（${bad.map((p) => p.name).join('、')}）。
+       クラス${Math.max(...bad.map((p) => p.class_required))}以上でないと装着できないため、性能計算から除外しています。</div>`
+    : '';
+}
+
+function statLine(obj, cls) {
+  return Object.entries(obj)
+    .map(([k, v]) => `<span class="${cls}">${STAT_LABEL[k] ?? k} ${v > 0 ? '+' : ''}${v}</span>`)
+    .join('　');
+}
+
+function openPicker(catId) {
+  state.openCategory = state.openCategory === catId ? null : catId;
+  drawBom();
+  drawPicker();
+  if (state.openCategory) el('picker').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function drawPicker() {
+  const box = el('picker');
+  if (!state.openCategory) { box.hidden = true; box.textContent = ''; return; }
+  const cat = CATEGORIES.find((c) => c.id === state.openCategory);
+  box.hidden = false;
+  box.textContent = '';
+
+  const head = document.createElement('div');
+  head.className = 'picker-head';
+  head.innerHTML = `<span>${cat.label} — 選択</span>`;
+  const off = document.createElement('button');
+  off.type = 'button';
+  off.textContent = state.equipped[cat.id] ? '外す' : '閉じる';
+  off.addEventListener('click', () => {
+    if (state.equipped[cat.id]) { state.equipped[cat.id] = null; renderAll(); }
+    else { state.openCategory = null; drawBom(); drawPicker(); }
+  });
+  head.appendChild(off);
+  box.appendChild(head);
+
+  const list = DATA.parts
+    .filter((p) => p.category === cat.id)
+    .sort((a, b) => a.class_required - b.class_required || a.price - b.price);
+
+  for (const p of list) {
+    const legal = isLegal(p);
+    const on = state.equipped[cat.id] === p.id;
+    const div = document.createElement('div');
+    div.className = `part${legal ? '' : ' locked'}${on ? ' on' : ''}`;
+
+    const reasons = [];
+    if (p.class_required > state.cls) reasons.push(`クラス${p.class_required}から`);
+    if (p.sponsor_tier > state.tier) reasons.push(`スポンサー段階${p.sponsor_tier}から`);
+
+    div.innerHTML = `
+      <div class="hdr">
+        <span class="pname">${p.name}</span>
+        <span class="price">¥${p.price.toLocaleString('ja-JP')}</span>
+      </div>
+      <div class="stats">${statLine(p.effects, 'e')}</div>
+      <div class="stats">${statLine(p.side_effects, 's')}</div>
+      <div class="note">${p.note}</div>
+      ${reasons.length ? `<div class="lockmsg">${reasons.join(' / ')}</div>` : ''}`;
+
+    const pick = document.createElement('button');
+    pick.type = 'button';
+    pick.className = 'pick';
+    pick.textContent = on ? '装着中' : legal ? '装着する' : '装着できない';
+    pick.disabled = !legal || on;
+    pick.addEventListener('click', () => { state.equipped[cat.id] = p.id; renderAll(); });
+    div.appendChild(pick);
+    box.appendChild(div);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 下段ステータス
+// ---------------------------------------------------------------------------
+function drawStatus() {
+  const p = perf();
+  const disp = chassis().display;
+  const kg = Math.round(disp.weight_kg + (p.stats.weight + p.stats.unsprung_weight) * KG_PER_POINT);
+  const ps = Math.round(disp.power_ps + p.stats.power * PS_PER_POINT);
+  const bal = p.stats.balance;
+  const pref = DATA.driver.preferred_balance;
+  const dev = bal - pref;
+  const tend = Math.abs(dev) < 0.5 ? '好みどおり' : dev > 0 ? 'オーバー寄り' : 'アンダー寄り';
+  const fmt = (v) => (v > 0 ? '+' : '') + v.toFixed(1);
+
+  el('status').innerHTML = `
+    <div><div class="k">WEIGHT</div><div class="v">${kg}<span class="u"> kg</span></div>
+      <div class="sub">ばね下 ${fmt(p.stats.unsprung_weight)} pt</div></div>
+    <div><div class="k">POWER</div><div class="v">${ps}<span class="u"> ps</span></div>
+      <div class="sub">発熱 ${fmt(p.stats.heat)} / 信頼性 ${fmt(p.stats.reliability)}</div></div>
+    <div><div class="k">BALANCE</div><div class="v">${fmt(bal)}</div>
+      <div class="sub">好み ${fmt(pref)} に対し ${tend}（ズレ ${Math.abs(dev).toFixed(1)}）</div></div>`;
+}
+
+// ---------------------------------------------------------------------------
+// ラップ計算
+// ---------------------------------------------------------------------------
+/** 直前の計算結果。次の計算で「何秒変わったか」を出すための基準。 */
+let lapBaseline = null;
+
+/** セッティングが変わったことを示す。基準は残すので、次の計算で差が出る。 */
+function clearLaps(resetBaseline = false) {
+  if (resetBaseline) lapBaseline = null;
+  if (!el('lapsWrap').innerHTML) return;
+  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="laps"><div class="lap">
+    <span class="cprof">セッティングを変更しました。${lapBaseline ? '前回との差を見るには' : ''}もう一度ラップ計算してください</span></div></div>`;
+}
+
+function calcLaps() {
+  const p = perf();
+  const rows = DATA.courses.map((c) => {
+    const r = simulateRace(p, c, 10, DATA.driver, { noise: false, retire: false });
+    return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1) };
+  });
+  const prev = lapBaseline;
+  lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.avg]));
+
+  const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型' };
+  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="laps">${rows.map((r) => {
+    const d = prev?.[r.course.id] != null ? r.avg - prev[r.course.id] : null;
+    const dTxt = d == null ? ''
+      : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒/周</div>`;
+    return `<div class="lap">
+      <div class="cname">${r.course.name}<div class="cprof">${PROFILE[r.course.profile] ?? ''}
+        ・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${r.last.brakeFade > 0 ? `（フェード −${r.last.brakeFade.toFixed(1)}）` : ''}</div></div>
+      <div><div class="t">${formatTime(r.avg)}</div>${dTxt}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// 再描画
+// ---------------------------------------------------------------------------
+function renderAll() {
+  const ch = chassis();
+  el('driverName').textContent = DATA.driver.name;
+  el('classLine').textContent = `クラス${state.cls} ${CLASS_LABEL[state.cls]} / スポンサー段階${state.tier} ${TIER_LABEL[state.tier]}`;
+  el('sheetNo').textContent = `ST-${String(state.cls).padStart(2, '0')}-${ch.id.slice(0, 3).toUpperCase()}`;
+  el('chassisName').textContent = ch.name;
+  drawMainView();
+  drawWheelDetail();
+  drawSuspDetail();
+  drawSliders();
+  drawBom();
+  drawPicker();
+  drawStatus();
+  clearLaps();
+}
+
+// ---------------------------------------------------------------------------
+// 起動
+// ---------------------------------------------------------------------------
+try {
+  DATA = await loadAll();
+  el('selClass').addEventListener('change', (e) => {
+    state.cls = Number(e.target.value);
+    state.settings = {};        // 車体が変わると車高の基準も変わるので既定に戻す
+    renderAll();
+    clearLaps(true);            // 別の車になるので前回ラップとは比べない
+  });
+  el('selTier').addEventListener('change', (e) => { state.tier = Number(e.target.value); renderAll(); });
+  el('calcBtn').addEventListener('click', calcLaps);
+  renderAll();
+} catch (err) {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div class="err">読み込みに失敗しました：${err.message}<br>
+     このページは JSON と SVG を読み込むため、<b>HTTP 経由で開く必要があります</b>
+     （file:// では動きません）。</div>`);
+  console.error(err);
+}
+</script>
+</body>
+</html>

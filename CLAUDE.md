@@ -57,6 +57,7 @@
 | `docs/チューニング/` | パーツ設計（6カテゴリ） |
 | `docs/シナリオ/` | プロローグ台本、キャラクター |
 | `src/engine/` | レース計算エンジン（純関数、I/O なし）とそのテスト。`node --test src/engine/race.test.js` |
+| `src/ui/` | 画面。`setup.html` がセッティング画面（図面様式）。**HTTP 経由で開くこと**（`file://` では JSON と SVG を読めない） |
 
 ## 実装するときの指針
 
