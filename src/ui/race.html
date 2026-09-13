@@ -742,12 +742,19 @@ function constantTick(dt) {
 //   アナウンサーは事実、解説は理屈。神谷の車の解説は、ハルカの無線が出ていない周に。
 // ---------------------------------------------------------------------------
 const FINAL_TRIGGERS = new Set(['checkered', 'pole', 'quali_end']);
-function commentary(trigger, speaker, vars = {}) {
+/**
+ * @param {string[]} [tags] その場で成り立っている条件（'win' など）。
+ *   台詞に `when` があるものは、その条件が立っているときだけ選ばれる。
+ *   `when` の無い台詞は常に選ばれる。順位と食い違う実況を出さないための仕掛け。
+ */
+function commentary(trigger, speaker, vars = {}, tags = []) {
   // スキップ中は途中の実況を出さない。結果が確定した後の実況（チェッカー、ポール、予選終了）だけ残す
   if (S.skipping && !FINAL_TRIGGERS.has(trigger)) return;
-  const pool = S.commentary.triggers[trigger]?.[speaker];
-  if (!pool?.length) return;
-  say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}`, pool)), vars));
+  const all = S.commentary.triggers[trigger]?.[speaker];
+  if (!all?.length) return;
+  const pool = all.filter((e) => typeof e === 'string' || !e.when || tags.includes(e.when));
+  if (!pool.length) return;
+  say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}/${tags.join('+')}`, pool)), vars));
 }
 
 function baseVars() {
@@ -1217,7 +1224,8 @@ function finish() {
   if (IS_QUALI) { qualiFinish(); return; }
   const list = ranked();
   const vars = baseVars();
-  commentary('checkered', 'announcer', { ...vars, pos: list.indexOf(S.cars[0]) + 1 });
+  const myPos = list.indexOf(S.cars[0]) + 1;
+  commentary('checkered', 'announcer', { ...vars, pos: myPos }, [myPos === 1 ? 'win' : 'notwin']);
   commentary('checkered', 'analyst', vars);
   renderPanel();
   el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {

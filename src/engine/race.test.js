@@ -396,6 +396,22 @@ test('14. commentary.json: 各トリガーに2人×5本以上、同じ台詞が�
     assert.ok(!e.text.includes('ハルノート'));
   }
   assert.ok(C.profile.some((e) => e.text.includes('17歳')), '経歴に触れる台詞');
+
+  // チェッカーの実況は順位で選び分ける。勝っていないのに「優勝」と言わせないため、
+  // when 付きの台詞は条件が立ったときだけ使う。どちらの場合も引ける台詞が残ること。
+  const checkered = C.triggers.checkered.announcer;
+  for (const e of checkered) {
+    assert.ok(!e.when || ['win', 'notwin'].includes(e.when), `未知の when: ${e.when}`);
+  }
+  for (const tag of ['win', 'notwin']) {
+    const usable = checkered.filter((e) => !e.when || e.when === tag);
+    assert.ok(usable.length >= 2, `${tag} のとき引ける実況が足りない（${usable.length}本）`);
+  }
+  const winOnly = checkered.filter((e) => e.when === 'win');
+  assert.ok(winOnly.length >= 2, '優勝時の実況が2本以上');
+  console.log(`  チェッカー実況: 勝利時に引ける ${checkered.filter((e) => !e.when || e.when === 'win').length} 本 / `
+    + `非勝利時 ${checkered.filter((e) => !e.when || e.when === 'notwin').length} 本`);
+
   console.log(`  実況・解説 合計 ${texts.length} 本（トリガー ${need.length} 種＋性格別・神谷の車・経歴）`);
 });
 
