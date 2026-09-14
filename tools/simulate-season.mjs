@@ -1,12 +1,14 @@
 /**
  * 1シーズンを通しで走らせて、資金の流れを見る（開発用。配布物に含めない）。
  *
- *   node tools/simulate-season.mjs [--cls 1] [--seed 1] [--strategy none|notes|smart]
+ *   node tools/simulate-season.mjs [--cls 1] [--seed 1] [--strategy none|notes|smart|braced]
  *                                  [--parts N] [--money N] [--repair always|never] [--quiet]
  *
- *   none  ：何も買わない（純正）
- *   notes ：親父のノート通りに、毎戦買える範囲で買う（コースごとに引き直す）
- *   smart ：6戦のコースを「時間」で見て効く効果を採点し、毎戦買える範囲で上から 5 点まで買う
+ *   none   ：何も買わない（純正）
+ *   notes  ：親父のノート通りに、毎戦買える範囲で買う（コースごとに引き直す）
+ *   smart  ：6戦のコースを「時間」で見て効く効果を採点し、毎戦買える範囲で上から 5 点まで買う
+ *   braced ：クラス5の狙いの形。基準 ＋ ワークスエンジン ＋ ブロック ＋ クーラー。
+ *            狙いの3点を先に買い、何戦目で揃うかを出す
  *
  *   --parts N ：買う点数の上限（notes / smart）。ノートの安い順に N 点でやめる。既定は上限なし
  *   --frac F  ：上限をノートの割合で（--frac 0.6 ＝ そのコースのノートの6割まで）。--parts より優先。
@@ -120,6 +122,10 @@ const SMART_LIST = STRATEGY === 'smart'
   })()
   : [];
 
+/** braced 方針で狙う3点（クラス5）。ワークスエンジンと、それを支える補強。 */
+const BRACE = ['engine_works_01', 'reinforce_block_01', 'reinforce_oil_cooler_01'].map(part).filter(Boolean);
+const braceAt = {};    // パーツ id → 何戦目で買えたか
+
 let ids = ['me'];
 let spent = 0;
 let bought = 0;
@@ -151,6 +157,25 @@ while (!seasonOver(G.season)) {
     for (const p of SMART_LIST) if (!buyBlocker(G, p)) { G = buy(G, p); spent += p.price; bought += 1; }
     const parts = SMART_LIST.filter((p) => G.owned.includes(p.id));
     G = { ...G, setup: { race: { parts: parts.map((p) => p.id), settings: {} }, quali: null } };
+  } else if (STRATEGY === 'braced') {
+    // クラス5の狙いの形：基準 ＋ ワークスエンジン ＋ ブロック ＋ クーラー。
+    // 信頼性 0 のまま、基準より速い（docs/設計/経済とシーズン.md「補強」）。
+    // **狙いの3点を先に買う。** 基準は下のクラスから持ち越している前提なので、残りで揃える
+    const base = baselineFor(NOTES, PARTS, course, G.cls);
+    const note = base.note;
+    for (const p of [...BRACE, ...[...base.parts].sort((a, b) => a.price - b.price)]) {
+      if (!buyBlocker(G, p)) {
+        G = buy(G, p); spent += p.price; bought += 1;
+        if (BRACE.includes(p) && !braceAt[p.id]) braceAt[p.id] = G.season.next + 1;   // 何戦目で買えたか
+      }
+    }
+    // 装着は**狙いの3点が先**（ワークスエンジンが基準のエンジン部品を押しのける）
+    const parts = [];
+    const add = (p) => { if (p && G.owned.includes(p.id) && !parts.some((q) => conflicts(q, p))) parts.push(p); };
+    for (const p of BRACE) add(p);
+    for (const p of base.parts) add(p);
+    for (const id of G.owned) add(part(id));
+    G = { ...G, setup: { race: { parts: parts.map((p) => p.id), settings: note?.settings ?? {} }, quali: null } };
   }
   // --- 修理 -------------------------------------------------------------------
   let repaired = 0;
@@ -194,6 +219,11 @@ const avg = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 
 say(`\nシーズン結果: ${v.rank} / ${v.total} 位 → ${{ promote: '昇格', relegate: '降格', stay: '残留' }[v.verdict]}`);
 say(`着順 ${finishes.map((p) => p ?? 'DNF').join(' ')}（平均 ${avg.toFixed(1)} / ${v.total} 台）`);
 say(`購入 ${bought} 点（${yen(spent)}）。所持金 ${yen(G.money)}。このクラスの未所有パーツを安い順にあと ${n} 点買える`);
+if (STRATEGY === 'braced') {
+  const got = BRACE.map((p) => `${p.name} ${braceAt[p.id] ? `第${braceAt[p.id]}戦` : '買えず'}`);
+  const done = BRACE.every((p) => braceAt[p.id]) ? `第${Math.max(...BRACE.map((p) => braceAt[p.id]))}戦で揃う` : '揃わない';
+  say(`狙いの3点：${got.join(' / ')} → ${done}`);
+}
 // --quiet のときの1行。掃き出して表にする（cls, seed, 方針, 台数, 着順…, 平均, DNF, 購入点数, 所持金）
 if (QUIET) {
   const label = STRATEGY === 'none' ? 'none'
