@@ -22,7 +22,7 @@
  *
  * AI も規定内（クラスとスポンサー段階）のパーツしか使わない。I/O は持たない。
  */
-import { buildPerformance, occupiedSlots } from './race.js';
+import { buildPerformance, occupiedSlots, REINFORCE } from './race.js';
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -79,8 +79,16 @@ export function notePortion(noteParts, str) {
  */
 export const aiNotes = (notes, baseline = []) => [...notes, ...baseline];
 
-/** AI が使える規定内のパーツ。スポンサー段階はクラス − 1 とみなす。 */
-export const aiLegal = (part, cls) => part.class_required <= cls && part.sponsor_tier <= Math.max(0, cls - 1);
+/**
+ * AI が使える規定内のパーツ。スポンサー段階はクラス − 1 とみなす。
+ *
+ * **補強（reinforce）は AI が使わない。** 信頼性を買い戻す区分で、これを AI に持たせると
+ * 「速い車ほど脆い」というクラス5の性格が消える。どのワークスを生かすために何を補強するかは、
+ * プレイヤーがコースごとに決めること——それがハルカのノートになる（docs/設計/経済とシーズン.md）。
+ * 速いが足す性格のパーツ（seasonRivalPlan）からも、ここで一緒に外れる。
+ */
+export const aiLegal = (part, cls) =>
+  part.category !== REINFORCE && part.class_required <= cls && part.sponsor_tier <= Math.max(0, cls - 1);
 
 /** スロットが重なるか。 */
 const conflicts = (a, b) => occupiedSlots(a).some((s) => occupiedSlots(b).includes(s));

@@ -736,3 +736,55 @@ test('24. 場の走行：グリッドの遅れと混雑が着順に効き、進�
   }
   console.log(`  6台グリッドスタート：ポールとの差 ${lost.toFixed(2)} 秒（遅れ ${(START.slotDelay * 5).toFixed(1)} 秒＋混雑）`);
 });
+
+test('25. 補強：信頼性を買い戻す唯一の区分。クラス5専用で、AI は使わない', () => {
+  const reinforce = PARTS.filter((p) => p.category === 'reinforce');
+  assert.equal(reinforce.length, 4, '補強は4点');
+  assert.deepEqual(reinforce.map((p) => p.slot).sort(), [...SLOTS.reinforce].sort(), '1部品1スロット');
+
+  // 既存21スロットと競合しない。補強どうしも競合しない（4点すべて同時に付く）
+  const others = Object.entries(SLOTS).filter(([k]) => k !== 'reinforce').flatMap(([, v]) => v);
+  for (const p of reinforce) {
+    assert.ok(!others.includes(p.slot), `${p.id} のスロットが既存と重なる`);
+    assert.equal(p.class_required, 5, `${p.id} はクラス5専用`);
+    assert.ok((p.effects?.reliability ?? 0) > 0, `${p.id} は信頼性を上げる`);
+    assert.ok(Object.keys(p.side_effects ?? {}).length > 0, `${p.id} に副作用が無い`);
+    assert.equal(p.note, '', `${p.id} は書き込みを持たない（親父が使っていない部品）`);
+  }
+  resolveLoadout(reinforce);   // スロット重複なら例外
+
+  // **信頼性を正にできるのは補強だけ。** 車体も連続値も 0
+  const plus = PARTS.filter((p) => (p.effects?.reliability ?? 0) + (p.side_effects?.reliability ?? 0) > 0);
+  assert.deepEqual(plus.map((p) => p.id).sort(), reinforce.map((p) => p.id).sort());
+  for (const c of Object.values(CHASSIS)) assert.equal(c.base?.reliability ?? 0, 0, '車体は信頼性を持たない');
+
+  // --- ワークスエンジン＋ブロック＋クーラーで信頼性 0、リタイアも 0 ------------
+  const formula = CHASSIS.formula;
+  const LAPS = 16;
+  const dnf = (parts) => {
+    const rel = buildPerformance(parts, haruka, formula).stats.reliability;
+    return (1 - (1 - WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -rel)) ** LAPS) * 100;
+  };
+  const p = (id) => part(id);
+  const engine = [p('engine_works_01')];
+  const braced = [...engine, p('reinforce_block_01'), p('reinforce_oil_cooler_01')];
+  assert.equal(buildPerformance(engine, haruka, formula).stats.reliability, -8);
+  assert.equal(buildPerformance(braced, haruka, formula).stats.reliability, 0, 'エンジン＋ブロック＋クーラーで相殺');
+  assert.ok(dnf(braced) <= 2, `補強すれば ${LAPS} 周で ${dnf(braced).toFixed(0)}% まで落ちる`);
+
+  // --- 全ワークス＋全補強でも脆さは残る（速い車ほど落ちる、を消さない） --------
+  const works = PARTS.filter((x) => x.class_required === 5 && x.category !== 'reinforce');
+  const full = [...works, ...reinforce];
+  const fullRel = buildPerformance(full, haruka, formula).stats.reliability;
+  assert.ok(fullRel >= -12 && fullRel <= -6, `全ワークス＋全補強の信頼性 ${fullRel} は −9 前後`);
+  assert.ok(dnf(full) >= 15 && dnf(full) <= 25, `全ワークス＋全補強のリタイア ${dnf(full).toFixed(0)}% は 20% 前後`);
+
+  // --- 補強は速さを買わない。付ければ必ず遅くなる -------------------------------
+  const kaza = COURSES.find((c) => c.id === 'kazahaya');
+  const lap = (parts) => lapTime(buildPerformance(parts, haruka, formula), kaza, createTireState(), haruka, createBrakeState(), null).time;
+  for (const r of reinforce) {
+    assert.ok(lap([...engine, r]) > lap(engine), `${r.id} を付けて速くなってはいけない`);
+  }
+  // それでも「エンジン＋補強」は「補強なしの基準」より速い。買う理由がある
+  console.log(`  かざはや1周：ワークスエンジン ${lap(engine).toFixed(3)}秒（18%）→ ＋ブロック＋クーラー ${lap(braced).toFixed(3)}秒（0%）`);
+});

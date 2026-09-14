@@ -32,7 +32,13 @@ export const SLOTS = Object.freeze({
   tire:        ['compound'],
   brake:       ['pad', 'rotor', 'caliper', 'bias'],
   aero_weight: ['interior', 'body', 'wheel', 'aero'],
+  // 補強：**信頼性を買い戻す唯一の区分**（クラス5で解禁）。他の区分と競合しない専用スロット。
+  // ここ以外に reliability を正にする手段は無い（車体も連続値も 0）
+  reinforce:   ['block', 'oil_cooler', 'driveshaft', 'brake_duct'],
 });
+
+/** 補強の区分。クラス5で解禁され、AI は使わない（rivals.js aiLegal）。 */
+export const REINFORCE = 'reinforce';
 
 /** そのパーツが占有するスロット。ユニット部品は replaces で複数を埋める。 */
 export function occupiedSlots(part) {

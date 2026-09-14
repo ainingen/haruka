@@ -222,6 +222,8 @@ h2 {
 }
 .mod-note::before { content: ''; position: absolute; left: 7px; top: 7px; bottom: 7px; width: 2px; background: var(--accent); }
 .mod-note .k { display: block; font-family: var(--jp-font); font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
+/* 書き込みの無い部品。文章を作らず、白紙のまま見せる */
+.mod-note .blank { font-family: var(--jp-font); font-size: var(--fs-small); color: var(--ink-3); }
 .mod-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 7px 10px; border-top: 1px solid var(--mon-line); }
 .mod-foot .msg { flex: 1 1 160px; font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--mon-amber); min-width: 0; }
 .mod-foot .msg.ok { color: var(--mon-dim); }
@@ -522,6 +524,7 @@ const SLOT_LABEL = {
   compound: 'コンパウンド',
   pad: 'パッド', rotor: 'ローター', caliper: 'キャリパー', bias: '前後配分',
   interior: '内装', body: '外板', wheel: 'ホイール', aero: '空力',
+  block: 'ブロック', oil_cooler: 'オイルクーラー', driveshaft: 'ドライブシャフト', brake_duct: 'ブレーキダクト',
 };
 const CATEGORIES = [
   { id: 'engine',      label: 'エンジン' },
@@ -530,7 +533,12 @@ const CATEGORIES = [
   { id: 'tire',        label: 'タイヤ' },
   { id: 'brake',       label: 'ブレーキ' },
   { id: 'aero_weight', label: '軽量化・空力' },
+  // 補強はクラス5で解禁。それまでは区分ごと出さない（空欄は成長の予告だが、
+  // 4クラス先の話をずっと見せても予告にならない）
+  { id: 'reinforce',   label: '補強', fromClass: 5 },
 ];
+/** いま見せる区分。解禁前のものは部品表にも図面の引き出し線にも出さない。 */
+const visibleCategories = () => CATEGORIES.filter((c) => !c.fromClass || state.cls >= c.fromClass);
 /** クラス → 車体。docs/設計/クラス構成.md の車両欄に対応（3 はセダンを使う）。 */
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const CLASS_LABEL = { 1: '走行会・草レース', 2: '地方選手権', 3: '全国耐久', 4: '上位GT', 5: 'トップカテゴリー' };
@@ -1158,7 +1166,7 @@ function drawBom() {
   const bom = el('bom');
   bom.textContent = '';
 
-  CATEGORIES.forEach((cat, i) => {
+  visibleCategories().forEach((cat, i) => {
     const slots = SLOTS[cat.id];
     const filled = slots.filter((s) => state.equipped[s]).length;
     const head = document.createElement('div');
@@ -1304,7 +1312,9 @@ function drawModal() {
 
   // --- 下：大河の note（ここだけ紙） --------------------------------------
   const cand = partById(state.candidate);
-  el('modNote').innerHTML = `<span class="k">親父のノート</span>${cand ? esc(cand.note) : '—'}`;
+  // 書き込みの無い部品（補強＝親父が使っていない区分）は、文章を作らず**白紙のまま出す**
+  const hand = cand?.note ? esc(cand.note) : `<span class="blank">${cand ? 'このページは白紙。' : '—'}</span>`;
+  el('modNote').innerHTML = `<span class="k">親父のノート</span>${hand}`;
 
   // --- フッター ----------------------------------------------------------
   const foot = el('modFoot');

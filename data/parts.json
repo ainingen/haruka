@@ -8,8 +8,14 @@
     "sponsor_tier": 0,
     "price": 18000,
     "durability": 100,
-    "effects": { "power": 3, "throttle_response": 2 },
-    "side_effects": { "low_end_torque": -1, "noise": 2 },
+    "effects": {
+      "power": 3,
+      "throttle_response": 2
+    },
+    "side_effects": {
+      "low_end_torque": -1,
+      "noise": 2
+    },
     "note": "吸わせれば上は伸びる。その分、下がスカスカになる。このコース、何速で立ち上がる場面が多いか数えてから付けろ。"
   },
   {
@@ -21,8 +27,14 @@
     "sponsor_tier": 0,
     "price": 25000,
     "durability": 90,
-    "effects": { "power": 4, "weight": -3 },
-    "side_effects": { "noise": 4, "low_end_torque": -1 },
+    "effects": {
+      "power": 4,
+      "weight": -3
+    },
+    "side_effects": {
+      "noise": 4,
+      "low_end_torque": -1
+    },
     "note": "抜けはいい。音もでかい。音量規定のある走行会は入口で追い返されるから、買う前に規定を読め。"
   },
   {
@@ -34,8 +46,16 @@
     "sponsor_tier": 1,
     "price": 120000,
     "durability": 90,
-    "effects": { "power": 7, "top_end_power": 3, "weight": -3 },
-    "side_effects": { "heat": 3, "noise": 3, "reliability": -1 },
+    "effects": {
+      "power": 7,
+      "top_end_power": 3,
+      "weight": -3
+    },
+    "side_effects": {
+      "heat": 3,
+      "noise": 3,
+      "reliability": -1
+    },
     "note": "揃えれば脈動が消えて上まで気持ちよく回る。ただし熱がエンジンルームに籠もる。夏の耐久で使うなら遮熱を先に考えろ。"
   },
   {
@@ -47,8 +67,14 @@
     "sponsor_tier": 1,
     "price": 150000,
     "durability": 100,
-    "effects": { "power": 6, "throttle_response": 5 },
-    "side_effects": { "fuel_consumption": 4, "heat": 2 },
+    "effects": {
+      "power": 6,
+      "throttle_response": 5
+    },
+    "side_effects": {
+      "fuel_consumption": 4,
+      "heat": 2
+    },
     "note": "濃く吹けばレスポンスは立つ。タンクは早く減る。スプリントなら気にするな。耐久なら、ピットが一回増える計算をしてから決めろ。"
   },
   {
@@ -60,8 +86,15 @@
     "sponsor_tier": 2,
     "price": 280000,
     "durability": 80,
-    "effects": { "top_end_power": 10, "power": 4 },
-    "side_effects": { "low_end_torque": -7, "throttle_response": -2, "fuel_consumption": 2 },
+    "effects": {
+      "top_end_power": 10,
+      "power": 4
+    },
+    "side_effects": {
+      "low_end_torque": -7,
+      "throttle_response": -2,
+      "fuel_consumption": 2
+    },
     "note": "上は別物になる。下は死ぬ。ヘアピンの立ち上がりで一速余計に落とす覚悟があるかどうかだ。"
   },
   {
@@ -73,8 +106,17 @@
     "sponsor_tier": 2,
     "price": 850000,
     "durability": 60,
-    "effects": { "power": 20, "top_end_power": 8 },
-    "side_effects": { "heat": 8, "reliability": -6, "throttle_response": -5, "fuel_consumption": 5, "weight": 12 },
+    "effects": {
+      "power": 20,
+      "top_end_power": 8
+    },
+    "side_effects": {
+      "heat": 8,
+      "reliability": -6,
+      "throttle_response": -5,
+      "fuel_consumption": 5,
+      "weight": 12
+    },
     "note": "踏んでから来るまでに間がある。その間をどう埋めるかは腕の話だ。熱は嘘をつかない。水温計を見る癖をつけろ。"
   },
   {
@@ -86,8 +128,18 @@
     "sponsor_tier": 3,
     "price": 2400000,
     "durability": 50,
-    "effects": { "power": 32, "top_end_power": 14 },
-    "side_effects": { "heat": 12, "reliability": -10, "throttle_response": -8, "fuel_consumption": 8, "weight": 18, "low_end_torque": -4 },
+    "effects": {
+      "power": 32,
+      "top_end_power": 14
+    },
+    "side_effects": {
+      "heat": 12,
+      "reliability": -10,
+      "throttle_response": -8,
+      "fuel_consumption": 8,
+      "weight": 18,
+      "low_end_torque": -4
+    },
     "note": "馬力は買える。その馬力を最後の周まで持たせられるかは別の話だ。壊れるときは前触れがある。音を聞け。"
   },
   {
@@ -95,16 +147,30 @@
     "name": "ワークス開発エンジン",
     "category": "engine",
     "slot": "intake",
-    "replaces": ["exhaust", "ecu", "cam", "forced_induction"],
+    "replaces": [
+      "exhaust",
+      "ecu",
+      "cam",
+      "forced_induction"
+    ],
     "class_required": 5,
     "sponsor_tier": 4,
     "price": 9800000,
     "durability": 70,
-    "effects": { "power": 40, "top_end_power": 18, "throttle_response": 6, "weight": -15 },
-    "side_effects": { "heat": 10, "reliability": -8, "fuel_consumption": 6, "driver_demand": 3 },
+    "effects": {
+      "power": 40,
+      "top_end_power": 18,
+      "throttle_response": 6,
+      "weight": -15
+    },
+    "side_effects": {
+      "heat": 10,
+      "reliability": -8,
+      "fuel_consumption": 6,
+      "driver_demand": 3
+    },
     "note": "ここは俺も触ったことがない。理屈は同じはずだ。出力の代わりに何を払ったか、自分の手で書き足せ。"
   },
-
   {
     "id": "drivetrain_final_01",
     "name": "ファイナルギア（加速寄り・中古）",
@@ -114,8 +180,12 @@
     "sponsor_tier": 0,
     "price": 32000,
     "durability": 110,
-    "effects": { "acceleration": 6 },
-    "side_effects": { "top_speed": -6 },
+    "effects": {
+      "acceleration": 6
+    },
+    "side_effects": {
+      "top_speed": -6
+    },
     "note": "立ち上がりは速い。ストレートの終わりで頭打ちになる。何秒踏みっぱなしのストレートか、計ってから決めろ。"
   },
   {
@@ -127,8 +197,12 @@
     "sponsor_tier": 0,
     "price": 32000,
     "durability": 110,
-    "effects": { "top_speed": 6 },
-    "side_effects": { "acceleration": -6 },
+    "effects": {
+      "top_speed": 6
+    },
+    "side_effects": {
+      "acceleration": -6
+    },
     "note": "伸びる。その分、コーナーごとの立ち上がりがだるい。ストレートの数じゃなく、コーナーの数を数えろ。"
   },
   {
@@ -140,8 +214,13 @@
     "sponsor_tier": 1,
     "price": 85000,
     "durability": 90,
-    "effects": { "acceleration": 3, "power": 2 },
-    "side_effects": { "driver_demand": 4 },
+    "effects": {
+      "acceleration": 3,
+      "power": 2
+    },
+    "side_effects": {
+      "driver_demand": 4
+    },
     "note": "滑らない。半クラも効かない。ミートを外せば止まる。慣れるまでピットで何度も繋がせろ。"
   },
   {
@@ -153,8 +232,15 @@
     "sponsor_tier": 1,
     "price": 180000,
     "durability": 90,
-    "effects": { "traction": 8, "turn_in": 2 },
-    "side_effects": { "tire_wear": 4, "stability": -2, "noise": 1 },
+    "effects": {
+      "traction": 8,
+      "turn_in": 2
+    },
+    "side_effects": {
+      "tire_wear": 4,
+      "stability": -2,
+      "noise": 1
+    },
     "note": "立ち上がりで内輪が空転しなくなる。代わりにタイヤを食う。耐久で使うなら、摩耗の計算に入れておけ。"
   },
   {
@@ -166,8 +252,16 @@
     "sponsor_tier": 2,
     "price": 320000,
     "durability": 80,
-    "effects": { "traction": 12, "stability": 2 },
-    "side_effects": { "tire_wear": 7, "turn_in": -3, "noise": 2, "driver_demand": 2 },
+    "effects": {
+      "traction": 12,
+      "stability": 2
+    },
+    "side_effects": {
+      "tire_wear": 7,
+      "turn_in": -3,
+      "noise": 2,
+      "driver_demand": 2
+    },
     "note": "減速でも効く。安定する。その代わり曲がらない。押し出すアンダーが出たら、前を疑う前にこいつを疑え。"
   },
   {
@@ -179,8 +273,15 @@
     "sponsor_tier": 2,
     "price": 680000,
     "durability": 80,
-    "effects": { "acceleration": 8, "throttle_response": 2 },
-    "side_effects": { "top_speed": -4, "driver_demand": 3, "reliability": -2 },
+    "effects": {
+      "acceleration": 8,
+      "throttle_response": 2
+    },
+    "side_effects": {
+      "top_speed": -4,
+      "driver_demand": 3,
+      "reliability": -2
+    },
     "note": "各ギアが近い。いつでもおいしい回転数にいられる。その分シフトが忙しく、ミスの回数も増える。"
   },
   {
@@ -192,8 +293,15 @@
     "sponsor_tier": 3,
     "price": 2200000,
     "durability": 70,
-    "effects": { "acceleration": 10, "driver_demand": -2 },
-    "side_effects": { "reliability": -4, "noise": 3, "heat": 2 },
+    "effects": {
+      "acceleration": 10,
+      "driver_demand": -2
+    },
+    "side_effects": {
+      "reliability": -4,
+      "noise": 3,
+      "heat": 2
+    },
     "note": "叩くだけで入る、クラッチも要らん。代わりにシフトミスは即ブローだ。ドグの音が変わったら、その周でピットに入れ。"
   },
   {
@@ -201,16 +309,28 @@
     "name": "ワークス駆動系（カーボンシャフト＋専用デフ）",
     "category": "drivetrain",
     "slot": "final",
-    "replaces": ["clutch", "lsd", "gearbox"],
+    "replaces": [
+      "clutch",
+      "lsd",
+      "gearbox"
+    ],
     "class_required": 5,
     "sponsor_tier": 4,
     "price": 4500000,
     "durability": 70,
-    "effects": { "traction": 14, "acceleration": 6, "weight": -10, "throttle_response": 3 },
-    "side_effects": { "reliability": -5, "driver_demand": 3, "tire_wear": 5 },
+    "effects": {
+      "traction": 14,
+      "acceleration": 6,
+      "weight": -10,
+      "throttle_response": 3
+    },
+    "side_effects": {
+      "reliability": -5,
+      "driver_demand": 3,
+      "tire_wear": 5
+    },
     "note": "専用設計の駆動系は俺の手には入らなかった。何を捨てて何を取ったかは、実物を見た者が書け。"
   },
-
   {
     "id": "suspension_damper_01",
     "name": "純正形状ダンパー（減衰調整式・中古）",
@@ -220,8 +340,14 @@
     "sponsor_tier": 0,
     "price": 40000,
     "durability": 90,
-    "effects": { "stability": 3, "road_compliance": 1 },
-    "side_effects": { "driver_demand": 1, "reliability": -1 },
+    "effects": {
+      "stability": 3,
+      "road_compliance": 1
+    },
+    "side_effects": {
+      "driver_demand": 1,
+      "reliability": -1
+    },
     "note": "減衰は答えじゃない。返事だ。バネに合っていなければ跳ねるか沈む。合っているかは、縁石を踏んだときの収まりで判る。"
   },
   {
@@ -233,8 +359,15 @@
     "sponsor_tier": 1,
     "price": 140000,
     "durability": 90,
-    "effects": { "cornering_grip": 4, "stability": 3, "drag": -1 },
-    "side_effects": { "road_compliance": -3, "driver_demand": 1 },
+    "effects": {
+      "cornering_grip": 4,
+      "stability": 3,
+      "drag": -1
+    },
+    "side_effects": {
+      "road_compliance": -3,
+      "driver_demand": 1
+    },
     "note": "落とせば重心が下がって空気の通りも良くなる。落としすぎればストロークがなくなって縁石で跳ねる。寸法を変えたら必ず走らせて確かめろ。"
   },
   {
@@ -246,8 +379,13 @@
     "sponsor_tier": 1,
     "price": 60000,
     "durability": 100,
-    "effects": { "cornering_grip": 4 },
-    "side_effects": { "braking": -2, "tire_wear": 3 },
+    "effects": {
+      "cornering_grip": 4
+    },
+    "side_effects": {
+      "braking": -2,
+      "tire_wear": 3
+    },
     "note": "寝かせれば曲がる。真っ直ぐ走っている間は内側しか接地していない。ブレーキが甘くなり、内側だけ減る。"
   },
   {
@@ -259,8 +397,15 @@
     "sponsor_tier": 1,
     "price": 48000,
     "durability": 100,
-    "effects": { "stability": 4, "traction": 1 },
-    "side_effects": { "turn_in": -2, "drag": 1, "tire_wear": 2 },
+    "effects": {
+      "stability": 4,
+      "traction": 1
+    },
+    "side_effects": {
+      "turn_in": -2,
+      "drag": 1,
+      "tire_wear": 2
+    },
     "note": "内に向ければ直進が落ち着く。その分、切り始めが鈍くなり抵抗にもなる。高速コーナーが多いか、切り返しが多いか。"
   },
   {
@@ -272,8 +417,14 @@
     "sponsor_tier": 1,
     "price": 55000,
     "durability": 100,
-    "effects": { "stability": 3, "cornering_grip": 2 },
-    "side_effects": { "balance": -3, "road_compliance": -2 },
+    "effects": {
+      "stability": 3,
+      "cornering_grip": 2
+    },
+    "side_effects": {
+      "balance": -3,
+      "road_compliance": -2
+    },
     "note": "前を固めればロールが減る。前が減ればアンダーに寄る。片方だけ触るな。前後の差で車は曲がる。"
   },
   {
@@ -285,8 +436,15 @@
     "sponsor_tier": 1,
     "price": 55000,
     "durability": 100,
-    "effects": { "turn_in": 3, "cornering_grip": 2 },
-    "side_effects": { "balance": 3, "road_compliance": -2, "traction": -1 },
+    "effects": {
+      "turn_in": 3,
+      "cornering_grip": 2
+    },
+    "side_effects": {
+      "balance": 3,
+      "road_compliance": -2,
+      "traction": -1
+    },
     "note": "後ろを固めれば頭が入る。入りすぎればリアが出る。前とセットで考えろ。単体に良いも悪いもない。"
   },
   {
@@ -298,8 +456,17 @@
     "sponsor_tier": 2,
     "price": 780000,
     "durability": 80,
-    "effects": { "cornering_grip": 9, "stability": 6, "road_compliance": 3, "turn_in": 3, "drag": -2 },
-    "side_effects": { "driver_demand": 5, "reliability": -2 },
+    "effects": {
+      "cornering_grip": 9,
+      "stability": 6,
+      "road_compliance": 3,
+      "turn_in": 3,
+      "drag": -2
+    },
+    "side_effects": {
+      "driver_demand": 5,
+      "reliability": -2
+    },
     "note": "触れる場所が増える。それは外す場所も増えるということだ。一度に一つ。変えたら走る。走ったら書く。"
   },
   {
@@ -307,16 +474,29 @@
     "name": "ワークス専用サスペンション",
     "category": "suspension",
     "slot": "damper",
-    "replaces": ["camber", "toe", "stabi_front", "stabi_rear"],
+    "replaces": [
+      "camber",
+      "toe",
+      "stabi_front",
+      "stabi_rear"
+    ],
     "class_required": 5,
     "sponsor_tier": 4,
     "price": 3200000,
     "durability": 70,
-    "effects": { "cornering_grip": 14, "stability": 8, "road_compliance": 5, "turn_in": 5, "weight": -8 },
-    "side_effects": { "driver_demand": 6, "reliability": -3 },
+    "effects": {
+      "cornering_grip": 14,
+      "stability": 8,
+      "road_compliance": 5,
+      "turn_in": 5,
+      "weight": -8
+    },
+    "side_effects": {
+      "driver_demand": 6,
+      "reliability": -3
+    },
     "note": "こういう足は図面でしか見たことがない。前後の相対で挙動が決まる、その理屈だけは変わらんはずだ。"
   },
-
   {
     "id": "tire_compound_01",
     "name": "ハードコンパウンド",
@@ -326,8 +506,13 @@
     "sponsor_tier": 0,
     "price": 28000,
     "durability": 120,
-    "effects": { "tire_wear": -4 },
-    "side_effects": { "cornering_grip": -3, "warmup": -3 },
+    "effects": {
+      "tire_wear": -4
+    },
+    "side_effects": {
+      "cornering_grip": -3,
+      "warmup": -3
+    },
     "note": "減らない。食わない。決勝の最後まで同じ車でいたいなら選択肢だ。予選には向かない。"
   },
   {
@@ -339,8 +524,13 @@
     "sponsor_tier": 0,
     "price": 36000,
     "durability": 100,
-    "effects": { "cornering_grip": 2, "traction": 1 },
-    "side_effects": { "tire_wear": 1 },
+    "effects": {
+      "cornering_grip": 2,
+      "traction": 1
+    },
+    "side_effects": {
+      "tire_wear": 1
+    },
     "note": "どっちつかず。だからどのコースでもそこそこ走る。基準にするタイヤだ。基準を持たない者は比較ができない。"
   },
   {
@@ -352,8 +542,15 @@
     "sponsor_tier": 0,
     "price": 52000,
     "durability": 70,
-    "effects": { "cornering_grip": 6, "traction": 3, "warmup": 3 },
-    "side_effects": { "tire_wear": 7, "heat": 2 },
+    "effects": {
+      "cornering_grip": 6,
+      "traction": 3,
+      "warmup": 3
+    },
+    "side_effects": {
+      "tire_wear": 7,
+      "heat": 2
+    },
     "note": "食う。減る。何周持つかはコースと気温で変わる。持つと信じるな。計れ。"
   },
   {
@@ -365,8 +562,15 @@
     "sponsor_tier": 1,
     "price": 90000,
     "durability": 40,
-    "effects": { "cornering_grip": 10, "traction": 5, "warmup": 6 },
-    "side_effects": { "tire_wear": 14, "heat": 4 },
+    "effects": {
+      "cornering_grip": 10,
+      "traction": 5,
+      "warmup": 6
+    },
+    "side_effects": {
+      "tire_wear": 14,
+      "heat": 4
+    },
     "note": "予選は短い、決勝は長い。これは3周持たない。それでいい日と、それじゃ困る日がある。"
   },
   {
@@ -378,8 +582,16 @@
     "sponsor_tier": 2,
     "price": 160000,
     "durability": 80,
-    "effects": { "cornering_grip": 9, "traction": 5, "braking": 3 },
-    "side_effects": { "tire_wear": 5, "warmup": -4, "driver_demand": 2 },
+    "effects": {
+      "cornering_grip": 9,
+      "traction": 5,
+      "braking": 3
+    },
+    "side_effects": {
+      "tire_wear": 5,
+      "warmup": -4,
+      "driver_demand": 2
+    },
     "note": "溝がない分、全部が接地する。冷えている間は氷の上だ。一周目のコーナーで温まっていると思うな。"
   },
   {
@@ -391,8 +603,16 @@
     "sponsor_tier": 3,
     "price": 240000,
     "durability": 55,
-    "effects": { "cornering_grip": 13, "traction": 7, "braking": 4, "warmup": 2 },
-    "side_effects": { "tire_wear": 11, "heat": 4 },
+    "effects": {
+      "cornering_grip": 13,
+      "traction": 7,
+      "braking": 4,
+      "warmup": 2
+    },
+    "side_effects": {
+      "tire_wear": 11,
+      "heat": 4
+    },
     "note": "温まりも早い。減りも早い。ピットの回数と相談だ。相談する相手がいないスプリントなら、答えは決まっている。"
   },
   {
@@ -404,11 +624,19 @@
     "sponsor_tier": 4,
     "price": 600000,
     "durability": 60,
-    "effects": { "cornering_grip": 18, "traction": 9, "braking": 5, "warmup": 4 },
-    "side_effects": { "tire_wear": 9, "driver_demand": 4, "heat": 3 },
+    "effects": {
+      "cornering_grip": 18,
+      "traction": 9,
+      "braking": 5,
+      "warmup": 4
+    },
+    "side_effects": {
+      "tire_wear": 9,
+      "driver_demand": 4,
+      "heat": 3
+    },
     "note": "供給タイヤは配られる側になったことがないから判らん。ピークが狭いという話だけ聞いた。狭さの意味は走った者が書け。"
   },
-
   {
     "id": "brake_pad_01",
     "name": "上位グレード純正パッド（流用）",
@@ -418,8 +646,13 @@
     "sponsor_tier": 0,
     "price": 12000,
     "durability": 100,
-    "effects": { "braking": 2, "fade_resistance": 1 },
-    "side_effects": { "warmup": -1 },
+    "effects": {
+      "braking": 2,
+      "fade_resistance": 1
+    },
+    "side_effects": {
+      "warmup": -1
+    },
     "note": "上のグレードの純正は流用できる。少し効く。少し冷えに弱い。それ以上でも以下でもない。"
   },
   {
@@ -431,8 +664,15 @@
     "sponsor_tier": 1,
     "price": 38000,
     "durability": 80,
-    "effects": { "braking": 5, "fade_resistance": 4 },
-    "side_effects": { "warmup": -3, "reliability": -1, "noise": 2 },
+    "effects": {
+      "braking": 5,
+      "fade_resistance": 4
+    },
+    "side_effects": {
+      "warmup": -3,
+      "reliability": -1,
+      "noise": 2
+    },
     "note": "止まる。鳴く。ローターも削る。街乗りで鳴きが気になるなら、それはサーキット用だということだ。"
   },
   {
@@ -444,8 +684,15 @@
     "sponsor_tier": 1,
     "price": 160000,
     "durability": 90,
-    "effects": { "braking": 6, "fade_resistance": 5, "heat": -2 },
-    "side_effects": { "unsprung_weight": 6, "acceleration": -1 },
+    "effects": {
+      "braking": 6,
+      "fade_resistance": 5,
+      "heat": -2
+    },
+    "side_effects": {
+      "unsprung_weight": 6,
+      "acceleration": -1
+    },
     "note": "熱に余裕ができる。その代わりばね下が重くなって路面の追従が落ちる。ブレーキで稼ぐ分と足で失う分を天秤にかけろ。"
   },
   {
@@ -457,8 +704,15 @@
     "sponsor_tier": 2,
     "price": 95000,
     "durability": 60,
-    "effects": { "braking": 8, "fade_resistance": 9 },
-    "side_effects": { "warmup": -7, "reliability": -2, "driver_demand": 2 },
+    "effects": {
+      "braking": 8,
+      "fade_resistance": 9
+    },
+    "side_effects": {
+      "warmup": -7,
+      "reliability": -2,
+      "driver_demand": 2
+    },
     "note": "冷えている間は効かない。温まったら別物。一周目のコーナーで突っ込むな。"
   },
   {
@@ -470,8 +724,14 @@
     "sponsor_tier": 1,
     "price": 55000,
     "durability": 100,
-    "effects": { "turn_in": 4, "braking": 2 },
-    "side_effects": { "driver_demand": 2, "stability": -2 },
+    "effects": {
+      "turn_in": 4,
+      "braking": 2
+    },
+    "side_effects": {
+      "driver_demand": 2,
+      "stability": -2
+    },
     "note": "後ろに寄せれば頭が入る。寄せすぎればリアがロックして回る。一目盛りずつ。二目盛り動かすな。"
   },
   {
@@ -483,8 +743,15 @@
     "sponsor_tier": 3,
     "price": 480000,
     "durability": 80,
-    "effects": { "braking": 10, "fade_resistance": 6, "unsprung_weight": -3 },
-    "side_effects": { "driver_demand": 2, "warmup": -2 },
+    "effects": {
+      "braking": 10,
+      "fade_resistance": 6,
+      "unsprung_weight": -3
+    },
+    "side_effects": {
+      "driver_demand": 2,
+      "warmup": -2
+    },
     "note": "剛性が上がってペダルの感触が変わる。感触が変わると踏み方も変わる。慣れるまでのタイムは落ちる。"
   },
   {
@@ -492,16 +759,27 @@
     "name": "カーボンブレーキシステム",
     "category": "brake",
     "slot": "pad",
-    "replaces": ["rotor", "caliper", "bias"],
+    "replaces": [
+      "rotor",
+      "caliper",
+      "bias"
+    ],
     "class_required": 5,
     "sponsor_tier": 4,
     "price": 2800000,
     "durability": 60,
-    "effects": { "braking": 16, "fade_resistance": 14, "unsprung_weight": -10 },
-    "side_effects": { "warmup": -12, "driver_demand": 5, "reliability": -3 },
+    "effects": {
+      "braking": 16,
+      "fade_resistance": 14,
+      "unsprung_weight": -10
+    },
+    "side_effects": {
+      "warmup": -12,
+      "driver_demand": 5,
+      "reliability": -3
+    },
     "note": "温度の窓が狭いとしか知らん。窓の外で何が起きるかは、俺のノートには書けない。"
   },
-
   {
     "id": "aero_weight_light_01",
     "name": "内装剥がし・不要装備撤去",
@@ -511,8 +789,13 @@
     "sponsor_tier": 0,
     "price": 8000,
     "durability": 100,
-    "effects": { "weight": -12 },
-    "side_effects": { "rigidity": -1, "noise": 3 },
+    "effects": {
+      "weight": -12
+    },
+    "side_effects": {
+      "rigidity": -1,
+      "noise": 3
+    },
     "note": "金のかからない軽量化だ。うるさくなる。ボディの音が聞こえる。それは悪いことじゃない。"
   },
   {
@@ -524,8 +807,14 @@
     "sponsor_tier": 1,
     "price": 120000,
     "durability": 90,
-    "effects": { "unsprung_weight": -8, "acceleration": 2 },
-    "side_effects": { "rigidity": -2, "reliability": -2 },
+    "effects": {
+      "unsprung_weight": -8,
+      "acceleration": 2
+    },
+    "side_effects": {
+      "rigidity": -2,
+      "reliability": -2
+    },
     "note": "ばね下が軽いと足がよく動く。縁石で割れることもある。攻める場所と守る場所を決めてから履け。"
   },
   {
@@ -537,8 +826,14 @@
     "sponsor_tier": 1,
     "price": 95000,
     "durability": 90,
-    "effects": { "downforce": 4, "stability": 2 },
-    "side_effects": { "drag": 3, "weight": 4 },
+    "effects": {
+      "downforce": 4,
+      "stability": 2
+    },
+    "side_effects": {
+      "drag": 3,
+      "weight": 4
+    },
     "note": "少し押さえつく。少し空気を引きずる。この程度なら差は小さい。差が小さいと知るのも一つだ。"
   },
   {
@@ -550,8 +845,15 @@
     "sponsor_tier": 2,
     "price": 380000,
     "durability": 80,
-    "effects": { "downforce": 10, "stability": 4 },
-    "side_effects": { "drag": 8, "weight": 7, "reliability": -1 },
+    "effects": {
+      "downforce": 10,
+      "stability": 4
+    },
+    "side_effects": {
+      "drag": 8,
+      "weight": 7,
+      "reliability": -1
+    },
     "note": "コーナーで得た分をストレートで払う。ストレートの長いコースで払いきれるかは計算しろ。"
   },
   {
@@ -559,13 +861,21 @@
     "name": "大幅軽量化（ケージ一体・アクリル窓）",
     "category": "aero_weight",
     "slot": "interior",
-    "replaces": ["body"],
+    "replaces": [
+      "body"
+    ],
     "class_required": 4,
     "sponsor_tier": 2,
     "price": 650000,
     "durability": 70,
-    "effects": { "weight": -28, "rigidity": 2 },
-    "side_effects": { "reliability": -5, "noise": 2 },
+    "effects": {
+      "weight": -28,
+      "rigidity": 2
+    },
+    "side_effects": {
+      "reliability": -5,
+      "noise": 2
+    },
     "note": "ケージで剛性は戻る。窓と外板の代わりは戻らない。何かに当たったら終わりだと思え。"
   },
   {
@@ -577,8 +887,12 @@
     "sponsor_tier": 3,
     "price": 900000,
     "durability": 60,
-    "effects": { "weight": -35 },
-    "side_effects": { "reliability": -5 },
+    "effects": {
+      "weight": -35
+    },
+    "side_effects": {
+      "reliability": -5
+    },
     "note": "軽い。硬い。ぶつけたら板金じゃ直らん、丸ごと交換だ。混走で前に出る車か、逃げる車か、それで決めろ。"
   },
   {
@@ -590,8 +904,16 @@
     "sponsor_tier": 3,
     "price": 1500000,
     "durability": 70,
-    "effects": { "downforce": 18, "stability": 6 },
-    "side_effects": { "drag": 10, "weight": 9, "driver_demand": 3, "reliability": -2 },
+    "effects": {
+      "downforce": 18,
+      "stability": 6
+    },
+    "side_effects": {
+      "drag": 10,
+      "weight": 9,
+      "driver_demand": 3,
+      "reliability": -2
+    },
     "note": "車高が変われば効き方が変わる。ブレーキで沈めば前が効き、加速で浮けば抜ける。空力は足とセットだ。"
   },
   {
@@ -603,8 +925,85 @@
     "sponsor_tier": 4,
     "price": 6500000,
     "durability": 60,
-    "effects": { "downforce": 28, "stability": 8 },
-    "side_effects": { "drag": 12, "weight": 6, "driver_demand": 5, "reliability": -4 },
+    "effects": {
+      "downforce": 28,
+      "stability": 8
+    },
+    "side_effects": {
+      "drag": 12,
+      "weight": 6,
+      "driver_demand": 5,
+      "reliability": -4
+    },
     "note": "ここから先の空力は風洞で作る。俺には計れなかった。何を得て何を払ったか、その表の続きを書け。"
+  },
+  {
+    "id": "reinforce_block_01",
+    "name": "強化ブロック",
+    "category": "reinforce",
+    "slot": "block",
+    "class_required": 5,
+    "sponsor_tier": 4,
+    "price": 4900000,
+    "durability": 120,
+    "effects": {
+      "reliability": 5
+    },
+    "side_effects": {
+      "weight": 17
+    },
+    "note": ""
+  },
+  {
+    "id": "reinforce_oil_cooler_01",
+    "name": "オイルクーラー",
+    "category": "reinforce",
+    "slot": "oil_cooler",
+    "class_required": 5,
+    "sponsor_tier": 4,
+    "price": 2940000,
+    "durability": 100,
+    "effects": {
+      "reliability": 3
+    },
+    "side_effects": {
+      "weight": 4,
+      "drag": 1
+    },
+    "note": ""
+  },
+  {
+    "id": "reinforce_driveshaft_01",
+    "name": "強化ドライブシャフト",
+    "category": "reinforce",
+    "slot": "driveshaft",
+    "class_required": 5,
+    "sponsor_tier": 4,
+    "price": 2250000,
+    "durability": 110,
+    "effects": {
+      "reliability": 4
+    },
+    "side_effects": {
+      "weight": 13
+    },
+    "note": ""
+  },
+  {
+    "id": "reinforce_brake_duct_01",
+    "name": "ブレーキダクト",
+    "category": "reinforce",
+    "slot": "brake_duct",
+    "class_required": 5,
+    "sponsor_tier": 4,
+    "price": 840000,
+    "durability": 90,
+    "effects": {
+      "reliability": 2
+    },
+    "side_effects": {
+      "drag": 2
+    },
+    "note": ""
   }
 ]
