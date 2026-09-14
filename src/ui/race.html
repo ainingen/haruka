@@ -55,7 +55,10 @@ body {
 }
 .jp { font-family: var(--jp-font); }
 .sheet { max-width: 400px; margin: 0 auto; border: 1px solid var(--mon-line); padding: 3px; }
-.sheet-inner { border: 1px solid var(--mon-line); padding: 8px; display: grid; gap: 8px; }
+/* グリッドではなくブロックで積む。グリッドだと操作列の sticky が
+   自分の行の高さぶんしか動けず、画面下に留まれない */
+.sheet-inner { border: 1px solid var(--mon-line); padding: 8px; }
+.sheet-inner > * + * { margin-top: 8px; }
 
 h3.cap {
   margin: 0; font-size: 9px; letter-spacing: .2em; color: var(--mon-dim); font-weight: 400;
@@ -191,8 +194,15 @@ h3.cap {
   to   { background: var(--mon-bg-2); }
 }
 
-/* --- 操作 ----------------------------------------------------------------- */
-.controls { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+/* --- 操作（画面の下に貼り付く） -------------------------------------------
+   倍速の切り替えはいつでも押せる必要がある。下まで読み終えると流れの中に収まる。
+   左右の負マージンは、枠の内側いっぱいに地を敷いて後ろの行を透かさないため。 */
+.controls {
+  position: sticky; bottom: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+  margin-left: -8px; margin-right: -8px; padding: 7px 8px;
+  background: var(--mon-bg); border-top: 1px solid var(--mon-line);
+}
 .controls button {
   font: inherit; font-family: var(--jp-font); font-size: 12px; padding: 7px 12px; cursor: pointer; letter-spacing: .06em;
   background: none; color: var(--mon-text); border: 1px solid var(--mon-line);
