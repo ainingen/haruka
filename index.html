@@ -164,6 +164,7 @@ el('blankPage').addEventListener('click', async () => {
   el('sceneBack').hidden = false;
   await playScene(scene, el('sceneHost'), {
     vars: { 名前: playerName(saved), 一行: prologueLine(saved) },
+    imageBase: 'assets/',   // 立ち絵（docs/素材/立ち絵.md）
     speakerLabel: (who) => (who === '主人公' ? playerName(saved) : who),
     cue: (name) => document.dispatchEvent(new CustomEvent('cue', { detail: { name } })),
   });

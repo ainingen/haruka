@@ -539,3 +539,35 @@ test('S14. PLiCy に上げる一式：index.html の最初の要素がタイト�
   console.log(`  PLiCy 一式：${files.length} 件 → ZIP ${(buf.length / 1024).toFixed(1)} KB`
     + `　最初の要素 <${first.tag} id="${first.id}">`);
 });
+
+test('S15. 立ち絵：決めた場所に image の手が入り、絵のファイルが実在する', async () => {
+  const { existsSync, statSync } = await import('node:fs');
+  const { IMAGES } = await import('../../tools/build-scenes.mjs');
+  const SCENES = load('scenes.json').scenes;
+  const byId = Object.fromEntries(SCENES.map((s) => [s.id, s]));
+
+  const rows = [];
+  for (const image of IMAGES) {
+    const scene = byId[image.scene];
+    assert.ok(scene, `場面が無い: ${image.scene}`);
+    const at = scene.steps.findIndex((s) => s.do === 'image' && s.src === image.src);
+    assert.ok(at > 0, `${image.scene} に ${image.src} の手が無い`);
+    // 直前の【 】が、決めた置き場所であること（台本が動いたら落ちる）
+    const before = scene.steps[at - 1];
+    if (image.head) assert.equal(at, 1, `${image.scene} は場面の頭に置く`);
+    else assert.match(before.stage ?? '', image.match, `${image.scene} の置き場所がずれている`);
+    // 絵が実在して、軽いこと（配布に丸ごと入る）
+    const file = join(ROOT, 'assets', image.src);
+    assert.ok(existsSync(file), `絵が無い: assets/${image.src}`);
+    const kb = statSync(file).size / 1024;
+    assert.ok(kb < 400, `assets/${image.src} が重い：${Math.round(kb)} KB`);
+    rows.push(`${image.scene}→${image.src.replace('scene/', '')} ${Math.round(kb)}KB`);
+  }
+  // **第6場のピットレーンには絵を敷かない**（歩き去る絵だけ）
+  const win = byId.win;
+  const images = win.steps.filter((s) => s.do === 'image');
+  assert.equal(images.length, 1, '第6場の絵は1枚だけ');
+  assert.equal(images[0].src, 'scene/haruka_walk.jpg');
+  assert.ok(win.steps.findIndex((s) => s.do === 'image') > win.steps.length / 2, '第6場の絵は終わりのほう');
+  console.log(`  立ち絵 ${IMAGES.length} 箇所：${rows.join('／')}`);
+});

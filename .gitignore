@@ -3,3 +3,5 @@ node_modules/
 dist/
 *.log
 tmp/
+# 元画像（書き出し前）。配布にも git にも入れない。docs/素材/立ち絵.md
+raw/

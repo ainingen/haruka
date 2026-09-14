@@ -351,6 +351,7 @@ try {
     await playScene(scene, el('sceneHost'), {
       vars,
       flags,
+      imageBase: '../../assets/',   // 立ち絵（docs/素材/立ち絵.md）
       // 主人公はプレイヤーの名前で呼ぶ。まだ入れていない間は台本どおり「主人公」
       speakerLabel: (who) => (who === '主人公' ? G.player.name : who),
       cue,

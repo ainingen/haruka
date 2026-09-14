@@ -145,6 +145,44 @@
   display: grid; place-items: center; padding: 16px;
 }
 .scene-back[hidden] { display: none; }
+/* --- 場面の背景に敷く写真（scene.js の do: image） ------------------------- */
+.scene-photo {
+  position: absolute; inset: 0; z-index: 0;
+  background-size: cover; background-position: center 22%; background-repeat: no-repeat;
+  animation: photo-in .6s ease-out;
+}
+/* 下から暗くして、台詞を読ませる */
+.scene-photo::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,.32) 0%, rgba(0,0,0,.12) 32%, rgba(0,0,0,.78) 100%);
+}
+@keyframes photo-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scene-photo { animation: none; } }
+/* 写真の上では、枠を下に寄せて絵を見せる */
+.scene-back.has-photo { align-items: end; }
+/* 写真の上では、紙の枠を透かして白い字に切り替える */
+.scene-back.has-photo .scene-frame {
+  position: relative; z-index: 1;
+  /* 絵を見せるため、台詞の枠は画面の半分強まで。古い行は枠の中で送れる */
+  max-height: min(56dvh, 520px);
+  background: rgba(10, 10, 12, .42); border-color: rgba(255, 255, 255, .3);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+}
+.scene-back.has-photo .scene-title { color: rgba(255, 255, 255, .76); border-bottom-color: rgba(255, 255, 255, .24); }
+.scene-back.has-photo .scene-say .who { color: rgba(255, 255, 255, .72); }
+.scene-back.has-photo .scene-say .line,
+.scene-back.has-photo .scene-picked { color: #fff; text-shadow: 0 2px 7px rgba(0, 0, 0, .85); }
+.scene-back.has-photo .scene-note {
+  background: rgba(0, 0, 0, .45); color: #fff; border-left-color: var(--car);
+}
+.scene-back.has-photo .scene-section { color: rgba(255, 255, 255, .7); border-color: rgba(255, 255, 255, .24); }
+.scene-back.has-photo .scene-caption { color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .9); }
+.scene-back.has-photo .scene-hint { color: rgba(255, 255, 255, .6); }
+.scene-back.has-photo .scene-write textarea { background: rgba(0, 0, 0, .5); color: #fff; border-color: rgba(255, 255, 255, .35); }
+.scene-back.has-photo .scene-write button { background: rgba(0, 0, 0, .45); color: #fff; border-color: rgba(255, 255, 255, .35); }
+.scene-back.has-photo .scene-write button.go { background: var(--car); border-color: var(--car); }
+.scene-back.has-photo .scene-write .count { color: rgba(255, 255, 255, .7); }
+.scene-back.has-photo .scene-choice button { background: rgba(0, 0, 0, .5); color: #fff; border-color: rgba(255, 255, 255, .4); }
 .scene-frame {
   width: min(680px, 100%); max-height: calc(100dvh - 32px);
   background: var(--paper); color: var(--ink);

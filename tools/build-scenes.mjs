@@ -297,6 +297,32 @@ function buildRadio(radios) {
 }
 
 /**
+ * 立ち絵を出す場所（docs/素材/立ち絵.md）。**台本には書かれていない。**
+ * `match` に当たる【 】の**直後**に image の手を差し込む。次の image か fade まで同じ絵。
+ * `head: true` は場面の頭（最初の手の直後）。
+ */
+export const IMAGES = [
+  { scene: 'p4', src: 'scene/haruka_arcade.jpg', match: /派手な筐体の光/ },
+  { scene: 'promote5', src: 'scene/haruka_note.jpg', match: /season\.html。昇格判定のあと/ },
+  { scene: 'win', src: 'scene/haruka_walk.jpg', match: /ガレージへ歩いていく/ },
+  { scene: 'ending', src: 'scene/haruka_note.jpg', match: /トロフィーは作業台の端/ },
+  { scene: 'blank', src: 'scene/haruka_note.jpg', head: true },
+];
+
+/** 立ち絵の手を差し込む。**当たらなければ投げる**（台本が変わったことに気づけるように）。 */
+function addImages(scenes) {
+  for (const image of IMAGES) {
+    const scene = scenes.find((s) => s.id === image.scene);
+    if (!scene) throw new Error(`場面が無い: ${image.scene}`);
+    const at = image.head
+      ? 0
+      : scene.steps.findIndex((step) => image.match.test(step.stage ?? ''));
+    if (at < 0) throw new Error(`立ち絵を置く【 】が無い: ${image.scene} ${image.match}`);
+    scene.steps.splice(at + 1, 0, { stage: `立ち絵：${image.src}`, do: 'image', src: image.src });
+  }
+}
+
+/**
  * 台本に無い手を足す。**台詞ではない。システムの手だけ。**
  * 主人公の名前はプレイヤーが入れるが、プロローグの台本には入力の指示が無い。
  * 第4場の「7年後」の直後＝再会の前に置く（名前はここから先の画面で使う）。
@@ -321,6 +347,7 @@ export function build(texts = null) {
     radios = { ...radios, ...out.radios };
   }
   addSystemSteps(scenes);
+  addImages(scenes);
   const { class5, seasonNote } = buildRadio(radios);
   return { scenes, radios, class5, seasonNote };
 }

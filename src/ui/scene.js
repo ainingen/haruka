@@ -17,7 +17,8 @@
  *   beat    【間】。押さずに少し待つ
  *   note    ノートを開く／めくる
  *   write   ノートに字が書かれる
- *   fade    暗転
+ *   fade    暗転（**敷いてある絵もここで消える**）
+ *   image   場面の背景に絵を敷く（`src` は assets からの相対。次の image まで同じ絵）
  *   caption 画面いっぱいの文字（【テキスト：「7年後」】）
  *   section 見出し（［操作1］タイヤ空気圧）
  *   choose  プレイヤーが選ぶ。答えは flags[key] に残り、あとの when で効く
@@ -61,6 +62,7 @@ export const SCENE = { beatMs: 700, fadeMs: 600, writeMs: 900, turnMs: 500, capt
  * @param {HTMLElement} host  描く場所（中身は作り直す）
  * @param {object} opts
  *   vars          ｛ ｝ の差し込み（{ 名前, 一行 }）
+ *   imageBase     `image` の src を解決する元（ページからの assets への相対）
  *   flags         分岐の答え（{ pressure:'high', pos:1 } など）。**選んだ結果をここに書く**
  *   speakerLabel  話者名の表示（'主人公' をプレイヤー名にするなど）
  *   cue           演出イベント（name, detail）
@@ -74,7 +76,7 @@ export const SCENE = { beatMs: 700, fadeMs: 600, writeMs: 900, turnMs: 500, capt
 export async function playScene(scene, host, opts = {}) {
   const {
     vars = {}, flags = {}, speakerLabel = (s) => s, cue = () => {},
-    onInput = null, onName = null, onRace = null, onTitle = null,
+    imageBase = '', onInput = null, onName = null, onRace = null, onTitle = null,
     onCredits = null, onStage = null,
   } = opts;
 
@@ -136,6 +138,37 @@ export async function playScene(scene, host, opts = {}) {
     box.scrollIntoView({ block: 'end', behavior: 'smooth' });
   });
 
+  /**
+   * 場面の背景に絵を敷く。**読めれば敷き、読めなければ何もしない。**
+   * 敷いている間は枠を透かして、白い字に切り替える（.has-photo）。
+   */
+  const back = host.closest('.scene-back');
+  // 前の場面が途中で止まっていても、敷きっぱなしの絵は引き継がない
+  back?.querySelectorAll('.scene-photo').forEach((el) => el.remove());
+  back?.classList.remove('has-photo');
+  let photo = null;
+  const setPhoto = (src) => {
+    if (!back) return;
+    if (!src) {
+      photo?.remove();
+      photo = null;
+      back.classList.remove('has-photo');
+      return;
+    }
+    const img = new Image();
+    img.src = imageBase + src;
+    img.decode().then(() => {
+      if (!photo) {
+        photo = document.createElement('div');
+        photo.className = 'scene-photo';
+        back.prepend(photo);
+      }
+      photo.style.backgroundImage = `url("${img.src}")`;
+      back.classList.add('has-photo');
+      cue('scene.image', { scene: scene.id, src });
+    }).catch(() => { /* 絵が無い。台詞だけで進む */ });
+  };
+
   /** その手を出すか。when の中身がぜんぶ flags と合えば出す。 */
   const shows = (step) => !step.when || Object.entries(step.when).every(([k, v]) => flags[k] === v);
 
@@ -163,7 +196,12 @@ export async function playScene(scene, host, opts = {}) {
         case 'beat': await wait(SCENE.beatMs); break;
         case 'note': cue('note.turn', { scene: scene.id }); await wait(SCENE.turnMs); break;
         case 'write': cue('note.write', { scene: scene.id }); await wait(SCENE.writeMs); break;
-        case 'fade': cue('scene.fade', { scene: scene.id }); await wait(SCENE.fadeMs); break;
+        case 'fade':
+          cue('scene.fade', { scene: scene.id });
+          setPhoto(null);
+          await wait(SCENE.fadeMs);
+          break;
+        case 'image': setPhoto(step.src); break;
         case 'input': if (onInput) await onInput(step, { log, add, esc }); break;
         case 'name': if (onName) await onName(step, { log, add, esc }); break;
         case 'credits': if (onCredits) await onCredits(step, { log, add, esc }); break;
@@ -189,5 +227,6 @@ export async function playScene(scene, host, opts = {}) {
     host.removeEventListener('click', advance);
     document.removeEventListener('keydown', advance);
     hint.hidden = true;
+    setPhoto(null);
   }
 }

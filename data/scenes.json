@@ -9,6 +9,11 @@
           "stage": "season.html。昇格判定のあと。作業灯だけ。ハルカは作業台に腰かけ、ノートを開いている。主人公は工具を片付けている"
         },
         {
+          "stage": "立ち絵：scene/haruka_note.jpg",
+          "do": "image",
+          "src": "scene/haruka_note.jpg"
+        },
+        {
           "say": "ハルカ",
           "text": "かざはや。"
         },
@@ -226,6 +231,11 @@
           "stage": "ハルカ、それ以上は何も言わず、主人公の横を通ってガレージへ歩いていく。主人公、その背中を見る"
         },
         {
+          "stage": "立ち絵：scene/haruka_walk.jpg",
+          "do": "image",
+          "src": "scene/haruka_walk.jpg"
+        },
+        {
           "stage": "スタッフBが駆け寄る"
         },
         {
@@ -244,6 +254,11 @@
       "steps": [
         {
           "stage": "作業灯だけ。トロフィーは作業台の端に無造作に置かれている。ハルカは第5場と同じ場所に腰かけ、ノートを開いている。主人公は少し離れたところ"
+        },
+        {
+          "stage": "立ち絵：scene/haruka_note.jpg",
+          "do": "image",
+          "src": "scene/haruka_note.jpg"
         },
         {
           "stage": "ノートのページが映る。「TAIGA」の表紙。めくる。第1場〜第4場と同じ子どもの字のページが一瞬止まる",
@@ -519,6 +534,11 @@
         {
           "stage": "暗転からカット。昼。ガレージのシャッターが開いている。ハルカ、ノートを開いて、最後のほうのページをめくっている",
           "do": "fade"
+        },
+        {
+          "stage": "立ち絵：scene/haruka_note.jpg",
+          "do": "image",
+          "src": "scene/haruka_note.jpg"
         },
         {
           "say": "ハルカ",
@@ -1068,6 +1088,11 @@
         {
           "stage": "暗転からカット。派手な筐体の光。レースゲームの筐体4台が並び、3台に客、1台に金髪の少女",
           "do": "fade"
+        },
+        {
+          "stage": "立ち絵：scene/haruka_arcade.jpg",
+          "do": "image",
+          "src": "scene/haruka_arcade.jpg"
         },
         {
           "stage": "テキスト：「7年後」",
