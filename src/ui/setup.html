@@ -216,6 +216,32 @@ h2 {
 .chips .s { color: var(--mon-amber); }
 .chips .none { color: var(--mon-dim); }
 .rolling { color: var(--mon-green); }
+/* --- 側面図の位置指示。部品の単体スケッチは持たない ----------------------------
+   「その部品が車のどこに付くか」だけを出す。絵は1枚（assets/car/side_sedan.png）で、
+   位置は data/slot-coords.json のスロット座標。ここは画面の中だが**紙の層**（mod-note と同じ）。 */
+.mod-car {
+  background: var(--paper); border-top: 1px solid var(--mon-line);
+  height: clamp(112px, 26vh, 240px); padding: 4px 8px;
+}
+.mod-car[hidden] { display: none; }
+.mod-car svg { width: 100%; height: 100%; display: block; }
+.mod-car .body { opacity: .82; }          /* 線画を少し退かせて、指示を前に出す */
+/* 暗い配色では地が沈むので、鉛筆線を白く反転させる（青焼きの側面図になる） */
+@media (prefers-color-scheme: dark) {
+  :root.paper-ground .mod-car .body { filter: invert(1); opacity: .7; }
+}
+.mod-car .lead { stroke: var(--ink-2); stroke-width: 2.4; fill: none; }
+.mod-car .dot { fill: var(--ink-3); }     /* 装着済みのスロット */
+.mod-car .ring { fill: none; stroke: var(--accent); stroke-width: 4; }
+.mod-car .ring.here { stroke: var(--car); stroke-width: 5; }
+.mod-car .tag {
+  font-family: var(--jp-font); font-size: 34px; fill: var(--ink);
+  paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round;
+}
+.mod-car .tag.sub { font-size: 28px; fill: var(--ink-2); }
+/* 狭い画面では letterbox で絵が縮むと名前が読めない。幅いっぱいに使う */
+@media (max-width: 560px) { .mod-car { height: auto; aspect-ratio: 1200 / 535; max-height: 26vh; } }
+
 .mod-note {
   position: relative; background: var(--paper); color: var(--ink); border-top: 1px solid var(--mon-line);
   padding: 6px 10px 7px 16px; font-family: var(--hand-font); font-size: var(--fs-body); line-height: 1.7; letter-spacing: .03em;
@@ -488,6 +514,8 @@ h2 {
       </div>
       <div class="mod-cmp" id="modCmp"></div>
     </div>
+    <!-- 側面図の位置指示（ここも紙）。画像が読めなければ丸ごと出さない -->
+    <div class="mod-car" id="modCar" hidden></div>
     <div class="mod-note" id="modNote"></div>
     <div class="mod-foot" id="modFoot"></div>
   </div>
@@ -837,7 +865,27 @@ async function loadAll() {
   ]);
   const cars = {};
   for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
-  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, slots, economy, cars };
+  const side = await sideView().catch(() => null);
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, slots, economy, cars, side };
+}
+
+/**
+ * 側面図の位置指示（`assets/car/side_sedan.png` ＋ `data/slot-coords.json`）。
+ *
+ * 部品の単体スケッチは持たない。**「その部品が車のどこに付くか」だけを出す。**
+ * 座標はスロットごとで、部品ごとではない（parts.json に画像を持たせない理由）。
+ * **車体4種すべてでこの1枚を使う。** 種別ごとの絵はまだ無い。
+ * 画像か座標のどちらかが無ければ例外にして、呼ぶ側が丸ごと出さない（欠けても壊れない）。
+ */
+async function sideView() {
+  const coords = await json('../../data/slot-coords.json');
+  const url = new URL('../../assets/car/side_sedan.png', import.meta.url).href;
+  // **絵そのものを読んで確かめる。** HEAD で在り処だけ聞くと、キャッシュが「ある」と答えることがある。
+  // 原寸もここで取るので、画像を差し替えても座標（相対値）はそのまま効く
+  const img = new Image();
+  img.src = url;
+  await img.decode();
+  return { url, w: img.naturalWidth, h: img.naturalHeight, coords };
 }
 
 // ---------------------------------------------------------------------------
@@ -1268,6 +1316,67 @@ function lockReasons(p) {
   return r;
 }
 
+/**
+ * 側面図の位置指示。**部品の単体スケッチは描かない。**
+ *
+ *   選んでいるスロット   赤い丸 ＋ 引き出し線 ＋ スロット名
+ *   ユニット部品が潰す他のスロット（replaces）  同時に光らせる（丸だけ）
+ *   装着済みのスロット   小さい点。未装着は何も出さない
+ *
+ * 絵も座標も無ければ、パネルごと出さない（`DATA.side` が null）。
+ * @param {string} slot  いま開いているスロット
+ * @param {object|null} cand  候補として選ばれている部品
+ */
+function drawSideView(slot, cand) {
+  const box = el('modCar');
+  const side = DATA.side;
+  if (!side || !side.coords[slot]) { box.hidden = true; return; }
+  box.hidden = false;
+  box.textContent = '';
+
+  const { w, h, coords } = side;
+  const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
+  const img = svgEl('image', { href: side.url, x: 0, y: 0, width: w, height: h });
+  img.setAttribute('class', 'body');
+  svg.appendChild(img);
+  const at = (s) => ({ x: coords[s].x * w, y: coords[s].y * h });
+
+  // 装着済みのスロットは小さい点で常時。未装着は何も出さない
+  const lit = new Set(cand ? occupiedSlots(cand).filter((s) => coords[s]) : [slot]);
+  for (const [s, p] of Object.entries(state.equipped)) {
+    if (!p || !coords[s] || lit.has(s)) continue;
+    const { x, y } = at(s);
+    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 8, class: 'dot' }));
+  }
+
+  // ユニット部品（replaces）が潰すスロットは同時に光らせる。丸だけで、線は引かない
+  for (const s of lit) {
+    if (s === slot) continue;
+    const { x, y } = at(s);
+    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 16, class: 'ring' }));
+  }
+
+  // 選んでいるスロットだけ、引き出し線と名前を付ける。
+  // 線は空いているほう（上半分なら上へ、下半分なら下へ）に逃がす
+  const { x, y } = at(slot);
+  const up = coords[slot].y > 0.5;
+  const endY = up ? h - 34 : 38;
+  const right = coords[slot].x < 0.5;
+  const endX = Math.min(w - 10, Math.max(10, x + (right ? 96 : -96)));
+  svg.appendChild(svgEl('path', { class: 'lead', d: `M${x} ${y} L${endX} ${endY}` }));
+  svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 20, class: 'ring here' }));
+  const tag = svgEl('text', {
+    x: endX, y: endY + (up ? 26 : -12), 'text-anchor': right ? 'start' : 'end', class: 'tag',
+  }, SLOT_LABEL[slot]);
+  svg.appendChild(tag);
+  if (lit.size > 1) {
+    svg.appendChild(svgEl('text', {
+      x: w - 12, y: up ? 34 : h - 12, 'text-anchor': 'end', class: 'tag sub',
+    }, `${lit.size} スロットを占有`));
+  }
+  box.appendChild(svg);
+}
+
 function drawModal() {
   const slot = state.openSlot;
   if (!slot) return;
@@ -1313,6 +1422,10 @@ function drawModal() {
 
   // --- 下：大河の note（ここだけ紙） --------------------------------------
   const cand = partById(state.candidate);
+
+  // --- 側面図：その部品が車のどこに付くか --------------------------------
+  drawSideView(slot, cand);
+
   // 書き込みの無い部品（補強＝親父が使っていない区分）は、文章を作らず**白紙のまま出す**
   const hand = cand?.note ? esc(cand.note) : `<span class="blank">${cand ? 'このページは白紙。' : '—'}</span>`;
   el('modNote').innerHTML = `<span class="k">親父のノート</span>${hand}`;

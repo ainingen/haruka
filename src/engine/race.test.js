@@ -788,3 +788,30 @@ test('25. 補強：信頼性を買い戻す唯一の区分。クラス5専用で
   // それでも「エンジン＋補強」は「補強なしの基準」より速い。買う理由がある
   console.log(`  かざはや1周：ワークスエンジン ${lap(engine).toFixed(3)}秒（18%）→ ＋ブロック＋クーラー ${lap(braced).toFixed(3)}秒（0%）`);
 });
+
+test('26. slot-coords.json: 側面図の位置指示。全スロットに座標があり、絵の中に収まる', () => {
+  const COORDS = load('slot-coords.json');
+  const all = Object.values(SLOTS).flat();
+  const keys = Object.keys(COORDS).filter((k) => !k.startsWith('_'));
+
+  // **部品ごとではなくスロットごと。** だから parts.json に画像を持たせない
+  for (const slot of all) assert.ok(keys.includes(slot), `${slot} の座標がない`);
+  for (const k of keys) assert.ok(all.includes(k), `slot-coords.json の "${k}" は SLOTS に無いスロット`);
+  assert.equal(keys.length, all.length);
+
+  for (const [slot, c] of Object.entries(COORDS)) {
+    if (slot.startsWith('_')) continue;
+    // 相対座標（左上 0,0 / 右下 1,1）。端に寄りすぎると引き出し線が絵から出る
+    assert.ok(c.x > 0 && c.x < 1, `${slot}: x が ${c.x}`);
+    assert.ok(c.y > 0 && c.y < 1, `${slot}: y が ${c.y}`);
+  }
+
+  // 前が左。前輪まわり（ブレーキ・足）は左半分、駆動の出口（ファイナル）は右半分にある
+  for (const slot of ['pad', 'rotor', 'caliper', 'damper', 'camber', 'compound']) {
+    assert.ok(COORDS[slot].x < 0.5, `${slot} は前寄り（左半分）のはず`);
+  }
+  for (const slot of ['final', 'lsd', 'stabi_rear', 'aero']) {
+    assert.ok(COORDS[slot].x > 0.5, `${slot} は後ろ寄り（右半分）のはず`);
+  }
+  console.log(`  側面図の位置指示：${keys.length} スロット（絵は assets/car/side_sedan.png の1枚を4車体で使う）`);
+});
