@@ -382,11 +382,11 @@ function askEndingLine(step, { log }) {
 function rollCredits(step, { log }) {
   return new Promise((done) => {
     const where = (id) => D.courses.find((c) => c.id === id)?.name ?? id;
-    // 大河の字。コースが重ならないように拾って、クラスの順に
-    const seen = new Set();
-    const pages = (D.notes ?? [])
-      .filter((n) => n.note && n.class <= 4 && !seen.has(n.course) && seen.add(n.course))
-      .sort((a, b) => a.class - b.class)
+    // 大河の字。クラス1から4まで1枚ずつ、そのクラスで最後に書いたページ。
+    // **クラス4で必ず止まる**（親父の字はそこで途切れる。第7場の【 】のとおり）
+    const pages = [1, 2, 3, 4]
+      .map((cls) => (D.notes ?? []).filter((n) => n.note && n.class === cls).at(-1))
+      .filter(Boolean)
       .map((n) => ({ hand: 'taiga', where: `${where(n.course)}　クラス${n.class}`, text: n.note }));
     // 子どもの字（第3場で書いた一行）と、ハルカの字（さっき書いた一行）
     pages.push({ hand: 'child', where: '', text: prologueLine(G) });
