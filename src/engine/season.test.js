@@ -333,6 +333,19 @@ test('S8. 場面：台本どおりの台詞が scenes.json にあり、一度見
   assert.equal(S.markScene(g, 'promote5'), g, '二度目は同じものを返す');
   // 形式を通っても消えない
   assert.deepEqual(decode(encode(g)).ending, g.ending);
+  // 第8場は会話まで。**自由設定の無線6本は場面ではなく無線**（画面はまだ無い）
+  const blank = byId.blank;
+  assert.equal(blank.steps.at(-1).stage.startsWith('タイムアタック（自由設定）へ'), true, '第8場は自由設定の入口で終わる');
+  for (const step of blank.steps) {
+    assert.ok(!/壊れるって言った/.test(step.text ?? ''), '自由設定の無線が場面に混ざっている');
+  }
+  const free = RADIO.class5.free_setup;
+  assert.equal(free.lines.length, 6, '自由設定の無線は6本');
+  assert.equal(free.where, 'free');
+  assert.equal(free.lines[0].text, 'それ壊れるよ。');
+  assert.equal(free.lines.at(-1).text, '（新記録）……書いた。親父、これ知らないやつ。');
+  for (const l of free.lines) assert.equal(l.speaker, 'haruka', 'すべてハルカの声');
+
   console.log(`  場面 ${SCENES.length} 本：${SCENES.map((s) => `${s.id}(台詞${s.steps.filter((x) => x.say).length})`).join(' ')}`);
 });
 

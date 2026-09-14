@@ -1905,6 +1905,43 @@
           "sound_cue": ""
         }
       ]
+    },
+    "free_setup": {
+      "when": "自由設定での無線（数値の危険域で発火。既存の症状系を流用）",
+      "once": false,
+      "where": "free",
+      "lines": [
+        {
+          "speaker": "haruka",
+          "text": "それ壊れるよ。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "壊れるって言った。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "……書いとく。「これは壊れる」。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "速い。壊れるけど速い。書いとく。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "（信頼性が正の構成で）持つな、これ。つまんないけど持つ。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "（新記録）……書いた。親父、これ知らないやつ。",
+          "sound_cue": ""
+        }
+      ]
     }
   }
 }

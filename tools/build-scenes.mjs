@@ -69,6 +69,13 @@ export function parseScript(md) {
 
     // 【 】＝演出。画面には出さない
     const stage = line.match(/^【(.+)】$/);
+    // 第8場の【自由設定での無線】は、ここから下が無線。場面の台詞ではない
+    if (stage && FREE_RADIO.test(stage[1])) {
+      radio = { when: stage[1], lines: [] };
+      radios[stage[1]] = radio;
+      scene = null;
+      continue;
+    }
     if (stage && scene) {
       scene.steps.push({ stage: stage[1], ...(actionFor(stage[1]) ?? {}) });
       continue;
@@ -119,6 +126,8 @@ export const RADIO_TRIGGERS = [
   { id: 'class5_works_retire', once: false, where: 'race', match: /リタイアしたとき/ },
   { id: 'class5_braced_finish', once: true, where: 'race', match: /完走したとき/ },
 ];
+/** 第8場の自由設定で出す無線（まだ画面が無い。**入れておくだけ**）。 */
+const FREE_RADIO = /自由設定での無線/;
 /** クラス5のシーズン末の一行（season_note.class5）。 */
 const SEASON_NOTE = /シーズン終了時のノートの一行/;
 
@@ -143,6 +152,15 @@ function buildRadio(radios) {
       lines: found[1].lines.map((l) => ({ speaker: SPEAKER[l.say] ?? l.say, text: l.text, sound_cue: '' })),
     };
   }
+  // 第8場の自由設定。画面はまだ無いので where だけ決めて置いておく
+  const free = Object.entries(radios).find(([when]) => FREE_RADIO.test(when));
+  if (!free) throw new Error('台本に自由設定の無線が無い');
+  class5.free_setup = {
+    when: free[0],
+    once: false,
+    where: 'free',
+    lines: free[1].lines.map((l) => ({ speaker: SPEAKER[l.say] ?? l.say, text: l.text, sound_cue: '' })),
+  };
   const note = Object.entries(radios).find(([when]) => SEASON_NOTE.test(when));
   return { class5, seasonNote: note[1].lines.map((l) => ({ text: l.note, sound_cue: '' })) };
 }

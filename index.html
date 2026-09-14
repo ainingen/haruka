@@ -74,6 +74,7 @@ h1 {
   <div class="menu">
     <a class="primary" id="newGame" href="src/ui/season.html">はじめから<small>クラス1、走行会から。所持金は中古パーツ2〜3点ぶん</small></a>
     <button type="button" id="continueBtn">つづきから<small>保存文字列を貼り付ける</small></button>
+    <button type="button" id="blankPage" hidden>白紙のページ<small>ノートの余り。まだ誰も書いていない</small></button>
     <button type="button" class="paste" id="pasteLink" hidden>別の保存文字列を貼り付ける</button>
   </div>
 
@@ -89,8 +90,16 @@ h1 {
   <div class="foot">絵で戦わない。車は線、コースは線。タイムは理解でしか縮まない。</div>
 </div></div>
 
+<div class="scene-back" id="sceneBack" hidden>
+  <div class="scene-frame">
+    <div class="scene-title" id="sceneTitle"></div>
+    <div class="scene-host" id="sceneHost"></div>
+  </div>
+</div>
+
 <script type="module">
-import { decode, encode, loadSaved, clearSaved } from './src/engine/save.js';
+import { decode, encode, loadSaved, clearSaved, playerName, prologueLine, sawScene, markScene, save } from './src/engine/save.js';
+import { playScene } from './src/ui/scene.js';
 
 const el = (id) => document.getElementById(id);
 
@@ -99,8 +108,11 @@ const el = (id) => document.getElementById(id);
  * 保存先の切り替えは save.js の中。ここは「あるか無いか」しか見ない。
  */
 const saved = loadSaved();
-// エンディングを見たあとの表紙は三段（TAIGA／はるか／ハルカ）
-if (saved?.ending?.done) el('coverHaruka').hidden = false;
+// エンディングを見たあとの表紙は三段（TAIGA／はるか／ハルカ）。白紙のページもここで開く
+if (saved?.ending?.done) {
+  el('coverHaruka').hidden = false;
+  el('blankPage').hidden = false;
+}
 if (saved) {
   el('continueBtn').innerHTML = 'つづきから<small>この端末の保存から再開'
     + `（${saved.season?.year ?? 1}年目・クラス${saved.cls ?? 1}）</small>`;
@@ -125,6 +137,33 @@ el('newGame').addEventListener('click', (ev) => {
   if (!confirm('この端末の保存を消して、最初から始めます。よろしいですか。\n（保存文字列を控えてあれば、あとで貼り付けて戻せます）')) return;
   clearSaved();
   location.href = ev.currentTarget.getAttribute('href');
+});
+
+/**
+ * 白紙のページ（第8場）。会話のあと、自由設定の画面は**まだ無い**ので「準備中」で止める。
+ * 台詞は台本（data/scenes.json の blank）。自由設定での無線6本は data/radio.json の
+ * class5.free_setup に入れてある（画面ができたらそこから出す）。
+ */
+el('blankPage').addEventListener('click', async () => {
+  const data = await fetch('data/scenes.json').then((r) => r.json());
+  const scene = data.scenes.find((x) => x.id === 'blank');
+  if (!scene) return;
+  el('sceneTitle').textContent = scene.title;
+  el('sceneBack').hidden = false;
+  await playScene(scene, el('sceneHost'), {
+    vars: { 名前: playerName(saved), 一行: prologueLine(saved) },
+    speakerLabel: (who) => (who === '主人公' ? playerName(saved) : who),
+    cue: (name) => document.dispatchEvent(new CustomEvent('cue', { detail: { name } })),
+  });
+  // **準備中の1画面。** ここから先（自由設定のタイムアタック）はまだ無い
+  el('sceneHost').innerHTML = `<div class="scene-log"><div class="scene-note">ハルカのノート・自由ページ</div>
+    <div class="scene-soon">準備中。<br>全部のパラメータを触れる自由設定は、これから作る</div></div>
+    <div class="scene-hint">▸ クリックで表紙へ戻る</div>`;
+  await new Promise((done) => el('sceneHost').addEventListener('click', done, { once: true }));
+  el('sceneBack').hidden = true;
+  el('sceneHost').textContent = '';
+  // 一度見たことは残す（保存先があるときだけ。無ければ次もそのまま出る）
+  if (saved && !sawScene(saved, 'blank')) save(markScene(saved, 'blank'));
 });
 
 /** 貼り付けられたものから保存文字列を取り出す。URL 全体なら s= を抜く。 */
