@@ -789,22 +789,58 @@ test('25. 補強：信頼性を買い戻す唯一の区分。クラス5専用で
   console.log(`  かざはや1周：ワークスエンジン ${lap(engine).toFixed(3)}秒（18%）→ ＋ブロック＋クーラー ${lap(braced).toFixed(3)}秒（0%）`);
 });
 
-test('26. slot-coords.json: 側面図の位置指示。全スロットに座標があり、絵の中に収まる', () => {
-  const COORDS = load('slot-coords.json');
+test('26. slot-coords.json: 側面図の位置指示。全スロットに座標と見た目の指定がある', () => {
+  const DATA = load('slot-coords.json');
+  const COORDS = DATA.slots;
   const all = Object.values(SLOTS).flat();
-  const keys = Object.keys(COORDS).filter((k) => !k.startsWith('_'));
+  const keys = Object.keys(COORDS);
 
   // **部品ごとではなくスロットごと。** だから parts.json に画像を持たせない
   for (const slot of all) assert.ok(keys.includes(slot), `${slot} の座標がない`);
   for (const k of keys) assert.ok(all.includes(k), `slot-coords.json の "${k}" は SLOTS に無いスロット`);
   assert.equal(keys.length, all.length);
 
+  const nos = new Set();
   for (const [slot, c] of Object.entries(COORDS)) {
-    if (slot.startsWith('_')) continue;
-    // 相対座標（左上 0,0 / 右下 1,1）。端に寄りすぎると引き出し線が絵から出る
+    // 相対座標（左上 0,0 / 右下 1,1）
     assert.ok(c.x > 0 && c.x < 1, `${slot}: x が ${c.x}`);
     assert.ok(c.y > 0 && c.y < 1, `${slot}: y が ${c.y}`);
+    assert.ok(['r', 'l', 'u', 'd'].includes(c.dir), `${slot}: dir が ${c.dir}`);
+    assert.ok(c.len > 0, `${slot}: len が ${c.len}`);
+    assert.ok(['parts', 'reinforce'].includes(c.group), `${slot}: group が ${c.group}`);
+    assert.ok(c.label && c.label.length > 0, `${slot}: label が無い`);
+    assert.ok(c.no && !nos.has(c.no), `${slot}: 番号 ${c.no} が重複`);
+    nos.add(c.no);
+    // 補強だけ色が変わる。区分とそろっていないと、赤青の意味が崩れる
+    assert.equal(c.group === 'reinforce', SLOTS.reinforce.includes(slot), `${slot}: group と区分が合わない`);
   }
+
+  // 番号の丸とラベルは**絵の外（余白）にも出る**。枠は setup.html が全スロットぶんから作るので、
+  // ここでは「余白が広がりすぎないか」だけ見る。絵の高さの6割を超えたら、車が小さくなりすぎる
+  const aspect = 1200 / 535;
+  const R = DATA._style.badge_diameter / 2;
+  let out = { l: 0, r: 0, u: 0, d: 0 };
+  for (const [slot, c] of Object.entries(COORDS)) {
+    const len = DATA._base_len * c.len;
+    const ex = c.x + (c.dir === 'r' ? len / aspect : c.dir === 'l' ? -len / aspect : 0);
+    const ey = c.y + (c.dir === 'd' ? len : c.dir === 'u' ? -len : 0);
+    out.l = Math.max(out.l, -(ex - R / aspect));
+    out.r = Math.max(out.r, ex + R / aspect - 1);
+    out.u = Math.max(out.u, -(ey - R));
+    out.d = Math.max(out.d, ey + R - 1);
+  }
+  for (const [side, v] of Object.entries(out)) {
+    assert.ok(v < 0.6, `${side} 側の余白が絵の ${(v * 100).toFixed(0)}%。広すぎる`);
+  }
+  // 見た目の指定。すべて高さに対する割合なので 0〜1
+  const style = DATA._style;
+  for (const k of ['dot_selected', 'dot_mounted', 'dot_stroke', 'lead_white', 'lead_color',
+    'badge_diameter', 'badge_stroke', 'badge_number_size', 'label_size', 'label_gap', 'label_halo', 'car_opacity']) {
+    assert.ok(style[k] > 0 && style[k] <= 1, `_style.${k} が ${style[k]}`);
+  }
+  assert.ok(style.dot_selected > style.dot_mounted, '選択中の点は装着済みより大きい');
+  assert.ok(style.lead_white > style.lead_color, '白の太線が色の細線より太い');
+  assert.ok(style.badge_diameter > style.badge_number_size, '番号が丸に収まらない');
 
   // 前が左。前輪まわり（ブレーキ・足）は左半分、駆動の出口（ファイナル）は右半分にある
   for (const slot of ['pad', 'rotor', 'caliper', 'damper', 'camber', 'compound']) {
@@ -813,5 +849,36 @@ test('26. slot-coords.json: 側面図の位置指示。全スロットに座標�
   for (const slot of ['final', 'lsd', 'stabi_rear', 'aero']) {
     assert.ok(COORDS[slot].x > 0.5, `${slot} は後ろ寄り（右半分）のはず`);
   }
-  console.log(`  側面図の位置指示：${keys.length} スロット（絵は assets/car/side_sedan.png の1枚を4車体で使う）`);
+  const re = keys.filter((k) => COORDS[k].group === 'reinforce').length;
+  console.log(`  側面図の位置指示：${keys.length} スロット（うち補強 ${re}）。基準長 ${DATA._base_len}、番号の丸 ${style.badge_diameter}`);
+});
+
+test('27. 側面図の位置指示：ユニット部品が同時に光らせる丸が重ならない', () => {
+  const DATA = load('slot-coords.json');
+  const W = 1200; const H = 535;
+  const R = (DATA._style.badge_diameter / 2) * H;
+  const VEC = { r: [1, 0], l: [-1, 0], u: [0, -1], d: [0, 1] };
+  const badge = (slot) => {
+    const c = DATA.slots[slot];
+    const [dx, dy] = VEC[c.dir];
+    const len = DATA._base_len * c.len * H;
+    return { x: c.x * W + dx * len, y: c.y * H + dy * len, no: c.no, label: c.label };
+  };
+
+  // replaces を持つ部品は潰す全スロットを同時に出す。そのとき番号の丸が重なると読めない
+  const overlaps = [];
+  for (const p of PARTS.filter((x) => x.replaces?.length)) {
+    const bs = occupiedSlots(p).filter((s) => DATA.slots[s]).map(badge);
+    for (let i = 0; i < bs.length; i++) {
+      for (let j = i + 1; j < bs.length; j++) {
+        const d = Math.hypot(bs[i].x - bs[j].x, bs[i].y - bs[j].y);
+        if (d < 2 * R) overlaps.push(`${p.name}: ${bs[i].no}(${bs[i].label}) と ${bs[j].no}(${bs[j].label}) が ${d.toFixed(0)} < ${(2 * R).toFixed(0)}`);
+      }
+    }
+  }
+  // いまは2組ある（ECU↔カム、内装↔ボディ）。増やさないための歯止め。
+  // 直すのは slot-coords.json の dir / len で、コードではない
+  for (const o of overlaps) console.log(`  ← 丸が重なる: ${o}`);
+  assert.ok(overlaps.length <= 2, `丸の重なりが ${overlaps.length} 組。slot-coords.json の dir / len を見直す`);
+  console.log(`  ユニット部品 ${PARTS.filter((x) => x.replaces?.length).length} 点：重なり ${overlaps.length} 組`);
 });

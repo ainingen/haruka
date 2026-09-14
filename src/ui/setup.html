@@ -221,26 +221,25 @@ h2 {
    位置は data/slot-coords.json のスロット座標。ここは画面の中だが**紙の層**（mod-note と同じ）。 */
 .mod-car {
   background: var(--paper); border-top: 1px solid var(--mon-line);
-  /* **横幅いっぱいに置く。小さく畳まない。** 絵の比でそのまま伸ばす。
+  /* **横幅いっぱいに置く。小さく畳まない。** 比は drawSideView が枠から入れる
+     （番号の丸とラベルが絵の外にも出るので、絵そのものの比とは少し違う）。
      40vh は縦の短い画面での保険で、そこだけ letterbox になる */
   aspect-ratio: 1200 / 535; max-height: 40vh; padding: 0;
 }
 .mod-car[hidden] { display: none; }
 .mod-car svg { width: 100%; height: 100%; display: block; }
-.mod-car .body { opacity: .82; }          /* 線画を少し退かせて、指示を前に出す */
+/* 車の線画は薄くして（_style.car_opacity）、丸と文字を前に出す */
 /* 暗い配色では地が沈むので、鉛筆線を白く反転させる（青焼きの側面図になる） */
 @media (prefers-color-scheme: dark) {
-  :root.paper-ground .mod-car .body { filter: invert(1); opacity: .7; }
+  :root.paper-ground .mod-car .body { filter: invert(1); }
 }
-.mod-car .lead { stroke: var(--ink-2); stroke-width: 2.4; fill: none; }
-.mod-car .dot { fill: var(--ink-3); }     /* 装着済みのスロット。高さの2%（直径10） */
-.mod-car .ring { fill: none; stroke: var(--accent); stroke-width: 4; }
-.mod-car .ring.here { stroke: var(--car); stroke-width: 5; }
-.mod-car .tag {
-  font-family: var(--jp-font); font-size: 30px; fill: var(--ink);
-  paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round;
+.mod-car .dot { fill: var(--ink-3); }     /* 装着済みで未選択。点だけ、名前は出さない */
+/* 番号と名前は**フチを先に塗ってから文字**（paint-order）。線画の上でも読める */
+.mod-car .num { font-family: var(--jp-font); font-weight: 700; }
+.mod-car .label {
+  font-family: var(--jp-font); font-weight: 700;
+  paint-order: stroke; stroke-linejoin: round;
 }
-.mod-car .tag.sub { font-size: 24px; fill: var(--ink-2); }
 @media (max-width: 560px) { .mod-car { max-height: 30vh; } }
 
 .mod-note {
@@ -553,7 +552,7 @@ const SLOT_LABEL = {
   compound: 'コンパウンド',
   pad: 'パッド', rotor: 'ローター', caliper: 'キャリパー', bias: '前後配分',
   interior: '内装', body: '外板', wheel: 'ホイール', aero: '空力',
-  block: 'ブロック', oil_cooler: 'オイルクーラー', driveshaft: 'ドライブシャフト', brake_duct: 'ブレーキダクト',
+  reinforce_block: 'ブロック', reinforce_cooler: 'オイルクーラー', reinforce_shaft: 'ドライブシャフト', reinforce_duct: 'ブレーキダクト',
 };
 const CATEGORIES = [
   { id: 'engine',      label: 'エンジン' },
@@ -879,14 +878,19 @@ async function loadAll() {
  * 画像か座標のどちらかが無ければ例外にして、呼ぶ側が丸ごと出さない（欠けても壊れない）。
  */
 async function sideView() {
-  const coords = await json('../../data/slot-coords.json');
+  const data = await json('../../data/slot-coords.json');
   const url = new URL('../../assets/car/side_sedan.png', import.meta.url).href;
   // **絵そのものを読んで確かめる。** HEAD で在り処だけ聞くと、キャッシュが「ある」と答えることがある。
   // 原寸もここで取るので、画像を差し替えても座標（相対値）はそのまま効く
   const img = new Image();
   img.src = url;
   await img.decode();
-  return { url, w: img.naturalWidth, h: img.naturalHeight, coords };
+  return {
+    url, w: img.naturalWidth, h: img.naturalHeight,
+    coords: data.slots,
+    style: data._style,
+    baseLen: data._base_len,   // 引き出し線の基準長。実長 = _base_len × len × 画像高さ
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1328,6 +1332,34 @@ function lockReasons(p) {
  * @param {string} slot  いま開いているスロット
  * @param {object|null} cand  候補として選ばれている部品
  */
+/**
+ * 位置指示を収める枠。**番号の丸とラベルは絵の外（余白）にも出る。**
+ * 枠は**全スロットぶんの範囲を先に足し合わせて**ひとつに決める。
+ * 選ぶスロットごとに枠が動くと、車の絵が跳ねて見える。
+ */
+function sideFrame(side) {
+  if (side.frame) return side.frame;
+  const { w, h, coords, style, baseLen } = side;
+  const r = (style.badge_diameter / 2) * h;
+  const gap = r + style.label_gap * h;
+  const size = style.label_size * h;
+  let x0 = 0; let y0 = 0; let x1 = w; let y1 = h;
+  for (const c of Object.values(coords)) {
+    const len = baseLen * (c.len ?? 1) * h;
+    const ex = c.x * w + (c.dir === 'r' ? len : c.dir === 'l' ? -len : 0);
+    const ey = c.y * h + (c.dir === 'd' ? len : c.dir === 'u' ? -len : 0);
+    // 日本語は全角なので、1文字 ≒ 文字の大きさで見積もる
+    const wide = gap + [...(c.label ?? '')].length * size;
+    x0 = Math.min(x0, ex - (c.dir === 'l' ? wide : r));
+    x1 = Math.max(x1, ex + (c.dir === 'r' ? wide : r));
+    y0 = Math.min(y0, ey - (c.dir === 'u' ? gap + size : r));
+    y1 = Math.max(y1, ey + (c.dir === 'd' ? gap + size : r));
+  }
+  const pad = h * 0.02;
+  side.frame = { x: x0 - pad, y: y0 - pad, w: x1 - x0 + pad * 2, h: y1 - y0 + pad * 2 };
+  return side.frame;
+}
+
 function drawSideView(slot, cand) {
   const box = el('modCar');
   const side = DATA.side;
@@ -1335,49 +1367,72 @@ function drawSideView(slot, cand) {
   box.hidden = false;
   box.textContent = '';
 
-  const { w, h, coords } = side;
-  const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
+  const { w, h, coords, style, baseLen } = side;
+  const f = sideFrame(side);
+  box.style.aspectRatio = `${f.w} / ${f.h}`;
+  const svg = svgEl('svg', { viewBox: `${f.x} ${f.y} ${f.w} ${f.h}`, preserveAspectRatio: 'xMidYMid meet', 'aria-hidden': 'true' });
   const img = svgEl('image', { href: side.url, x: 0, y: 0, width: w, height: h });
+  img.style.opacity = style.car_opacity;   // 線画を薄くして、丸と文字を前に出す
   img.setAttribute('class', 'body');
   svg.appendChild(img);
+
+  // **寸法はすべて画像の高さに対する割合**（data/slot-coords.json の _style）。
+  // 絵を差し替えても、確認画像と同じ見え方になる
+  const S = (k) => style[k] * h;
   const at = (s) => ({ x: coords[s].x * w, y: coords[s].y * h });
-  // 丸の大きさは**絵の高さに対する割合**で決める。絵を差し替えても見え方が変わらない
-  const RING = h * 0.04;   // 直径 8%：選択中も、ユニットが潰す他のスロットも同じ大きさ
-  const DOT = h * 0.01;    // 直径 2%：装着済み。名前は出さない
+  /** 引き出し線の向き。dir は r右 l左 u上 d下 */
+  const VEC = { r: [1, 0], l: [-1, 0], u: [0, -1], d: [0, 1] };
 
-  // 装着済みのスロットは小さい点で常時。未装着は何も出さない
-  const lit = new Set(cand ? occupiedSlots(cand).filter((s) => coords[s]) : [slot]);
+  // 選択中のスロット。ユニット部品（replaces）なら潰す全スロットを**同じ見た目で**同時に出す
+  const lit = (cand ? occupiedSlots(cand) : [slot]).filter((s) => coords[s]);
+
+  // --- 装着済みで未選択：点だけ。線も丸も名前も出さない ----------------------
   for (const [s, p] of Object.entries(state.equipped)) {
-    if (!p || !coords[s] || lit.has(s)) continue;
+    if (!p || !coords[s] || lit.includes(s)) continue;
     const { x, y } = at(s);
-    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: DOT, class: 'dot' }));
+    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: S('dot_mounted') / 2, class: 'dot' }));
   }
 
-  // ユニット部品（replaces）が潰すスロットは同時に光らせる。**大きさは選択中と同じ。**
-  // 数が少ない（最大5つ）ので重ならない。丸だけで、線と名前は付けない
+  // --- 選択中：点 → 引き出し線 → 番号の丸 → ラベル ------------------------
+  // 色は CSS 変数。**SVG の属性には var() が効かない**ので、必ず style から入れる
+  const paint = (node, props) => { for (const [k, v] of Object.entries(props)) node.style[k] = v; return node; };
+  const HALO = 'var(--slot-halo)';
+
   for (const s of lit) {
-    if (s === slot) continue;
+    const c = coords[s];
     const { x, y } = at(s);
-    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: RING, class: 'ring' }));
-  }
+    const colour = `var(--slot-${c.group === 'reinforce' ? 'reinforce' : 'parts'})`;
+    const [dx, dy] = VEC[c.dir] ?? VEC.u;
+    const len = baseLen * (c.len ?? 1) * h;
+    const bx = x + dx * len;
+    const by = y + dy * len;
+    const r = S('badge_diameter') / 2;
 
-  // 選んでいるスロットだけ、引き出し線と名前を付ける。
-  // 線は空いているほう（上半分なら上へ、下半分なら下へ）に逃がす
-  const { x, y } = at(slot);
-  const up = coords[slot].y > 0.5;
-  const endY = up ? h - 34 : 38;
-  const right = coords[slot].x < 0.5;
-  const endX = Math.min(w - 10, Math.max(10, x + (right ? 96 : -96)));
-  svg.appendChild(svgEl('path', { class: 'lead', d: `M${x} ${y} L${endX} ${endY}` }));
-  svg.appendChild(svgEl('circle', { cx: x, cy: y, r: RING, class: 'ring here' }));
-  const tag = svgEl('text', {
-    x: endX, y: endY + (up ? 26 : -12), 'text-anchor': right ? 'start' : 'end', class: 'tag',
-  }, cand ? cand.name : SLOT_LABEL[slot]);
-  svg.appendChild(tag);
-  if (lit.size > 1) {
-    svg.appendChild(svgEl('text', {
-      x: w - 12, y: up ? 34 : h - 12, 'text-anchor': 'end', class: 'tag sub',
-    }, `${lit.size} スロットを占有`));
+    // 引き出し線は白の太線の上に色の細線。線画の上でも切れて見えない
+    const d = `M${x} ${y} L${bx} ${by}`;
+    svg.appendChild(paint(svgEl('path', { d }), { stroke: HALO, strokeWidth: S('lead_white'), fill: 'none', strokeLinecap: 'round' }));
+    svg.appendChild(paint(svgEl('path', { d }), { stroke: colour, strokeWidth: S('lead_color'), fill: 'none', strokeLinecap: 'round' }));
+    // 部品の実位置の点（白フチ）
+    svg.appendChild(paint(svgEl('circle', { cx: x, cy: y, r: S('dot_selected') / 2 }),
+      { fill: colour, stroke: HALO, strokeWidth: S('dot_stroke') }));
+    // 線の先に番号の丸（塗りつぶし、白フチ、番号は白抜き）
+    svg.appendChild(paint(svgEl('circle', { cx: bx, cy: by, r }),
+      { fill: colour, stroke: HALO, strokeWidth: S('badge_stroke') }));
+    svg.appendChild(paint(svgEl('text', {
+      x: bx, y: by, 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'num',
+    }, c.no ?? ''), { fontSize: `${S('badge_number_size')}px`, fill: HALO }));
+
+    // ラベルは丸の外側。置き場所は dir に従う（l=左 r=右 u=上 d=下）
+    const gap = r + S('label_gap');
+    svg.appendChild(paint(svgEl('text', {
+      x: bx + (c.dir === 'l' ? -gap : c.dir === 'r' ? gap : 0),
+      y: by + (c.dir === 'u' ? -gap : c.dir === 'd' ? gap : 0),
+      'text-anchor': c.dir === 'l' ? 'end' : c.dir === 'r' ? 'start' : 'middle',
+      'dominant-baseline': c.dir === 'u' ? 'auto' : c.dir === 'd' ? 'hanging' : 'central',
+      class: 'label',
+    }, c.label ?? SLOT_LABEL[s] ?? s), {
+      fontSize: `${S('label_size')}px`, fill: colour, stroke: HALO, strokeWidth: S('label_halo'),
+    }));
   }
   box.appendChild(svg);
 }

@@ -52,6 +52,10 @@
   --lock-bg:    #e2ded1;
   --field:      #fbf9f3;
   --shadow:     rgba(0,0,0,.08);
+  /* 側面図の位置指示（data/slot-coords.json の group）。紙の上に置く番号の丸と引き出し線 */
+  --slot-parts:     #c0392b;  /* 通常の部品＝赤 */
+  --slot-reinforce: #1b4f9c;  /* 補強＝青 */
+  --slot-halo:      #ffffff;  /* 白フチ・白の太線。紙の色ではなく白で抜く */
 
   /* --- 画面の層 ---------------------------------------------------------- */
   --mon-bg:     #0a0d11;  /* 地 */
@@ -113,5 +117,9 @@
     --lock-bg: #1f242c;
     --field:   #11141a;
     --shadow:  rgba(0,0,0,.4);
+    /* 青焼きでは線画を反転させるので、フチも地の側（暗い）に合わせる */
+    --slot-parts:     #ff7061;
+    --slot-reinforce: #6aa6ff;
+    --slot-halo:      #0d1014;
   }
 }
