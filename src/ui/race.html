@@ -690,6 +690,24 @@ function pickUnique(key, list) {
   return list[i];
 }
 
+/** 反応層・常時層で直近に出した台詞。この中にあるものは引かない（docs/設計/無線.md） */
+const RECENT_KEEP = 5;
+
+/**
+ * 反応層・常時層用。pickUnique に加えて、直近 RECENT_KEEP 本と同じ文は避ける。
+ * プールが小さくて使い切っても、直前に言ったばかりの文が続けて出ないようにする。
+ * 全部が直近と重なるときだけ諦めて pickUnique の結果をそのまま使う。
+ */
+function pickFresh(key, list) {
+  const recent = S.recent;
+  const fresh = list.filter((e) => !recent.includes(textOf(e)));
+  const pool = fresh.length ? fresh : list;
+  const e = pool.length === list.length ? pickUnique(key, list) : pick(pool);
+  recent.push(textOf(e));
+  if (recent.length > RECENT_KEEP) recent.shift();
+  return e;
+}
+
 /** {gap} {car} {lap} … をその場の値で埋める。 */
 function fill(text, vars) {
   return text.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
@@ -883,12 +901,12 @@ function reactionTick() {
     const attacking = IS_QUALI && S.cars[0].lap === QUALI.attackLap - 1;
     if (attacking && r.sentiment !== 'neutral') {
       const pool = r.sentiment === 'good' ? S.radioData.quali.attack_good : S.radioData.quali.attack_bad;
-      say('haruka', textOf(pickUnique(`quali/${r.sentiment}`, pool)));
+      say('haruka', textOf(pickFresh(`quali/${r.sentiment}`, pool)));
       continue;
     }
     // 型ごとの一言（「伸びろ」「立ち上がり」）は、良し悪しの無い周に混ぜる
     const pool = r.sentiment === 'neutral' && S.lineRng() < 0.5 ? R[ev.type] : R[r.sentiment];
-    say('haruka', textOf(pickUnique(`reaction/${r.sentiment}/${ev.type}`, pool)));
+    say('haruka', textOf(pickFresh(`reaction/${r.sentiment}/${ev.type}`, pool)));
   }
 }
 
@@ -911,7 +929,7 @@ function constantTick(dt) {
       S.qualiTrafficSaid = true;
       say('haruka', textOf(pickUnique('quali/traffic', S.radioData.quali.traffic)));
     } else if (S.lineRng() < 0.5) {
-      say('haruka', textOf(pickUnique('constant/haruka', S.radioData.constant.haruka)));
+      say('haruka', textOf(pickFresh('constant/haruka', S.radioData.constant.haruka)));
     }
     return;
   }
@@ -936,11 +954,11 @@ function constantTick(dt) {
   S.constantTurn = (S.constantTurn + 1) % 2;
   if (key && (S.constantTurn === 0 || S.lineRng() < 0.4)) {
     if (key === 'position') { vars.car = ahead?.name ?? '—'; }
-    say('player', fill(textOf(pickUnique(`constant/${key}`, P[key])), vars));
+    say('player', fill(textOf(pickFresh(`constant/${key}`, P[key])), vars));
   } else if (S.lineRng() < 0.35) {
-    say('player', textOf(pickUnique('constant/encourage', P.encourage)));
+    say('player', textOf(pickFresh('constant/encourage', P.encourage)));
   } else {
-    say('haruka', textOf(pickUnique('constant/haruka', S.radioData.constant.haruka)));
+    say('haruka', textOf(pickFresh('constant/haruka', S.radioData.constant.haruka)));
   }
 }
 
@@ -984,7 +1002,7 @@ function lapCommentary(ev, traffic) {
   // ベストラップ（レース全体で最速）。1周目はまだ比べる相手がいない
   if (Number.isFinite(S.raceBest) && ev.lapTime < S.raceBest) {
     commentary('best_lap', 'announcer', { ...vars, car: car.name, time: formatTime(ev.lapTime) });
-    if (car.isPlayer) say('player', fill(textOf(pickUnique('constant/best_lap', S.radioData.constant.player.best_lap)), { time: formatTime(ev.lapTime) }));
+    if (car.isPlayer) say('player', fill(textOf(pickFresh('constant/best_lap', S.radioData.constant.player.best_lap)), { time: formatTime(ev.lapTime) }));
     if (S.lineRng() < 0.4) commentary('best_lap', 'analyst', vars);
   }
   if (ev.lapTime < S.raceBest) S.raceBest = ev.lapTime;
@@ -995,7 +1013,7 @@ function lapCommentary(ev, traffic) {
     S.leaderLap = leaderLap;
     if (leaderLap === S.totalLaps - 1) {
       commentary('final_lap', 'announcer', vars);
-      say('player', textOf(pickUnique('constant/final_lap', S.radioData.constant.player.final_lap)));
+      say('player', textOf(pickFresh('constant/final_lap', S.radioData.constant.player.final_lap)));
       commentary('final_lap', 'analyst', vars);
     } else if (leaderLap < S.totalLaps - 1) {
       commentary('lap_lead', 'announcer', { ...vars, lap: leaderLap + 1, left: S.totalLaps - leaderLap });
@@ -1144,6 +1162,7 @@ const S = {
   radioData: null, commentary: null, radio: null, radioRng: null, lineRng: null,
   lapEvents: [], sectorEvents: [], metRivals: new Set(), used: new Map(),
   log: [], logSeq: 0, logDirty: false, lastInfoLap: -9, lastSnapshot: null,
+  recent: [],   // 反応層・常時層で直近に出した台詞（pickFresh）
   constantClock: 0, constantTurn: 0, lastLapsLeftCall: -1,
   raceBest: Infinity, leaderLap: 0, panelClock: 0,
   gridStart: false, qualiBest: Infinity, qualiTop: null, qualiTrafficSaid: false,
