@@ -6,165 +6,222 @@
 <title>レース — ハルカのセッティングノート</title>
 <style>
 /* ===========================================================================
-   レース画面（docs/設計/レース方式.md、docs/設計/無線.md、docs/設計/実況.md）
-   主役は実況と無線。図は小さく、車両情報は大きく。
-   380px 幅を基準に、上から ログ → 車両情報 → コース図 → 順位表 → 操作。
+   レース画面（docs/設計/画面設計.md、docs/設計/レース方式.md、docs/設計/無線.md）
+   ベースは「画面の層」＝チームのPC。黒地・等幅・緑／白／琥珀。
+   紙はハルカと主人公の無線だけ。実況と解説はモニターの文字。
+   380px 幅を基準に、上から ログ → 車両情報 → コース図 → タイミングモニター → 操作。
    =========================================================================== */
 :root {
-  --paper:   #f2efe6;
-  --paper-2: #e9e5d9;
-  --ink:     #23211c;
-  --ink-2:   #6b665c;
-  --ink-3:   #9a9488;
-  --rule:    #3a372f;
-  --car:     #c0392b;   /* 自車＝赤。ハルカの無線も赤系 */
-  --ai:      #1b4f9c;   /* 他車＝青 */
-  --straight:    #6b665c;
-  --fast-corner: #2f6b3a;
-  --slow-corner: #8a6d1f;
-  --lock-bg: #e2ded1;
-  --field:   #fbf9f3;
-  --bad:     #9c3b2e;
-  --ok:      #2f6b3a;
-  --shadow:  rgba(0,0,0,.08);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper:   #14171c;
-    --paper-2: #1a1e25;
-    --ink:     #d6dde6;
-    --ink-2:   #8b96a4;
-    --ink-3:   #5d6673;
-    --rule:    #7f8b9a;
-    --car:     #e8604f;
-    --ai:      #6aa6ff;
-    --straight:    #8b96a4;
-    --fast-corner: #74c98a;
-    --slow-corner: #d2b357;
-    --lock-bg: #1f242c;
-    --field:   #11141a;
-    --bad:     #e08878;
-    --ok:      #74c98a;
-    --shadow:  rgba(0,0,0,.4);
-  }
+  /* --- 画面の層。ライト／ダークに関わらず黒地（PC の画面は自分で光っている） --- */
+  --mon-bg:     #0a0d11;
+  --mon-bg-2:   #151b23;
+  --mon-line:   #2a333d;
+  --mon-text:   #e8edf2;
+  --mon-dim:    #7d8894;
+  --mon-green:  #3ddc84;
+  --mon-amber:  #ffb347;
+  --mon-red:    #ff4d4d;
+  --mon-purple: #c77dff;
+  --mon-car:    #ff5a4a;   /* 自車＝赤 */
+  --mon-ai:     #4da3ff;   /* 他車＝青 */
+  --mon-font:   ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+
+  /* 点の色は JS からも参照する（makeCar / makeRival の color） */
+  --car: var(--mon-car);
+  --ai:  var(--mon-ai);
+
+  /* --- 紙の層。この画面では無線の吹き出しだけ。
+         黒い画面に貼られた紙なので、配色はライト／ダークで変えない --- */
+  --paper:     #f2efe6;
+  --paper-dim: #d7d2c4;   /* 古くなった吹き出し。opacity で薄めると読めなくなるので地の色を落とす */
+  --ink:       #23211c;
+  --ink-2:     #6b665c;
+  --accent:    #8a6d1f;
+  --jp-font: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+
+  /* --- セクター種別（コース図と凡例）。名前は race.js の SECTOR_TYPES に対応 --- */
+  --straight:    #7d8894;
+  --fast-corner: #3ddc84;
+  --slow-corner: #ffb347;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  background: var(--paper); color: var(--ink);
-  font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  background: var(--mon-bg); color: var(--mon-text);
+  font-family: var(--mon-font); font-size: 12px; line-height: 1.5;
+  font-variant-numeric: tabular-nums;
   -webkit-text-size-adjust: 100%; padding: 6px;
 }
-.sheet { max-width: 400px; margin: 0 auto; border: 2px solid var(--rule); padding: 3px; background: var(--paper); }
-.sheet-inner { border: 1px solid var(--rule); background: var(--paper-2); padding: 8px; display: grid; gap: 8px; }
+.jp { font-family: var(--jp-font); }
+.sheet { max-width: 400px; margin: 0 auto; border: 1px solid var(--mon-line); padding: 3px; }
+.sheet-inner { border: 1px solid var(--mon-line); padding: 8px; display: grid; gap: 8px; }
 
 h3.cap {
-  margin: 0; font-size: 9px; letter-spacing: .2em; color: var(--ink-2); font-weight: 600;
-  padding: 4px 7px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg);
+  margin: 0; font-size: 9px; letter-spacing: .2em; color: var(--mon-dim); font-weight: 400;
+  padding: 4px 7px; border-bottom: 1px solid var(--mon-line); background: var(--mon-bg-2);
 }
 
 .titleblock {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
-  border-bottom: 1px solid var(--rule); padding-bottom: 6px;
+  border-bottom: 1px solid var(--mon-line); padding-bottom: 6px;
 }
-.titleblock .k { font-size: 9px; letter-spacing: .12em; color: var(--ink-2); }
-.titleblock .course { font-size: 15px; font-weight: 700; line-height: 1.3; }
-.titleblock .prof { font-size: 10px; color: var(--ink-2); }
-.lapcount { text-align: right; border: 1px solid var(--ink-3); padding: 2px 8px; line-height: 1.3; white-space: nowrap; }
-.lapcount b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
-.lapcount span { font-size: 8px; letter-spacing: .14em; color: var(--ink-2); }
+.titleblock .k { font-size: 9px; letter-spacing: .12em; color: var(--mon-green); }
+.titleblock .course { font-family: var(--jp-font); font-size: 15px; font-weight: 700; line-height: 1.3; }
+.titleblock .prof { font-family: var(--jp-font); font-size: 10px; color: var(--mon-dim); }
+.lapcount { text-align: right; border: 1px solid var(--mon-line); padding: 2px 8px; line-height: 1.3; white-space: nowrap; }
+.lapcount b { display: block; font-size: 18px; }
+.lapcount span { font-size: 8px; letter-spacing: .14em; color: var(--mon-dim); }
 
-/* --- 実況・無線ログ（画面の主役） ----------------------------------------- */
-.logbox { border: 1px solid var(--rule); background: var(--field); }
+/* --- 実況・無線ログ（画面の主役） -----------------------------------------
+   実況と解説はモニターの文字。ハルカと主人公（ピット）だけ紙の吹き出しにする。 */
+.logbox { border: 1px solid var(--mon-line); }
 .log { height: 46vh; min-height: 250px; overflow-y: auto; padding: 6px 7px; scroll-behavior: smooth; }
-.msg { display: grid; grid-template-columns: 34px 1fr; gap: 6px; padding: 3px 2px; font-size: 12.5px; line-height: 1.5; transition: opacity .3s; }
-.msg .who { font-size: 9px; letter-spacing: .08em; color: var(--ink-3); padding-top: 4px; white-space: nowrap; }
-.msg .txt { color: var(--ink-2); }
-.msg[data-speaker="haruka"] .txt { color: var(--car); }
-.msg[data-speaker="haruka"] .who { color: var(--car); opacity: .7; }
-.msg[data-speaker="player"] .txt { color: var(--ink); }
-.msg.info { border: 1px solid var(--car); background: var(--paper-2); padding: 5px 6px; margin: 3px 0; }
-.msg.info .mood { font-size: 9px; color: var(--car); opacity: .75; letter-spacing: .1em; margin-left: 6px; }
+.msg { display: grid; grid-template-columns: 34px 1fr; gap: 6px; padding: 3px 2px; font-size: 12px; line-height: 1.5; transition: opacity .3s; }
+.msg .who { font-size: 8.5px; letter-spacing: .08em; color: var(--mon-dim); padding-top: 4px; white-space: nowrap; }
+.msg .txt { font-family: var(--jp-font); color: var(--mon-dim); }
+.msg[data-speaker="announcer"] .txt { color: var(--mon-text); }
+/* 紙の吹き出し。黒い画面の中で、人の言葉だけが紙になる */
+.msg[data-speaker="haruka"] .txt,
+.msg[data-speaker="player"] .txt {
+  background: var(--paper); color: var(--ink); padding: 3px 8px;
+  border-left: 2px solid var(--ink-2); font-size: 12.5px;
+}
+.msg[data-speaker="haruka"] .txt { border-left-color: var(--mon-car); }
+.msg[data-speaker="haruka"] .who { color: var(--mon-car); }
+.msg[data-speaker="player"] .who { color: var(--mon-text); }
+.msg.info .txt { border-left-width: 3px; box-shadow: 0 0 0 1px var(--mon-car); }
+.msg.info .mood { font-family: var(--mon-font); font-size: 9px; color: var(--ink-2); letter-spacing: .1em; margin-left: 6px; }
+/* 古い行は薄く。ただし紙の吹き出しだけは opacity を掛けず、地と文字を落として退かせる
+   （黒地の上で紙を半透明にすると、ただの灰色の箱になって読めなくなる） */
 .msg.old { opacity: .45; }
+.msg.old[data-speaker="haruka"], .msg.old[data-speaker="player"] { opacity: 1; }
+.msg.old[data-speaker="haruka"] .who, .msg.old[data-speaker="player"] .who { opacity: .45; }
+.msg.old[data-speaker="haruka"] .txt, .msg.old[data-speaker="player"] .txt {
+  background: var(--paper-dim); color: var(--ink-2); border-left-color: var(--ink-2);
+}
+.msg.old.info .txt { box-shadow: 0 0 0 1px var(--ink-2); }
 .msg .replies { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .msg .replies button {
-  font: inherit; font-size: 11px; padding: 4px 8px; cursor: pointer;
-  background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3);
+  font: inherit; font-family: var(--jp-font); font-size: 11px; padding: 4px 8px; cursor: pointer;
+  background: none; color: var(--ink); border: 1px solid var(--ink-2);
 }
-.msg .answer { font-size: 11.5px; color: var(--car); margin-top: 4px; }
-.msg .answer .k { font-size: 9px; color: var(--ink-3); letter-spacing: .1em; }
-.msg .note { font-size: 10px; color: var(--ink-3); }
+.msg .answer { font-size: 11.5px; color: var(--ink); margin-top: 4px; border-top: 1px dashed var(--ink-2); padding-top: 3px; }
+.msg .answer .k { font-family: var(--mon-font); font-size: 9px; color: var(--ink-2); letter-spacing: .1em; }
+.msg .note { font-size: 10px; color: var(--ink-2); }
 
-/* --- 車両情報パネル（図面様式） ------------------------------------------ */
-.panel { border: 1px solid var(--rule); background: var(--field); }
-.panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--ink-3); }
-.panel .cell { background: var(--field); padding: 6px 8px; min-height: 52px; }
+/* --- 車両情報パネル（テレメトリ） ------------------------------------------ */
+.panel { border: 1px solid var(--mon-line); }
+.panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--mon-line); }
+.panel .cell { background: var(--mon-bg); padding: 6px 8px; min-height: 54px; }
 .panel .cell.wide { grid-column: 1 / -1; }
-.panel .k { font-size: 8.5px; letter-spacing: .16em; color: var(--ink-2); display: flex; justify-content: space-between; }
-.panel .k span { letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--ink); }
-.panel .v { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
-.panel .v small { font-size: 10px; font-weight: 400; color: var(--ink-2); }
-.panel .sub { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.bar { position: relative; height: 8px; border: 1px solid var(--ink-2); background: var(--paper); margin-top: 4px; }
-.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-2); }
-.bar i.hot { background: var(--bad); }
-.bar i.ok { background: var(--ok); }
-.bar b { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--bad); }
-.bar.thin { height: 6px; }
-.tirebars { display: grid; grid-template-columns: 14px 1fr; gap: 2px 6px; align-items: center; margin-top: 3px; font-size: 9px; color: var(--ink-2); }
-.sector-type { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.panel .k { font-size: 8.5px; letter-spacing: .16em; color: var(--mon-dim); display: flex; justify-content: space-between; gap: 4px; }
+.panel .k span { letter-spacing: 0; color: var(--mon-text); }
+.panel .k span.warn { color: var(--mon-amber); }
+.panel .k span.alarm { color: var(--mon-red); }
+.panel .v { font-size: 16px; font-weight: 700; line-height: 1.3; }
+.panel .v small { font-size: 10px; font-weight: 400; color: var(--mon-dim); }
+.panel .sub { font-size: 10px; color: var(--mon-dim); }
+.panel .sub.jp { font-family: var(--jp-font); }
+.panel .sub b { font-weight: 400; color: var(--mon-text); }
+.panel .sub.up b { color: var(--mon-green); }
+.panel .sub.down b { color: var(--mon-amber); }
 
-/* --- コース図（小さく） -------------------------------------------------- */
-.track { border: 1px solid var(--rule); background: var(--field); }
+/* ゲージ：横棒に細い目盛。閾値の位置に縦線。
+   9割で琥珀（点灯）、超えたら赤の点滅（docs/設計/画面設計.md） */
+.gauge {
+  position: relative; height: 9px; margin-top: 4px;
+  border: 1px solid var(--mon-line); background-color: var(--mon-bg);
+  background-image: repeating-linear-gradient(to right, var(--mon-line) 0 1px, transparent 1px 20%);
+}
+.gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--mon-dim); }
+.gauge i.ok { background: var(--mon-green); }
+.gauge i.warn { background: var(--mon-amber); }
+.gauge i.alarm { background: var(--mon-red); animation: blink .9s infinite; }
+.gauge b { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--mon-red); }
+.gauge.thin { height: 7px; }
+@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .3; } }
+.tiregauges { display: grid; grid-template-columns: 12px 1fr; gap: 2px 6px; align-items: center; margin-top: 2px; font-size: 9px; color: var(--mon-dim); }
+.tiregauges .gauge { margin-top: 0; }
+.sector-type { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 5px; }
+
+/* --- コース図（黒地に細い線、点は発光風） ---------------------------------- */
+.track { border: 1px solid var(--mon-line); }
 .track svg { width: 100%; height: auto; display: block; }
-.legend { display: flex; flex-wrap: wrap; gap: 3px 10px; font-size: 9px; color: var(--ink-2); padding: 3px 7px; border-top: 1px solid var(--ink-3); }
+.legend { display: flex; flex-wrap: wrap; gap: 3px 10px; font-family: var(--jp-font); font-size: 9px; color: var(--mon-dim); padding: 3px 7px; border-top: 1px solid var(--mon-line); }
 .legend i { display: inline-block; width: 12px; height: 2px; vertical-align: middle; margin-right: 3px; }
 .legend b.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: middle; margin-right: 3px; }
 
-/* --- 順位表（小さく） ------------------------------------------------------ */
-.standings { border: 1px solid var(--rule); background: var(--field); }
-.standings h3 button { float: right; font: inherit; font-size: 9px; letter-spacing: .1em; padding: 0 6px; cursor: pointer; background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3); }
-.standings h3 button.on { background: var(--car); color: #fff; border-color: var(--car); }
-.standings .full { max-height: 150px; overflow-y: auto; border-top: 2px solid var(--rule); }
-.row.gapline { display: block; text-align: center; color: var(--ink-3); font-size: 9px; padding: 0; line-height: 1.4; }
+/* --- タイミングモニター ---------------------------------------------------- */
+.standings { border: 1px solid var(--mon-line); }
+.standings h3 button {
+  float: right; font: inherit; font-size: 9px; letter-spacing: .1em; padding: 0 6px; cursor: pointer;
+  background: none; color: var(--mon-text); border: 1px solid var(--mon-line);
+}
+.standings h3 button.on { color: var(--mon-green); border-color: var(--mon-green); }
+.standings .full { max-height: 150px; overflow-y: auto; border-top: 1px solid var(--mon-line); }
 .row {
-  display: grid; grid-template-columns: 16px 1fr auto auto; gap: 6px; align-items: baseline;
-  padding: 2px 7px; border-bottom: 1px solid var(--ink-3); font-size: 11px; line-height: 1.5;
+  display: grid; grid-template-columns: 17px minmax(0, 1fr) repeat(3, 38px) 54px 46px;
+  gap: 0 4px; align-items: baseline;
+  padding: 2px 6px; border-bottom: 1px solid var(--mon-line); font-size: 9.5px; line-height: 1.6;
 }
 .row:last-child { border-bottom: 0; }
-.row.me { background: var(--lock-bg); font-weight: 700; }
-.row.out { color: var(--ink-3); }
-.row .pos { font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; }
-.row .nm { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.row .nm b { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.row.head { color: var(--mon-dim); font-size: 8px; letter-spacing: .12em; background: var(--mon-bg-2); }
+.row.me { background: var(--mon-bg-2); }
+.row.out { color: var(--mon-dim); opacity: .6; }
+.row.gapline { display: block; text-align: center; color: var(--mon-dim); font-size: 8.5px; padding: 0; line-height: 1.5; }
+.row .pos { text-align: right; color: var(--mon-dim); }
+.row.me .pos { color: var(--mon-text); }
+.row .nm { display: flex; align-items: center; gap: 4px; min-width: 0; font-family: var(--jp-font); font-size: 10px; }
+.row .nm b { width: 6px; height: 6px; border-radius: 50%; flex: none; }
 .row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .rt, .row .gap { text-align: right; font-variant-numeric: tabular-nums; font-size: 10.5px; color: var(--ink-2); }
+.row .s, .row .last, .row .gap { text-align: right; }
+.row .s { color: var(--mon-dim); }
+.row .s.green  { color: var(--mon-green); }
+.row .s.yellow { color: var(--mon-amber); }
+.row .s.purple { color: var(--mon-purple); }
+.row .last { color: var(--mon-text); }
+.row .gap { color: var(--mon-dim); }
+.row.me .gap, .row.me .last { color: var(--mon-text); }
+/* チェッカー：自車の行が光る。勝てば3回、負けても1回 */
+.row.fin { animation: winflash .9s ease-out 1; }
+.row.win { animation: winflash .9s ease-out 3; }
+@keyframes winflash {
+  from { background: var(--mon-green); color: var(--mon-bg); }
+  to   { background: var(--mon-bg-2); }
+}
 
 /* --- 操作 ----------------------------------------------------------------- */
 .controls { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .controls button {
-  font: inherit; font-size: 12px; padding: 7px 12px; cursor: pointer; letter-spacing: .06em;
-  background: var(--paper); color: var(--ink); border: 1px solid var(--rule);
+  font: inherit; font-family: var(--jp-font); font-size: 12px; padding: 7px 12px; cursor: pointer; letter-spacing: .06em;
+  background: none; color: var(--mon-text); border: 1px solid var(--mon-line);
 }
-.controls button.on { background: var(--car); color: #fff; }
+.controls button:hover { border-color: var(--mon-text); }
+.controls button.on { color: var(--mon-green); border-color: var(--mon-green); }
 .controls .spacer { margin-left: auto; }
-.controls a { font-size: 11px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--ink-3); }
-.controls a.btn { font-size: 12px; padding: 7px 12px; border: 1px solid var(--rule); color: var(--ink); background: var(--paper); letter-spacing: .06em; }
-.controls a.btn.primary { background: var(--car); color: #fff; border-color: var(--car); font-weight: 700; }
+.controls a { font-family: var(--jp-font); font-size: 11px; color: var(--mon-dim); text-decoration: none; border-bottom: 1px solid var(--mon-line); }
+.controls a.btn { font-size: 12px; padding: 7px 12px; border: 1px solid var(--mon-line); color: var(--mon-text); letter-spacing: .06em; }
+.controls a.btn.primary { color: var(--mon-green); border-color: var(--mon-green); font-weight: 700; }
 
 /* --- 結果 ----------------------------------------------------------------- */
-.result { border: 1px solid var(--rule); background: var(--field); }
+.result { border: 1px solid var(--mon-line); }
 .rrow {
   display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: baseline;
-  padding: 5px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
+  padding: 5px 8px; border-bottom: 1px solid var(--mon-line); font-family: var(--jp-font); font-size: 12px;
 }
 .rrow:last-child { border-bottom: 0; }
-.rrow.me { background: var(--lock-bg); }
-.rrow .pos { font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
-.rrow .sub { font-size: 10px; color: var(--ink-2); }
-.rrow .t { text-align: right; font-variant-numeric: tabular-nums; }
-.err { border: 1px solid var(--bad); color: var(--bad); padding: 10px; font-size: 12px; margin-bottom: 8px; }
+.rrow.me { background: var(--mon-bg-2); }
+.rrow .pos { font-family: var(--mon-font); font-weight: 700; text-align: right; }
+.rrow .sub { font-size: 10px; color: var(--mon-dim); }
+.rrow .t { text-align: right; font-family: var(--mon-font); }
+.err { border: 1px solid var(--mon-red); color: var(--mon-red); padding: 10px; font-family: var(--jp-font); font-size: 12px; margin-bottom: 8px; }
+
+@media (max-width: 360px) {
+  /* 幅が足りないときはセクターを削る。順位・タイム・ギャップは残す */
+  .row { grid-template-columns: 16px minmax(0, 1fr) 52px 44px; }
+  .row .s { display: none; }
+}
 </style>
 </head>
 <body>
@@ -246,6 +303,15 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ---------------------------------------------------------------------------
+// 演出のイベント（docs/設計/画面設計.md「演出のイベント名」）
+// 音は入れない。点滅・色の切り替え・数字の確定はすべてここを通し、
+// 後で音を同期できるようにしておく。名前は setup.html と共通。
+// ---------------------------------------------------------------------------
+function cue(name, detail = {}) {
+  document.dispatchEvent(new CustomEvent('cue', { detail: { name, ...detail } }));
+}
+
+// ---------------------------------------------------------------------------
 // URL パラメータ（setup.html から渡ってくる）
 //   course / laps / cls / tier / parts(カンマ区切りの id) / tp / rh / bb / seed
 //   ブラウザストレージは使わない（PLiCy の制約）
@@ -297,7 +363,7 @@ function setupTrack(course) {
     }
     const p = svgEl('path', {
       d: d.join(' '), fill: 'none', stroke: `var(--${sec.type.replace('_', '-')})`,
-      'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-opacity': .55,
+      'stroke-width': 2.4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-opacity': DIM_SECTOR,
     });
     svg.appendChild(p);
     return p;
@@ -307,18 +373,41 @@ function setupTrack(course) {
   const a = Math.atan2(a1.y - a0.y, a1.x - a0.x) + Math.PI / 2;
   svg.appendChild(svgEl('path', {
     d: `M${a0.x + Math.cos(a) * 6} ${a0.y + Math.sin(a) * 6} L${a0.x - Math.cos(a) * 6} ${a0.y - Math.sin(a) * 6}`,
-    stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-dasharray': '2 2',
+    stroke: 'var(--mon-text)', 'stroke-width': 2, 'stroke-dasharray': '2 2',
   }));
 
+  // 点は発光風：同じ色の薄い大きな円を下に重ねる（docs/設計/画面設計.md）
   const dots = svgEl('g');
   svg.appendChild(dots);
   for (const car of [...S.cars].reverse()) {
-    car.dotEl = svgEl('circle', {
-      r: car.isPlayer ? 5.5 : 2.4, fill: car.color,
-      stroke: 'var(--field)', 'stroke-width': car.isPlayer ? 1.4 : 1,
-    });
-    dots.appendChild(car.dotEl);
+    const r = car.isPlayer ? 3.6 : 2.2;
+    const g = svgEl('g');
+    g.appendChild(svgEl('circle', { r: r * 2.6, fill: car.color, 'fill-opacity': car.isPlayer ? .22 : .16 }));
+    g.appendChild(svgEl('circle', { r: r * 1.6, fill: car.color, 'fill-opacity': car.isPlayer ? .35 : .22 }));
+    g.appendChild(svgEl('circle', { r, fill: car.color }));
+    car.dotEl = g;
+    dots.appendChild(g);
   }
+}
+
+/** 自車のいないセクターの濃さ。黒地なので暗く落とし、いまいるセクターだけ明るくする。 */
+const DIM_SECTOR = .35;
+
+/**
+ * コースのセクターを S1 / S2 / S3 の3つに畳む（タイミングモニターの表示用）。
+ * 距離で三等分しつつ、各組に最低1セクターは残す。計算には一切使わない。
+ */
+function buildSectorGroups(course) {
+  const n = course.sectors.length;
+  const groups = new Array(n);
+  let g = 0, acc = 0;
+  for (let i = 0; i < n; i++) {
+    groups[i] = g;
+    acc += course.sectors[i].length;
+    const rest = n - 1 - i;
+    if (g < 2 && acc >= (course.length * (g + 1)) / 3 && rest >= 2 - g) g += 1;
+  }
+  return groups;
 }
 
 function rawPoint(distance) {
@@ -331,8 +420,8 @@ const pointAt = (distance) => S.toView(rawPoint(distance));
 function highlightSector(idx) {
   if (S.litSector === idx) return;
   S.sectorEls.forEach((p, i) => {
-    p.setAttribute('stroke-width', i === idx ? 5 : 2.4);
-    p.setAttribute('stroke-opacity', i === idx ? 1 : .55);
+    p.setAttribute('stroke-width', i === idx ? 4.5 : 2);
+    p.setAttribute('stroke-opacity', i === idx ? 1 : DIM_SECTOR);
   });
   S.litSector = idx;
 }
@@ -394,7 +483,45 @@ function makeCar({ id, name, short = name, number = null, color, perf, driver, s
     lastWear: 0, lastTemp: 0, lastFade: 0,
     lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
     delay: 0, gridPos: null, blockFactor: 1,
+    // タイミングモニターの S1/S2/S3（表示専用）。いま積んでいる分、直近の確定値、
+    // その車の自己ベスト、色（green=自己ベスト更新 / yellow=届かず / purple=全体ベスト）
+    groupNow: [0, 0, 0], groupLast: [null, null, null],
+    groupBest: [Infinity, Infinity, Infinity], groupState: ['', '', ''],
+    rollFrom: null, rollAt: 0,   // ラップタイムの数字回転
   };
+}
+
+/** ラップタイムが回っている最中の表示値。回っていなければ確定値をそのまま返す。 */
+const ROLL_MS = 600;
+function lapDisplay(car, now = performance.now()) {
+  const to = car.lapTimes.at(-1);
+  if (to == null) return null;
+  if (car.rollFrom == null) return to;
+  const t = (now - car.rollAt) / ROLL_MS;
+  if (t >= 1) { car.rollFrom = null; cue('number.settle', { car: car.id, to }); return to; }
+  const e = 1 - Math.pow(1 - t, 3);
+  return car.rollFrom + (to - car.rollFrom) * e;
+}
+
+/**
+ * S1/S2/S3 の1つを確定する。自己ベストを更新したら緑、全体ベストなら紫、届かなければ黄。
+ * 1周目は比べる相手がいないので、その車にとっては必ず更新＝緑になる（実際のタイミング画面と同じ）。
+ */
+function finalizeGroup(car, g) {
+  const time = car.groupNow[g];
+  car.groupNow[g] = 0;
+  if (!(time > 0)) return;
+  car.groupLast[g] = time;
+  let state = 'yellow';
+  if (time < S.groupBestAll[g]) {
+    S.groupBestAll[g] = time;
+    state = 'purple';
+  } else if (time < car.groupBest[g]) {
+    state = 'green';
+  }
+  if (time < car.groupBest[g]) car.groupBest[g] = time;
+  car.groupState[g] = state;
+  if (car.isPlayer && !S.skipping) cue(`sector.${state}`, { group: g + 1, time });
 }
 
 function gaussian(rng) {
@@ -427,6 +554,7 @@ function planLap(car, course, load) {
   car.lastTemp = car.brake.temp;
   car.lastFade = brakeFadeLoss(car.perf.stats, car.brake);
   car.segIdx = 0; car.segStart = 0; car.lapDist = 0;
+  car.groupNow = [0, 0, 0];
 }
 
 function completeLap(car, course, load, totalLaps) {
@@ -435,7 +563,11 @@ function completeLap(car, course, load, totalLaps) {
     car, lap: car.lap + 1, tire: car.tire, brake: car.brake, driver: car.driver,
     lapTime: car.plannedLap, bestTime: car.best,
   };
+  // ラップタイムは前の周の値から回して確定する（スキップ中は回さない）
+  car.rollFrom = S.skipping ? null : car.lapTimes.at(-1) ?? null;
+  car.rollAt = performance.now();
   car.lapTimes.push(car.plannedLap);
+  if (car.rollFrom != null && car.isPlayer) cue('lap.set', { from: car.rollFrom, to: car.plannedLap });
   car.raceTime += car.plannedLap;
   if (car.plannedLap < car.best) car.best = car.plannedLap;
   car.lap += 1;
@@ -465,9 +597,14 @@ function advance(car, dt, course, load, totalLaps) {
     rest -= t;
     car.lapDist = segEnd;
     car.segStart = segEnd;
+    const idx = car.segIdx;
+    const time = seg.len / seg.speed;
+    // タイミングモニターの S1/S2/S3：組が変わる手前（＝周の最後を含む）で確定する。
+    // 計画上の時間を積むので、S1+S2+S3 は LAST とぴったり一致する
+    const g = S.sectorGroup[idx];
+    car.groupNow[g] += time;
+    if (S.sectorGroup[idx + 1] !== g) finalizeGroup(car, g);
     if (car.isPlayer) {
-      const idx = car.segIdx;
-      const time = seg.len / seg.speed;
       const best = car.sectorBest[idx] ?? Infinity;
       S.sectorEvents.push({ idx, type: course.sectors[idx].type, time, best });
       if (time < best) car.sectorBest[idx] = time;
@@ -479,9 +616,19 @@ function advance(car, dt, course, load, totalLaps) {
 
 const progress = (car, courseLen) => car.lap * courseLen + car.lapDist;
 const currentSpeed = (car) => (car.plan ? car.plan[Math.min(car.segIdx, car.plan.length - 1)].speed : 0);
-/** 2台の差（秒）。後ろの車の今の速度で割る */
+/**
+ * その車の1周平均の速度（m/s）。
+ * 瞬間速度で割ると、いるセクターによって差の見積もりが3倍近く跳ねる
+ * （ストレート 56 m/s、低速コーナー 19 m/s）。1周のペースで割れば落ち着く。
+ */
+const paceSpeed = (car) => (car.plannedLap > 0 ? S.courseLen / car.plannedLap : Math.max(currentSpeed(car), 1));
+/**
+ * 2台の差（秒）。**前の車のペースで割る。**
+ * 先頭との差を全車が同じ分母で割ることになるので、順位とギャップの並びが食い違わない。
+ * 意味は「前の車がそこを通ってから何秒たったか」。
+ */
 const gapSeconds = (ahead, behind) =>
-  (progress(ahead, S.courseLen) - progress(behind, S.courseLen)) / Math.max(currentSpeed(behind), 1);
+  (progress(ahead, S.courseLen) - progress(behind, S.courseLen)) / Math.max(paceSpeed(ahead), 1);
 
 // ---------------------------------------------------------------------------
 // ログ（実況と無線を同じ流れに。話者で見分ける）
@@ -547,7 +694,10 @@ function renderLog() {
       <span class="txt">${esc(e.text)}${mood}${replies}${answer}</span>
     </div>`;
   }).join('');
+  // 返事の3択が付く行は、この時点の scrollHeight より後に高さが決まることがある。
+  // 次のフレームでもう一度下げないと、いちばん新しい一言が半分隠れる
   box.scrollTop = box.scrollHeight;
+  requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
 }
 
 el('log').addEventListener('click', (ev) => {
@@ -718,7 +868,7 @@ function constantTick(dt) {
     // 予選：アタック中に前が近ければ「前に遅いのがいる」。それ以外は状態の一言
     const attacking = me.lap === QUALI.attackLap - 1;
     const byPos = [...S.cars].filter((c) => !c.retired && c !== me);
-    const near = byPos.find((c) => { const g = (progress(c, S.courseLen) - progress(me, S.courseLen)) / Math.max(currentSpeed(me), 1); return g > 0 && g < 3; });
+    const near = byPos.find((c) => { const g = gapSeconds(c, me); return g > 0 && g < 3; });
     if (attacking && near && !S.qualiTrafficSaid) {
       S.qualiTrafficSaid = true;
       say('haruka', textOf(pickUnique('quali/traffic', S.radioData.quali.traffic)));
@@ -949,6 +1099,11 @@ const S = {
   constantClock: 0, constantTurn: 0, lastLapsLeftCall: -1,
   raceBest: Infinity, leaderLap: 0, panelClock: 0,
   gridStart: false, qualiBest: Infinity, qualiTop: null, qualiTrafficSaid: false,
+  // タイミングモニター：セクター → S1/S2/S3 の対応と、全車を通した各組のベスト（紫）
+  sectorGroup: [], groupBestAll: [Infinity, Infinity, Infinity],
+  // ゲージの警戒段階と、前との差の増減。どちらも「変わった瞬間」を拾うために前回値を持つ
+  gaugeState: { tire: '', brake: '', fuel: '' }, gapShown: null, gapCue: null,
+  checkeredClass: '',
 };
 
 async function boot() {
@@ -1003,6 +1158,7 @@ async function boot() {
     S.gridStart = true;
   }
 
+  S.sectorGroup = buildSectorGroups(course);
   setupTrack(course);
   el('courseName').textContent = course.name;
   el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周・${S.cars.length} 台`;
@@ -1053,7 +1209,9 @@ function tick(now) {
     step(dt * S.speed);
     renderStandings();
     S.panelClock += dt;
-    if (S.panelClock > 0.25) { S.panelClock = 0; renderPanel(); }
+    // ラップタイムが回っている間はパネルも毎フレーム描き直す（数字が滑らかに止まる）
+    const rolling = S.cars[0].rollFrom != null;
+    if (S.panelClock > 0.25 || rolling) { S.panelClock = 0; renderPanel(); }
   }
   renderLog();
   draw();
@@ -1088,10 +1246,9 @@ function step(dt) {
 
 function draw() {
   for (const car of S.cars) {
-    if (car.retired) { car.dotEl.setAttribute('opacity', .25); continue; }
+    if (car.retired) { car.dotEl.setAttribute('opacity', .2); continue; }
     const p = pointAt(progress(car, S.courseLen));
-    car.dotEl.setAttribute('cx', p.x.toFixed(2));
-    car.dotEl.setAttribute('cy', p.y.toFixed(2));
+    car.dotEl.setAttribute('transform', `translate(${p.x.toFixed(2)} ${p.y.toFixed(2)})`);
   }
   const me = S.cars[0];
   if (me.plan) highlightSector(Math.min(me.segIdx, me.plan.length - 1));
@@ -1116,22 +1273,34 @@ function ranked() {
   return [...running, ...S.cars.filter((c) => c.retired)];
 }
 
-function standingRow(car, i, leader) {
-  const last = car.lapTimes.at(-1);
-  let gap = '—';
+/** セクタータイム1つ分のセル。まだ走っていなければ「—」。 */
+function sectorCell(car, g) {
+  const t = car.groupLast[g];
+  if (t == null || car.retired) return '<span class="s">—</span>';
+  return `<span class="s ${car.groupState[g]}">${t.toFixed(2)}</span>`;
+}
+
+/** 1行。POS / CAR / S1 S2 S3 / LAST / GAP（docs/設計/画面設計.md タイミングモニター）。 */
+function standingRow(car, i, leader, now) {
+  const cls = [car.isPlayer ? 'me' : '', car.retired ? 'out' : '', car.isPlayer ? S.checkeredClass : ''].filter(Boolean).join(' ');
+  const name = `<span class="nm"><b style="background:${car.color}"></b><span>${esc(car.short)}</span></span>`;
+  const sectors = [0, 1, 2].map((g) => sectorCell(car, g)).join('');
+
   if (IS_QUALI) {
+    // 予選はベストラップで並ぶ。LAST の列にはそのベストを出す
     const best = Number.isFinite(car.best) ? car.best : null;
     const top = Number.isFinite(leader.best) ? leader.best : null;
-    gap = best == null ? (car.lap === 0 ? 'OUT LAP' : car.lap === 1 ? 'ATTACK' : '—')
-      : car === leader ? 'P1' : `+${(best - top).toFixed(3)}`;
-    return `<div class="row ${car.isPlayer ? 'me' : ''}">
-      <span class="pos">${i + 1}</span>
-      <span class="nm"><b style="background:${car.color}"></b><span>${esc(car.short)}</span></span>
-      <span class="rt">${best != null ? formatTime(best) : '--:--.---'}</span>
+    const gap = best == null ? (car.lap === 0 ? 'OUT' : car.lap === 1 ? 'ATK' : '—')
+      : car === leader ? 'P1' : `+${(best - top).toFixed(2)}`;
+    return `<div class="row ${cls}">
+      <span class="pos">${i + 1}</span>${name}${sectors}
+      <span class="last">${best != null ? formatTime(best) : '--:--.---'}</span>
       <span class="gap">${gap}</span>
     </div>`;
   }
-  if (car.retired) gap = `${car.retiredLap}周目 OUT`;
+
+  let gap;
+  if (car.retired) gap = `${car.retiredLap}周 OUT`;
   else if (car === leader) gap = car.finished ? formatTime(car.raceTime) : 'LEADER';
   else if (car.finished && leader.finished) gap = `+${(car.raceTime - leader.raceTime).toFixed(1)}s`;   // 確定後は総時間差
   else {
@@ -1139,30 +1308,35 @@ function standingRow(car, i, leader) {
     const lapsDown = Math.floor(d / S.courseLen);
     gap = lapsDown >= 1 ? `+${lapsDown} LAP` : `+${gapSeconds(leader, car).toFixed(1)}s`;
   }
-  return `<div class="row ${car.isPlayer ? 'me' : ''} ${car.retired ? 'out' : ''}">
-    <span class="pos">${car.retired ? '—' : i + 1}</span>
-    <span class="nm"><b style="background:${car.color}"></b><span>${esc(car.short)}</span></span>
-    <span class="rt">${last ? formatTime(last) : '--:--.---'}</span>
+  const last = lapDisplay(car, now);
+  return `<div class="row ${cls}">
+    <span class="pos">${car.retired ? '—' : i + 1}</span>${name}${sectors}
+    <span class="last">${last != null ? formatTime(last) : '--:--.---'}</span>
     <span class="gap">${gap}</span>
   </div>`;
 }
+
+const HEAD_ROW = '<div class="row head"><span class="pos">P</span><span>CAR</span>'
+  + '<span class="s">S1</span><span class="s">S2</span><span class="s">S3</span>'
+  + '<span class="last">LAST</span><span class="gap">GAP</span></div>';
 
 /** 常時表示は先頭＋自車の前後3台。全車はスクロールする別枠。 */
 function renderStandings() {
   const list = ranked();
   const leader = list[0];
+  const now = performance.now();
   const meIdx = list.indexOf(S.cars[0]);
   const from = Math.max(0, meIdx - 3), to = Math.min(list.length, meIdx + 4);
-  const rows = [];
+  const rows = [HEAD_ROW];
   if (from > 0) {
-    rows.push(standingRow(leader, 0, leader));
+    rows.push(standingRow(leader, 0, leader, now));
     if (from > 1) rows.push(`<div class="row gapline">⋯ ${from - 1} 台</div>`);
   }
-  for (let i = from; i < to; i++) rows.push(standingRow(list[i], i, leader));
+  for (let i = from; i < to; i++) rows.push(standingRow(list[i], i, leader, now));
   if (to < list.length) rows.push(`<div class="row gapline">⋯ ${list.length - to} 台</div>`);
   el('standings').innerHTML = rows.join('');
   if (!el('standingsFull').hidden) {
-    el('standingsFull').innerHTML = list.map((car, i) => standingRow(car, i, leader)).join('');
+    el('standingsFull').innerHTML = list.map((car, i) => standingRow(car, i, leader, now)).join('');
   }
 }
 
@@ -1172,6 +1346,26 @@ el('standingsAll').addEventListener('click', () => {
   el('standingsAll').classList.toggle('on', !box.hidden);
   renderStandings();
 });
+
+/** ゲージの警戒段階。閾値の 90% で琥珀、超えたら赤（docs/設計/画面設計.md）。 */
+const TIRE_WARN = 0.6, TIRE_ALARM = 0.8, FUEL_ALARM = 0.15;
+
+/**
+ * 警戒段階が変わった瞬間だけ cue を流す。毎フレーム同じイベントを出さないための記録。
+ * 段階そのもの（'' / warn / alarm）を返す。
+ */
+function gaugeState(key, state) {
+  if (S.gaugeState[key] !== state) {
+    S.gaugeState[key] = state;
+    if (!S.skipping) cue(state === 'alarm' ? 'gauge.alarm' : state === 'warn' ? 'gauge.warn' : 'gauge.clear', { gauge: key });
+  }
+  return state;
+}
+
+/** 横棒ゲージ。mark は閾値の位置（0〜1）。 */
+const gauge = (ratio, cls = '', mark = null, extra = '') =>
+  `<div class="gauge ${extra}"><i class="${cls}" style="width:${clamp(ratio * 100, 0, 100).toFixed(1)}%"></i>`
+  + `${mark != null ? `<b style="left:${clamp(mark * 100, 0, 100).toFixed(1)}%"></b>` : ''}</div>`;
 
 /** 車両情報。engine の値をそのまま出す。燃料だけは表示用の見積もり（race.js fuelLevel 参照）。 */
 function renderPanel() {
@@ -1183,55 +1377,83 @@ function renderPanel() {
 
   const split = tireWearSplit(me.perf, me.tire, me.driver);
   const pct = (w) => Math.min(100, Math.round(w * 100));
+  const wearState = (w) => (w >= TIRE_ALARM ? 'alarm' : w >= TIRE_WARN ? 'warn' : '');
+  const tireState = gaugeState('tire', wearState(Math.max(split.front, split.rear)));
+
   const threshold = brakeThreshold(stats);
   const temp = me.brake.temp;
-  const hot = temp >= threshold * RADIO.fadeRatio;
   const tempScale = threshold * 1.4;
+  const fade = brakeFadeLoss(stats, me.brake);
+  const brakeState = gaugeState('brake', temp > threshold ? 'alarm' : temp >= threshold * RADIO.fadeRatio ? 'warn' : '');
+
   const fuel = fuelLevel(stats, me.lap, S.totalLaps);
+  const fuelState = gaugeState('fuel', fuel < FUEL_ALARM ? 'alarm' : '');
+
   const secIdx = me.plan ? Math.min(me.segIdx, me.plan.length - 1) : 0;
   const sec = S.course.sectors[secIdx];
-  const last = me.lapTimes.at(-1);
+  const last = lapDisplay(me);
+
   // 確定した2台の間は総時間差、走行中は速度差ベース
   const gapTo = (a, b) => (a.finished && b.finished ? b.raceTime - a.raceTime : gapSeconds(a, b));
-  const gapA = ahead && !ahead.retired && !me.retired ? `+${gapTo(ahead, me).toFixed(1)}s ${ahead.name}` : '—';
-  const gapB = behind && !behind.retired && !me.retired ? `−${gapTo(me, behind).toFixed(1)}s ${behind.name}` : '—';
-
-  const bar = (ratio, cls = '', mark = null) =>
-    `<div class="bar"><i class="${cls}" style="width:${clamp(ratio * 100, 0, 100).toFixed(1)}%"></i>${mark != null ? `<b style="left:${clamp(mark * 100, 0, 100).toFixed(1)}%"></b>` : ''}</div>`;
+  const liveA = ahead && !ahead.retired && !me.retired ? gapTo(ahead, me) : null;
+  const liveB = behind && !behind.retired && !me.retired ? gapTo(me, behind) : null;
+  // 前との差が縮めば緑、開けば琥珀に一瞬光る
+  const flash = gapFlash(liveA);
+  const gapA = liveA == null ? '—' : `<b>+${liveA.toFixed(1)}s</b> ${esc(ahead.short)}`;
+  const gapB = liveB == null ? '—' : `<b>−${liveB.toFixed(1)}s</b> ${esc(behind.short)}`;
 
   el('panel').innerHTML = `
     <div class="cell">
-      <div class="k">TIRE WEAR <span>${pct(me.tire.wear)}%</span></div>
-      <div class="tirebars">
-        <span>F</span>${bar(split.front, split.front > .6 ? 'hot' : '')}
-        <span>R</span>${bar(split.rear, split.rear > .6 ? 'hot' : '')}
+      <div class="k">TIRE WEAR <span class="${tireState}">${pct(me.tire.wear)}%</span></div>
+      <div class="tiregauges">
+        <span>F</span>${gauge(split.front, wearState(split.front), TIRE_ALARM, 'thin')}
+        <span>R</span>${gauge(split.rear, wearState(split.rear), TIRE_ALARM, 'thin')}
       </div>
     </div>
     <div class="cell">
-      <div class="k">BRAKE TEMP <span>${Math.round(temp)}</span></div>
-      <div class="v" style="color:${hot ? 'var(--bad)' : 'inherit'}">${Math.round(temp)}<small> / フェード ${Math.round(threshold)}</small></div>
-      ${bar(temp / tempScale, hot ? 'hot' : '', threshold / tempScale)}
+      <div class="k">BRAKE TEMP</div>
+      <div class="v"><span class="${brakeState}">${Math.round(temp)}</span><small> / ${Math.round(threshold)}</small></div>
+      ${gauge(temp / tempScale, brakeState, threshold / tempScale)}
+      <div class="sub jp">${fade > 0 ? `フェード 制動 −${fade.toFixed(1)}` : '&nbsp;'}</div>
     </div>
     <div class="cell">
-      <div class="k">FUEL <span>${Math.round(fuel * 100)}%</span></div>
-      ${bar(fuel, fuel < .15 ? 'hot' : 'ok')}
-      <div class="sub">見積もり。計算には未反映</div>
+      <div class="k">FUEL <span class="${fuelState}">${Math.round(fuel * 100)}%</span></div>
+      ${gauge(fuel, fuelState || 'ok', FUEL_ALARM)}
+      <div class="sub jp">見積もり。計算には未反映</div>
     </div>
     <div class="cell">
       <div class="k">LAP TIME</div>
-      <div class="v">${last ? formatTime(last) : '--:--.---'}</div>
-      <div class="sub">ベスト ${Number.isFinite(me.best) ? formatTime(me.best) : '—'}</div>
+      <div class="v">${last != null ? formatTime(last) : '--:--.---'}</div>
+      <div class="sub">BEST ${Number.isFinite(me.best) ? formatTime(me.best) : '—'}</div>
     </div>
     <div class="cell">
       <div class="k">GAP</div>
-      <div class="sub">前 ${esc(gapA)}</div>
-      <div class="sub">後 ${esc(gapB)}</div>
+      <div class="sub jp ${flash}">前 ${gapA}</div>
+      <div class="sub jp">後 ${gapB}</div>
     </div>
     <div class="cell">
       <div class="k">SECTOR <span>${secIdx + 1} / ${S.course.sectors.length}</span></div>
-      <div class="v"><i class="sector-type" style="background:var(--${sec.type.replace('_', '-')})"></i>${SECTOR_LABEL[sec.type]}</div>
-      <div class="sub">${sec.length} m・P${idx + 1}</div>
+      <div class="v jp" style="font-size:13px"><i class="sector-type" style="background:var(--${sec.type.replace('_', '-')})"></i>${SECTOR_LABEL[sec.type]}</div>
+      <div class="sub">${sec.length} m · P${idx + 1}</div>
     </div>`;
+}
+
+/**
+ * 前との差の増減。変わった瞬間から少しの間だけ色のクラスを返す。
+ * パネルは作り直されるので、CSS アニメーションではなく時刻で持つ。
+ */
+const FLASH_MS = 900, FLASH_MIN = 0.15;
+function gapFlash(gap) {
+  const now = performance.now();
+  if (gap != null && S.gapShown != null) {
+    const d = gap - S.gapShown;
+    if (Math.abs(d) >= FLASH_MIN) {
+      S.gapCue = { cls: d < 0 ? 'up' : 'down', at: now };
+      if (!S.skipping) cue(d < 0 ? 'gap.shrink' : 'gap.grow', { gap });
+    }
+  }
+  S.gapShown = gap;
+  return S.gapCue && now - S.gapCue.at < FLASH_MS ? S.gapCue.cls : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -1246,6 +1468,10 @@ function finish() {
   const list = ranked();
   const vars = baseVars();
   const myPos = list.indexOf(S.cars[0]) + 1;
+  // チェッカー：自車の行が光る。勝てば3回、負けても1回（docs/設計/画面設計.md）
+  S.checkeredClass = myPos === 1 ? 'win' : 'fin';
+  cue('race.checkered', { pos: myPos });
+  renderStandings();
   commentary('checkered', 'announcer', { ...vars, pos: myPos }, [myPos === 1 ? 'win' : 'notwin']);
   commentary('checkered', 'analyst', vars);
   renderPanel();
