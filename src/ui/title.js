@@ -18,7 +18,7 @@ export const TITLE = {
    *   'board'   電光掲示板（英数字のドット）＋板の下に日本語
    *   'sticker' レース用ステッカー風（斜体＋多重の縁取り）。板は出ない
    */
-  style: 'board',
+  style: 'sticker',
   /** 写真が縦長（3:4）なので、絵も縦長の 4:5。**顔と足元の両方が入る形。** */
   w: 1200,
   h: 1500,
@@ -137,6 +137,8 @@ function readColors(root = document.documentElement) {
     stickerBlue: pick('--mon-ai', '#4da3ff'),
     stickerYellow: pick('--mon-amber', '#ffb347'),
     stickerEdge: pick('--ink', '#23211c'),
+    // 一番外の締め。画面の層の地（濃紺寄りの黒）
+    stickerOuter: pick('--mon-bg', '#0a0d11'),
   };
 }
 
@@ -534,8 +536,10 @@ function drawStickerTitle(ctx, colors, scale) {
   ctx.lineJoin = 'round';
   ctx.miterLimit = 2;
   // **太い縁から順に引く。** 後から引いた細い縁が内側を塗り直すので、
-  // 見える帯の太さは（外−内）÷2。等間隔に離して、4色が同じ太さで出るようにする
+  // 見える帯の太さは（外−内）÷2。等間隔に離して、同じ太さで出るようにする。
+  // 一番外は細い黒（濃紺寄り）。**明るい背景で黄色が溶けるのを止める**
   const rings = [
+    [st.ring * 5.5, colors.stickerOuter],
     [st.ring * 4.6, colors.stickerEdge],
     [st.ring * 3.3, colors.stickerYellow],
     [st.ring * 2.1, colors.stickerBlue],
