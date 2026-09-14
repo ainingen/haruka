@@ -688,7 +688,9 @@ function renderLog() {
       ? `<div class="replies">${e.replies.map((r, j) => `<button type="button" data-id="${e.id}" data-r="${j}">${esc(r.label)}</button>`).join('')}</div>`
       : '';
     const answer = e.answer ? `<div class="answer"><span class="k">ピット→</span>${esc(e.answer.label)}　<span class="k">ハルカ：</span>${esc(e.answer.reaction)} <span class="note">${esc(e.answer.note)}</span></div>` : '';
-    const mood = e.info && e.mood ? `<span class="mood">${esc(e.mood)}</span>` : '';
+    // 表情（mood）はエントリに持ったまま表示しない。
+    // 文字で「不機嫌」と書くより顔の差分で見せるものなので、絵が入るまで出さない
+    const mood = '';
     return `<div class="msg${e.info ? ' info' : ''}${i < freshFrom ? ' old' : ''}" data-speaker="${e.speaker}">
       <span class="who">${SPEAKER_LABEL[e.speaker] ?? e.speaker}</span>
       <span class="txt">${esc(e.text)}${mood}${replies}${answer}</span>
