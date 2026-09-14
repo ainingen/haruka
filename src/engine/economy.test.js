@@ -139,3 +139,29 @@ test('E6. セーブ：encode → decode で元に戻る。URL に載る。壊れ
   assert.equal(new URLSearchParams(search).get('session'), 'race');
   console.log(`  state ${JSON.stringify(s).length} 文字 → URL ${str.length} 文字`);
 });
+
+test('E7. セーブの長さ：終盤の大きな state でも URL に収まる', () => {
+  // クラス5、20台、6戦すべて結果あり、所有20点、予選セッティングあり
+  const owned = PARTS.slice(0, 20).map((p) => p.id);
+  const ids = ['me', ...Array.from({ length: 19 }, (_, i) => `ai${i}`)];
+  const rounds = Array.from({ length: 6 }, () => ({
+    course: 'kazahaya', laps: 16,
+    result: { pos: 3, points: 6, prize: 2650000, fee: 300000, sponsorFee: 300000, repair: 123456, retired: false, best: 95.123 },
+  }));
+  const s = {
+    ...newGame(ECONOMY), cls: 5, tier: 4, money: 12345678, owned,
+    cond: Object.fromEntries(owned.map((id) => [id, 77.5])),
+    setup: {
+      race: { parts: owned.slice(0, 12), settings: { tire_pressure: 2.15, ride_height: 80, brake_bias: 58 } },
+      quali: { parts: owned.slice(0, 12), settings: { tire_pressure: 2.45, ride_height: 80, brake_bias: 58 } },
+    },
+    season: { year: 4, rounds, next: 6, points: Object.fromEntries(ids.map((id, i) => [id, 60 - i * 3])), symptoms: { understeer: 12, tire_wear: 6 }, note: '文句のない一年。……書くことがない' },
+    sponsor: { tier: 4, id: 'major_motors' },
+  };
+  const str = encode(s);
+  assert.deepEqual(decode(str), s);
+  // 現代のブラウザは数万文字まで持つが、古い環境の目安 2083 を大きく超えないように見張る。
+  // 超えたら save.js の encode だけを圧縮に変える（画面は触らない）
+  assert.ok(str.length < 4000, `s= が ${str.length} 文字。長すぎる`);
+  console.log(`  終盤の state：JSON ${JSON.stringify(s).length} 文字 → s= ${str.length} 文字`);
+});
