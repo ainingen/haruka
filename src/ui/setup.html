@@ -1508,7 +1508,7 @@ function calcLaps() {
   if (state.session === 'quali') return calcQuali(p);
   const rows = usableCourses().map((c) => {
     const r = simulateRace(p, c, 10, DATA.driver, { noise: false, retire: false });
-    return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1) };
+    return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1), retired: r.retired, retiredLap: r.retiredLap };
   });
   const prev = lapBaseline;
   lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.avg]));
@@ -1519,7 +1519,8 @@ function calcLaps() {
       : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒/周</div>`;
     return `<div class="lap">
       <div class="cname">${r.course.name}<div class="cprof">${PROFILE_LABEL[r.course.profile] ?? ''}
-        ・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${r.last.brakeFade > 0 ? `（フェード −${r.last.brakeFade.toFixed(1)}）` : ''}</div></div>
+        ・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${r.last.brakeFade > 0 ? `（フェード −${r.last.brakeFade.toFixed(1)}）` : ''}${
+        r.retired ? `<br><b style="color:var(--bad)">${r.retiredLap}周目に燃料切れ</b>` : ''}</div></div>
       <div><div class="t">${formatTime(r.avg)}</div>${dTxt}</div>
     </div>`;
   }).join('')}</div>`;

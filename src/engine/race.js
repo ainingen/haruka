@@ -141,6 +141,26 @@ export const WEIGHTS = {
     /** reliability −1ポイントあたりの、1周ごとのリタイア確率 */
     retirePerPointPerLap: 0.0015,
   },
+
+  /**
+   * 燃料。単位は無次元で、1単位がそのまま weight の1ポイントになる。
+   * リッターではなく「重さに換算できる量」として持つ（換算は表示側の KG_PER_POINT）。
+   *
+   * 値は「レース序盤と終盤で1秒/周ほど変わる」ように決めてある。満タンが速さの足かせになり、
+   * 軽くなりながら速くなる。積みすぎても足かせ、足りなければ止まる。
+   */
+  fuel: {
+    /** fuel_consumption = 0 の車が1周で使う量 */
+    perLapBase: 1.8,
+    /** fuel_consumption 1ポイントあたり、1周の消費が何割増えるか */
+    perPoint: 0.05,
+    /** 燃料1単位あたり weight に加算されるポイント数 */
+    weightPerUnit: 1,
+    /** 積むときの余裕（必要量の何割を上乗せするか） */
+    margin: 0.08,
+    /** タンクの上限。これを超える距離は、途中で給油しないと走り切れない */
+    tankMax: 100,
+  },
 };
 
 /**
@@ -443,18 +463,71 @@ export function brakeFadeLoss(stats, brake) {
 }
 
 // ---------------------------------------------------------------------------
+// 燃料
+//
+// 積んだ燃料はそのまま重さになる。満タンで出て、減りながら速くなる。
+// 途中で足せるのはピットだけ（refuel）。空になったら走れない。
+// ---------------------------------------------------------------------------
+
+/** 1周で使う量。fuel_consumption が高いほど増える。 */
+export function fuelPerLap(stats) {
+  const F = WEIGHTS.fuel;
+  return F.perLapBase * (1 + F.perPoint * Math.max(0, stats.fuel_consumption));
+}
+
+/** その距離を走るために積む量。余裕を足し、タンクの上限で頭打ちになる。 */
+export function fuelForLaps(stats, laps) {
+  const F = WEIGHTS.fuel;
+  return Math.min(F.tankMax, fuelPerLap(stats) * laps * (1 + F.margin));
+}
+
+/** 出走時の燃料。laps はそのセッションで走る予定の周回数。 */
+export function createFuelState(stats, laps) {
+  const level = fuelForLaps(stats, laps);
+  return { level, filled: level };
+}
+
+/** いま積んでいる燃料が weight に足すポイント数。 */
+export const fuelWeight = (fuel) => (fuel ? fuel.level * WEIGHTS.fuel.weightPerUnit : 0);
+
+/** あと何周ぶん残っているか（表示用）。 */
+export const fuelLapsLeft = (fuel, stats) => (fuel ? fuel.level / fuelPerLap(stats) : Infinity);
+
+/** 1周ぶん減らす。0 未満にはしない。 */
+export function advanceFuel(fuel, stats) {
+  return { ...fuel, level: Math.max(0, fuel.level - fuelPerLap(stats)) };
+}
+
+/** この周を走り切れるか。走り切れないまま周に入ると燃料切れでリタイアになる。 */
+export const canRunLap = (fuel, stats) => !fuel || fuel.level >= fuelPerLap(stats);
+
+/**
+ * 給油。**ピットでのみ呼ぶ。** 走行中に燃料が増える経路は他に無い。
+ * ピットストップ自体はまだ実装していないので、いまこれを呼ぶのは将来の耐久レースだけ。
+ */
+export function refuel(fuel, stats, laps) {
+  return { ...fuel, level: fuelForLaps(stats, laps), filled: fuelForLaps(stats, laps) };
+}
+
+// ---------------------------------------------------------------------------
 // セクター通過時間
 // ---------------------------------------------------------------------------
 
-/** タイヤ・ブレーキ状態を反映した実効性能。セクター計算はこれを見る。 */
-export function effectiveStats(perf, tire, brake = createBrakeState()) {
+/**
+ * タイヤ・ブレーキ・燃料の状態を反映した実効性能。セクター計算はこれを見る。
+ * 燃料はばね上の重さなので、セクター種別によらず同じだけ weight_eff に乗る。
+ */
+export function effectiveStats(perf, tire, brake = createBrakeState(), fuel = null) {
   const loss = tireGripLoss(perf.stats, tire);
+  const fw = fuelWeight(fuel);
   return {
     ...perf.stats,
     cornering_grip: perf.stats.cornering_grip - loss.total,
     traction: perf.stats.traction - loss.total * WEIGHTS.tire.tractionShare,
     braking: perf.stats.braking - brakeFadeLoss(perf.stats, brake),
-    weight_eff: perf.weightEff,
+    weight_eff: fw
+      ? Object.fromEntries(SECTOR_TYPES.map((t) => [t, perf.weightEff[t] + fw]))
+      : perf.weightEff,
     balance_dev: perf.balanceDev,
   };
 }
@@ -488,8 +561,8 @@ export function driverTimeFactor(driver, stats) {
 }
 
 /** 1周の所要時間（乱数なし）。 */
-export function lapTime(perf, course, tire, driver, brake = createBrakeState()) {
-  const eff = effectiveStats(perf, tire, brake);
+export function lapTime(perf, course, tire, driver, brake = createBrakeState(), fuel = null) {
+  const eff = effectiveStats(perf, tire, brake, fuel);
   const factor = driverTimeFactor(driver, perf.stats);
   const sectors = course.sectors.map((s) => sectorTime(s, eff, perf.baseSpeed) * factor);
   return {
@@ -658,15 +731,8 @@ export function tireWearSplit(perf, tire, driver) {
   return { front, rear };
 }
 
-/**
- * 燃料の残量（0〜1、表示用）。**レース計算にはまだ入っていない。**
- * fuel_consumption が 0 なら 15% の余裕を残して走り切る。増えるほど余裕が減り、
- * 極端なら最後の周で底をつく——が、いまは表示が 0 になるだけで車は止まらない。
- */
-export function fuelLevel(stats, lapsDone, totalLaps) {
-  const perLap = (1 + 0.02 * Math.max(0, stats.fuel_consumption)) / (totalLaps * 1.15);
-  return Math.max(0, 1 - lapsDone * perLap);
-}
+/** 燃料の残量（0〜1、表示用）。満タンに対する割合。 */
+export const fuelLevel = (fuel) => (fuel && fuel.filled > 0 ? fuel.level / fuel.filled : 0);
 
 /**
  * セッティング画面での一言（無線とは別枠のピット会話）。ID を1つ返す。言うことが無ければ null。
@@ -734,19 +800,29 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
 
   const load = courseLoad(course);
   const result = {
-    courseId: course.id, laps: [], total: 0, best: Infinity, retired: false, retiredLap: null,
+    courseId: course.id, laps: [], total: 0, best: Infinity,
+    retired: false, retiredLap: null, retireReason: null,
     radio: radio ? [] : null,
   };
   let tire = createTireState();
   let brake = createBrakeState();
+  let fuel = createFuelState(perf.stats, laps);
 
   for (let i = 0; i < laps; i++) {
+    // 燃料切れは運ではないので、リタイア判定を切っていても止まる
+    if (!canRunLap(fuel, perf.stats)) {
+      result.retired = true;
+      result.retiredLap = i + 1;
+      result.retireReason = 'fuel';
+      break;
+    }
     if (retire && rng() < retireP) {
       result.retired = true;
       result.retiredLap = i + 1;
+      result.retireReason = 'reliability';
       break;
     }
-    const lt = lapTime(perf, course, tire, driver, brake);
+    const lt = lapTime(perf, course, tire, driver, brake, fuel);
     let time = lt.time;
     if (noise) time *= 1 + sigma * gaussian(rng);
 
@@ -754,6 +830,7 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
       lap: i + 1, time, sectors: lt.sectors,
       wear: tire.wear, gripLoss: lt.gripLoss.total,
       brakeTemp: brake.temp, brakeFade: lt.brakeFade,
+      fuel: fuel.level,
     };
     if (radioState) {
       // 順位の絡む症状（直線／コーナーで負け、抜いた・抜かれた）は1台走行では立たない
@@ -767,8 +844,10 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
     if (time < result.best) result.best = time;
     tire = advanceTire(tire, perf.stats);
     brake = advanceBrakes(brake, perf.stats, load);
+    fuel = advanceFuel(fuel, perf.stats);
   }
   result.average = result.laps.length ? result.total / result.laps.length : NaN;
+  result.fuelLeft = fuel.level;
   return result;
 }
 
@@ -788,17 +867,20 @@ export function simulateQualifying(perf, course, driver, options = {}) {
   const load = courseLoad(course);
   let tire = createTireState();
   let brake = createBrakeState();
+  // 予選は計測3周ぶんしか積まない。決勝より軽いぶん速いのは、そういう理由
+  let fuel = createFuelState(perf.stats, QUALI.laps);
   const laps = [];
   for (let i = 0; i < QUALI.laps; i++) {
     const lapNo = i + 1;
     const factor = lapNo < QUALI.attackLap ? 1 / QUALI.outLapFactor
       : lapNo > QUALI.attackLap ? 1 / QUALI.inLapFactor : 1;
-    const lt = lapTime(perf, course, tire, driver, brake);
+    const lt = lapTime(perf, course, tire, driver, brake, fuel);
     let time = lt.time * factor;
     if (noise) time *= 1 + sigma * gaussian(rng);
-    laps.push({ lap: lapNo, time, kind: lapNo < QUALI.attackLap ? 'out' : lapNo > QUALI.attackLap ? 'in' : 'attack', wear: tire.wear, gripLoss: lt.gripLoss.total });
+    laps.push({ lap: lapNo, time, kind: lapNo < QUALI.attackLap ? 'out' : lapNo > QUALI.attackLap ? 'in' : 'attack', wear: tire.wear, gripLoss: lt.gripLoss.total, fuel: fuel.level });
     tire = advanceTire(tire, perf.stats);
     brake = advanceBrakes(brake, perf.stats, load);
+    fuel = advanceFuel(fuel, perf.stats);
   }
   const best = Math.min(...laps.map((l) => l.time));
   return { courseId: course.id, laps, best, attack: laps[QUALI.attackLap - 1] };

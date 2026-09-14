@@ -16,6 +16,8 @@ import {
   buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
   RADIO, pitComment, reactionFor, brakeThreshold, tireWearSplit, fuelLevel,
   QUALI, START, gridBlockFactor, simulateQualifying,
+  WEIGHTS, lapTime, createTireState, createBrakeState,
+  createFuelState, fuelPerLap, fuelForLaps, advanceFuel, fuelLapsLeft, canRunLap, refuel,
 } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -463,7 +465,7 @@ test('16. パネル用の値：フェード閾値、摩耗の前後、燃料', (
   assert.equal(brakeThreshold(perf.stats), 100);
   const split = tireWearSplit(perf, { wear: 0.4, lapsRun: 10 }, haruka);
   assert.ok(split.front > split.rear, 'アンダーの車は前を余計に削る');
-  assert.ok(fuelLevel(perf.stats, 0, 10) === 1 && fuelLevel(perf.stats, 10, 10) > 0, '基準車は余裕を残して走り切る');
+  assert.equal(fuelLevel(createFuelState(perf.stats, 10)), 1, '出走時は満タン');
   const rng = () => 0;   // 必ず出す
   assert.equal(reactionFor({ type: 'straight', time: 10, best: 10 }, rng).sentiment, 'good');
   assert.equal(reactionFor({ type: 'slow_corner', time: 10.2, best: 10 }, rng).sentiment, 'bad');
@@ -541,4 +543,52 @@ test('21. slots.json: キーが実在のスロットで、解説は2〜3文。�
     assert.ok(SLOT_DESC[slot], `engine の ${slot} の解説がない`);
   }
   console.log(`  解説 ${Object.keys(SLOT_DESC).length} / 全 ${all.length} スロット`);
+});
+
+test('22. 燃料：満タンは重い。減りながら速くなり、尽きたら止まる', () => {
+  const base = buildPerformance([], haruka, sedan);
+  const hiba = course('hibaridaira');
+
+  // 消費率が高いほど1周で減る量が増える
+  const thirsty = buildPerformance([{ id: 'thirsty', effects: {}, side_effects: { fuel_consumption: 20 } }], haruka, sedan);
+  assert.ok(fuelPerLap(thirsty.stats) > fuelPerLap(base.stats), '消費率が高いほど減りが速い');
+
+  // 積む量は距離に比例し、タンクの上限で頭打ちになる
+  assert.ok(fuelForLaps(base.stats, 20) > fuelForLaps(base.stats, 10), '長いレースほど多く積む');
+  assert.equal(fuelForLaps(thirsty.stats, 500), WEIGHTS.fuel.tankMax, 'タンクの上限で頭打ち');
+
+  // 満タンは遅い。同じタイヤ・同じブレーキで、燃料だけを変えて比べる
+  const tire = createTireState(), brake = createBrakeState();
+  const full = createFuelState(base.stats, 20);
+  const dry = { level: 0, filled: full.filled };
+  const tFull = lapTime(base, hiba, tire, haruka, brake, full).time;
+  const tDry = lapTime(base, hiba, tire, haruka, brake, dry).time;
+  assert.ok(tFull > tDry, '満タンのほうが遅い');
+  console.log(`  20周ぶん満タン ${full.filled.toFixed(1)} 単位で ${(tFull - tDry).toFixed(2)} 秒/周 重い`);
+
+  // 1周ぶん減る。残り周回数も減る
+  const after = advanceFuel(full, base.stats);
+  assert.ok(after.level < full.level, '1周で減る');
+  assert.ok(fuelLapsLeft(after, base.stats) < fuelLapsLeft(full, base.stats));
+  assert.ok(Math.abs(fuelLapsLeft(full, base.stats) - 20 * (1 + WEIGHTS.fuel.margin)) < 1e-6, '積んだぶんの周回数を持っている');
+
+  // 普通の車は走り切る。序盤より終盤が軽い
+  const race = simulateRace(base, hiba, 20, haruka, { noise: false, retire: false });
+  assert.equal(race.laps.length, 20, '走り切る');
+  assert.ok(!race.retired && race.fuelLeft > 0, '余裕を残して終わる');
+  assert.ok(race.laps.at(-1).fuel < race.laps[0].fuel, '減っている');
+
+  // 燃料切れはリタイア。運ではないので retire を切っていても止まる
+  const far = simulateRace(thirsty, hiba, 40, haruka, { noise: false, retire: false });
+  assert.ok(far.retired && far.retireReason === 'fuel', '燃料切れでリタイアする');
+  assert.ok(far.retiredLap > 1 && far.retiredLap <= 40);
+  assert.ok(!canRunLap({ level: 0, filled: 10 }, base.stats), '空では周に入れない');
+  console.log(`  消費率+20 の車は 40周のうち ${far.retiredLap} 周目で燃料切れ`);
+
+  // 給油はピットでのみ。呼べば満タンに戻る
+  assert.ok(refuel({ level: 0, filled: 1 }, base.stats, 10).level > 0, '給油で戻る');
+
+  // 予選は計測3周ぶんしか積まないので、決勝より軽い
+  const q = simulateQualifying(base, hiba, haruka, { noise: false });
+  assert.ok(q.laps[0].fuel < race.laps[0].fuel, '予選のほうが軽い');
 });

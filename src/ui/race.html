@@ -298,7 +298,8 @@ import {
   createTireState, advanceTire, createBrakeState, advanceBrakes, courseLoad,
   brakeFadeLoss, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
   RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor,
-  brakeThreshold, tireWearSplit, fuelLevel,
+  brakeThreshold, tireWearSplit,
+  createFuelState, advanceFuel, fuelLevel, fuelLapsLeft, canRunLap,
   QUALI, START, gridBlockFactor,
 } from '../engine/race.js';
 
@@ -486,10 +487,12 @@ function makeCar({ id, name, short = name, number = null, color, perf, driver, s
     id, name, short, number, color, perf, driver, isPlayer, radio,
     rng: createRng(seed),
     tire: createTireState(), brake: createBrakeState(),
+    // 燃料は「このセッションを走り切るぶん＋余裕」を積んで出る。減りながら軽くなる
+    fuel: createFuelState(perf.stats, S.totalLaps),
     lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
     raceTime: 0, lapTimes: [], best: Infinity, sectorBest: [],
     plan: null, plannedLap: 0,
-    finished: false, retired: false, retiredLap: null, announcedRetire: false,
+    finished: false, retired: false, retiredLap: null, retireReason: null, announcedRetire: false,
     lastWear: 0, lastTemp: 0, lastFade: 0,
     lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
     delay: 0, gridPos: null, blockFactor: 1,
@@ -540,14 +543,23 @@ function gaussian(rng) {
 }
 
 function planLap(car, course, load) {
+  // 燃料切れが先。運ではないので、この周に入れないなら止まる
+  if (!canRunLap(car.fuel, car.perf.stats)) {
+    car.retired = true;
+    car.retiredLap = car.lap + 1;
+    car.retireReason = 'fuel';
+    car.plan = null;
+    return;
+  }
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -car.perf.stats.reliability);
   if (car.rng() < retireP) {
     car.retired = true;
     car.retiredLap = car.lap + 1;
+    car.retireReason = 'reliability';
     car.plan = null;
     return;
   }
-  const eff = effectiveStats(car.perf, car.tire, car.brake);
+  const eff = effectiveStats(car.perf, car.tire, car.brake, car.fuel);
   const factor = driverTimeFactor(car.driver, car.perf.stats);
   const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (car.driver.consistency ?? 100)) / 100;
   const noise = clamp(1 + sigma * gaussian(car.rng), 0.9, 1.1);
@@ -583,6 +595,7 @@ function completeLap(car, course, load, totalLaps) {
   car.lap += 1;
   car.tire = advanceTire(car.tire, car.perf.stats);
   car.brake = advanceBrakes(car.brake, car.perf.stats, load);
+  car.fuel = advanceFuel(car.fuel, car.perf.stats);
   S.lapEvents.push(lapEvent);
   if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
   planLap(car, course, load);
@@ -1398,8 +1411,11 @@ function renderPanel() {
   const fade = brakeFadeLoss(stats, me.brake);
   const brakeState = gaugeState('brake', temp > threshold ? 'alarm' : temp >= threshold * RADIO.fadeRatio ? 'warn' : '');
 
-  const fuel = fuelLevel(stats, me.lap, S.totalLaps);
-  const fuelState = gaugeState('fuel', fuel < FUEL_ALARM ? 'alarm' : '');
+  const fuel = fuelLevel(me.fuel);
+  const lapsLeft = fuelLapsLeft(me.fuel, stats);
+  const lapsToGo = S.totalLaps - me.lap;
+  // 残りが走る周回数を割ったら赤。割合ではなく「足りるかどうか」で警告する
+  const fuelState = gaugeState('fuel', lapsLeft < lapsToGo ? 'alarm' : fuel < FUEL_ALARM ? 'warn' : '');
 
   const secIdx = me.plan ? Math.min(me.segIdx, me.plan.length - 1) : 0;
   const sec = S.course.sectors[secIdx];
@@ -1431,7 +1447,7 @@ function renderPanel() {
     <div class="cell">
       <div class="k">FUEL <span class="${fuelState}">${Math.round(fuel * 100)}%</span></div>
       ${gauge(fuel, fuelState || 'ok', FUEL_ALARM)}
-      <div class="sub jp">見積もり。計算には未反映</div>
+      <div class="sub jp">あと <b>${lapsLeft.toFixed(1)}</b> 周ぶん / 残り ${lapsToGo} 周</div>
     </div>
     <div class="cell">
       <div class="k">LAP TIME</div>
@@ -1493,7 +1509,7 @@ function finish() {
       <span class="pos">${car.retired ? '—' : i + 1}</span>
       <span>${car.name}
         <div class="sub">${car.retired
-          ? `${car.retiredLap}周目にリタイア`
+          ? `${car.retiredLap}周目にリタイア${car.retireReason === 'fuel' ? '（燃料切れ）' : ''}`
           : `最終周 タイヤ摩耗 ${wear}% / ブレーキ温度 ${Math.round(car.lastTemp)}`
             + `${car.lastFade > 0 ? `（フェード −${car.lastFade.toFixed(1)}）` : ''}`}</div>
       </span>
