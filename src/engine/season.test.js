@@ -508,3 +508,34 @@ test('S13. プロローグで決まる5つが進行に入り、飛ばしても�
   assert.deepEqual(decode(str).prologue, g.prologue);
   console.log(`  プロローグ直後の保存文字列：${str.length} / 4,000 字（選択3つ・順位・一行・名前）`);
 });
+
+test('S14. PLiCy に上げる一式：index.html の最初の要素がタイトルの canvas で、読み込みに穴が無い', async () => {
+  const { collect, check, firstBodyElement, zip, crc32 } = await import('../../tools/pack-plicy.mjs');
+
+  // **PLiCy はページの最初の canvas からサムネイルを撮る。** ここが動くと絵が変わる
+  const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
+  const first = firstBodyElement(html);
+  assert.equal(first.tag, 'canvas', 'body の最初の要素は canvas');
+  assert.equal(first.id, 'cover', 'タイトルの canvas');
+  assert.match(html, /src\/ui\/title\.js/, 'タイトルを描く module を読んでいる');
+
+  // 配布物：画面とデータと絵だけ。テストと開発用は入れない
+  const files = collect();
+  assert.ok(files.includes('index.html'));
+  assert.ok(files.includes('src/ui/title.js'));
+  assert.ok(files.includes('data/scenes.json'));
+  assert.ok(!files.some((f) => f.includes('.test.')), 'テストは入れない');
+  assert.ok(!files.some((f) => f.startsWith('tools/') || f.startsWith('docs/')), '開発用は入れない');
+  assert.deepEqual(check(files), [], '読み込みの取りこぼし');
+
+  // ZIP が壊れていない（自前で書いているので、印と長さだけ見る）
+  const entries = files.map((name) => ({ name, data: readFileSync(join(ROOT, name)) }));
+  const buf = zip(entries);
+  assert.equal(buf.readUInt32LE(0), 0x04034b50, 'ZIP の先頭');
+  const end = buf.length - 22;
+  assert.equal(buf.readUInt32LE(end), 0x06054b50, 'ZIP の終わり');
+  assert.equal(buf.readUInt16LE(end + 10), files.length, '件数');
+  assert.equal(crc32(Buffer.from('123456789')), 0xcbf43926, 'CRC-32 が合っている');
+  console.log(`  PLiCy 一式：${files.length} 件 → ZIP ${(buf.length / 1024).toFixed(1)} KB`
+    + `　最初の要素 <${first.tag} id="${first.id}">`);
+});
