@@ -46,6 +46,8 @@ body {
 .projectbar .k { font-size: var(--fs-sub); letter-spacing: .12em; color: var(--ink-2); }
 .projectbar .driver { font-size: var(--fs-title); font-weight: 700; letter-spacing: .04em; }
 .projectbar .cls { font-size: var(--fs-small); color: var(--ink-2); }
+.projectbar .money { margin-top: 2px; font-size: var(--fs-sub); color: var(--ink-2); }
+.projectbar .money b { font-family: var(--mon-font); font-size: var(--fs-num); color: var(--ink); font-weight: 700; margin-left: 4px; }
 .sheetno {
   text-align: right; font-size: var(--fs-sub); color: var(--ink-2);
   border: 1px solid var(--ink-3); padding: 3px 6px; line-height: 1.4; white-space: nowrap;
@@ -179,6 +181,7 @@ h2 {
 .cand .mk { color: var(--mon-green); font-size: var(--fs-sub); }
 .cand .nm { font-family: var(--jp-font); font-size: var(--fs-small); overflow-wrap: anywhere; }
 .cand .pr { color: var(--mon-dim); font-size: var(--fs-small); white-space: nowrap; }
+.cand .pr.owned, .cand .why.owned, .cand .mk { color: var(--mon-green); }
 .cand .why { grid-column: 2 / -1; font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--mon-amber); }
 .cand.locked .nm { color: var(--mon-dim); }
 .cand.locked .mk { color: var(--mon-amber); }
@@ -350,6 +353,7 @@ h2 {
       <div class="k">DRIVER</div>
       <div class="driver" id="driverName">—</div>
       <div class="cls" id="classLine">—</div>
+      <div class="money"><span class="k">所持金</span> <b id="moneyLine">—</b></div>
     </div>
     <div class="sheetno">
       <span>SHEET</span>
@@ -438,6 +442,7 @@ h2 {
     <div class="body">
       <p class="hand" id="notesText">—</p>
       <button type="button" id="notesBtn">ノート通りにする</button>
+      <span class="note" id="notesMissing" style="flex-basis:100%;color:var(--bad)"></span>
     </div>
   </div>
 
@@ -479,6 +484,8 @@ import {
   buildPerformance, simulateRace, formatTime,
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
 } from '../engine/race.js';
+import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
+import { owns, buyBlocker, buy, sell, sellPrice } from '../engine/economy.js';
 
 // ---------------------------------------------------------------------------
 // 表示用の語彙（data/README.md のキー → 日本語）
@@ -639,6 +646,54 @@ function switchSession(to) {
 }
 let DATA = null;
 
+/**
+ * ゲームの進行（所持金・所有パーツ・シーズン・スポンサー）。URL の s= で持ち回る。
+ * docs/設計/経済とシーズン.md。装着と連続値は state（UI）で編集し、画面を離れる前に syncG で書き戻す。
+ */
+let G = null;
+
+/** G の装着を state に展開する。持っていないパーツは無視する（売った・形式が古いなど）。 */
+function loadSetupFromG() {
+  const toEquipped = (ids) => {
+    const eq = Object.fromEntries(ALL_SLOTS.map((s) => [s, null]));
+    for (const id of ids ?? []) {
+      const p = partById(id);
+      if (p && owns(G, id)) for (const slot of occupiedSlots(p)) eq[slot] = p.id;
+    }
+    return eq;
+  };
+  state.equipped = toEquipped(G.setup?.race?.parts);
+  state.settings = { ...(G.setup?.race?.settings ?? {}) };
+  state.stash = { quali: null, race: null };
+  if (G.setup?.quali) {
+    state.stash.quali = { equipped: toEquipped(G.setup.quali.parts), settings: { ...G.setup.quali.settings } };
+  }
+}
+
+/** いまの装着と連続値を G に書き戻す。画面を離れる前に呼ぶ。 */
+function syncG() {
+  const pack = (setup) => (setup
+    ? { parts: [...new Set(Object.values(setup.equipped).filter(Boolean))], settings: { ...setup.settings } }
+    : null);
+  const cur = snapshotSetup();
+  const race = state.session === 'race' ? cur : state.stash.race;
+  const quali = state.session === 'quali' ? cur : state.stash.quali;
+  G = { ...G, cls: state.cls, tier: state.tier, setup: { race: pack(race) ?? { parts: [], settings: {} }, quali: pack(quali) } };
+  return G;
+}
+
+/** 売ったパーツを、いま編集中の装着からも控えの装着からも外す。 */
+function unequipEverywhere(id) {
+  const strip = (eq) => { for (const s of Object.keys(eq)) if (eq[s] === id) eq[s] = null; };
+  strip(state.equipped);
+  for (const st of Object.values(state.stash)) if (st) strip(st.equipped);
+}
+
+const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
+function drawMoney() {
+  el('moneyLine').textContent = yen(G.money);
+}
+
 const chassis = () => DATA.chassis[CLASS_CHASSIS[state.cls]];
 const partById = (id) => DATA.parts.find((p) => p.id === id) ?? null;
 /** 装着中のパーツ（重複を除く）。ユニット部品は1点として数える。 */
@@ -739,7 +794,7 @@ async function loadCarSvg(id) {
 }
 
 async function loadAll() {
-  const [parts, chassisData, courses, drivers, radio, notes, slots] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radio, notes, slots, economy] = await Promise.all([
     json('../../data/parts.json'),
     json('../../data/chassis.json'),
     json('../../data/courses.json'),
@@ -747,10 +802,11 @@ async function loadAll() {
     json('../../data/radio.json'),
     json('../../data/notes.json'),
     json('../../data/slots.json'),
+    json('../../data/economy.json'),
   ]);
   const cars = {};
   for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
-  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, slots, cars };
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, slots, economy, cars };
 }
 
 // ---------------------------------------------------------------------------
@@ -1154,6 +1210,7 @@ function closePicker() {
 
 /** 装着・取り外し。直前の値を控えてから描き直し、数字を回す。 */
 function equipFromModal(part) {
+  if (!owns(G, part.id)) return;   // 買っていないものは付かない
   pendingRoll = { axes: radarValues(perf()), status: statusValues() };
   equipPart(part);
   cue('part.equip', { id: part.id, slot: state.openSlot });
@@ -1196,11 +1253,13 @@ function drawModal() {
     btn.type = 'button';
     btn.className = `cand${legal ? '' : ' locked'}${p.id === state.candidate ? ' sel' : ''}`;
     const why = lockReasons(p);
-    btn.innerHTML = `<span class="mk">${on ? '●' : legal ? '' : '🔒'}</span>
+    const owned = owns(G, p.id);
+    // 所有していれば緑の印と「所有」、未購入は価格。規定外は錠前と理由
+    btn.innerHTML = `<span class="mk">${on || owned ? '●' : legal ? '' : '🔒'}</span>
       <span class="nm">${esc(p.name)}</span>
-      <span class="pr">¥${p.price.toLocaleString('ja-JP')}</span>
+      <span class="pr${owned ? ' owned' : ''}">${owned ? '所有' : yen(p.price)}</span>
       ${why.length ? `<span class="why">${esc(why.join(' / '))}</span>`
-        : on ? '<span class="why" style="color:var(--mon-green)">装着中</span>' : ''}`;
+        : on ? '<span class="why owned">装着中</span>' : ''}`;
     btn.addEventListener('click', () => {
       if (state.candidate === p.id) return;
       state.candidate = p.id;
@@ -1234,27 +1293,59 @@ function drawModal() {
       .filter((c) => c.id !== cand.id && occupiedSlots(c).some((s) => occupiedSlots(cand).includes(s)))
       .map((c) => c.name)
     : [];
+  const owned = !!cand && owns(G, cand.id);
+  const blocker = cand ? buyBlocker(G, cand) : null;
   const msg = document.createElement('span');
   msg.className = 'msg';   // 紙の .warn（規定外の警告）と名前を分ける
-  if (cand && !legal) msg.textContent = `${lockReasons(cand).join(' / ')}。手に入れても規定で付かない`;
-  else if (evicts.length) msg.textContent = `装着すると ${evicts.join('、')} が外れる`;
+  if (cand && !owned && (blocker === 'class' || blocker === 'tier')) {
+    msg.textContent = `${lockReasons(cand).join(' / ')}。手に入れても規定で付かない`;
+  } else if (cand && !owned && blocker === 'money') {
+    msg.textContent = `資金が足りない。${yen(cand.price)} に対して所持 ${yen(G.money)}`;
+  } else if (cand && !owned) {
+    msg.classList.add('ok'); msg.textContent = `未購入。買えば何度でも付け外しできる`;
+  } else if (cand && !legal) {
+    msg.textContent = `${lockReasons(cand).join(' / ')}。持っているが規定で付かない`;
+  } else if (evicts.length) msg.textContent = `装着すると ${evicts.join('、')} が外れる`;
   else { msg.classList.add('ok'); msg.textContent = on ? 'このスロットに装着中' : ''; }
   foot.appendChild(msg);
 
-  if (state.equipped[slot]) {
-    const off = document.createElement('button');
-    off.type = 'button';
-    off.textContent = '外す';
-    off.addEventListener('click', removeFromModal);
-    foot.appendChild(off);
+  const button = (label, onClick, { primary = false, disabled = false } = {}) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (primary) b.className = 'primary';
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    foot.appendChild(b);
+    return b;
+  };
+
+  if (!cand) return;
+  if (!owned) {
+    // 購入と装着は別。買っただけでは付かない
+    button(`購入 ${yen(cand.price)}`, () => buyFromModal(cand), { primary: true, disabled: !!blocker });
+    return;
   }
-  const pick = document.createElement('button');
-  pick.type = 'button';
-  pick.className = 'primary';
-  pick.textContent = on ? '装着中' : legal ? '装着する' : '装着できない';
-  pick.disabled = !cand || !legal || on;
-  pick.addEventListener('click', () => equipFromModal(cand));
-  foot.appendChild(pick);
+  if (state.equipped[slot] === cand.id) button('外す', removeFromModal);
+  button(`売却 ${yen(sellPrice(DATA.economy, cand))}`, () => sellFromModal(cand));
+  button(on ? '装着中' : legal ? '装着する' : '装着できない', () => equipFromModal(cand), { primary: true, disabled: !legal || on });
+}
+
+function buyFromModal(part) {
+  if (buyBlocker(G, part)) return;
+  G = buy(G, part);
+  cue('part.buy', { id: part.id, price: part.price });
+  renderAll();
+}
+function sellFromModal(part) {
+  if (!owns(G, part.id)) return;
+  const wasEquipped = Object.values(state.equipped).includes(part.id);
+  if (wasEquipped) pendingRoll = { axes: radarValues(perf()), status: statusValues() };
+  G = sell(G, part, DATA.economy);
+  unequipEverywhere(part.id);
+  cue('part.sell', { id: part.id });
+  renderAll();
+  pendingRoll = null;
 }
 
 /** 右側：いまの車と、候補を装着した車を並べる。レーダー6軸 ＋ 数値 ＋ 効果／副作用の生の値。 */
@@ -1448,10 +1539,15 @@ function applyNote() {
   const n = noteFor();
   if (!n) return;
   for (const slot of Object.keys(state.equipped)) state.equipped[slot] = null;
+  const missing = [];
   for (const id of n.parts) {
     const p = partById(id);
-    if (p) equipPart(p);
+    if (!p) continue;
+    if (owns(G, id)) equipPart(p);
+    else missing.push(p.name);
   }
+  // 持っていないものは付かない。何が足りないかは見せる
+  el('notesMissing').textContent = missing.length ? `持っていない：${missing.join('、')}` : '';
   state.settings = state.session === 'quali' ? { ...n.settings, ...(n.quali?.settings ?? {}) } : { ...n.settings };
   pitOverride = 'from_notes';
   renderAll();
@@ -1580,38 +1676,15 @@ function calcQuali(p) {
 }
 
 // ---------------------------------------------------------------------------
-// レースへ渡す（URL パラメータ。ブラウザストレージは使わない＝PLiCy の制約）
-//   決勝用：parts / tp / rh / bb、予選用：qparts / qtp / qrh / qbb。
+// レースへ渡す。進行は state（s=）1つ。ブラウザストレージは使わない＝PLiCy の制約。
+//   session / course / laps / grid は進行ではなく「このレースの条件」なので別のパラメータ。
 //   grid は予選結果（車 id の並び）か 'last'（予選をスキップして最後尾）。
 // ---------------------------------------------------------------------------
-const SHORT = { tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' };
-
-/** そのセッションの装着と連続値をパラメータに載せる。 */
-function putSetup(q, session) {
-  const setup = session === state.session ? snapshotSetup() : state.stash[session];
-  if (!setup) return;
-  const prefix = session === 'quali' ? 'q' : '';
-  const ids = [...new Set(Object.values(setup.equipped).filter(Boolean))]
-    .map(partById).filter((p) => p && isLegal(p)).map((p) => p.id);
-  if (ids.length) q.set(`${prefix}parts`, ids.join(','));
-  const parts = ids.map(partById);
-  for (const [key, def] of Object.entries(SETTINGS)) {
-    if (!isSettingUnlocked(def, parts)) continue;
-    q.set(`${prefix}${SHORT[key]}`, setup.settings[key] ?? def.defaultValue(chassis()));
-  }
-}
-
 function raceUrl(session) {
-  const q = new URLSearchParams();
-  q.set('session', session);
-  q.set('course', el('selCourse').value);
-  q.set('laps', el('selLaps').value);
-  q.set('cls', state.cls);
-  q.set('tier', state.tier);
-  putSetup(q, 'race');
-  putSetup(q, 'quali');
-  if (session === 'race') q.set('grid', gridParam ?? 'last');
-  return `race.html?${q}`;
+  syncG();
+  const extra = { session, course: el('selCourse').value, laps: el('selLaps').value };
+  if (session === 'race') extra.grid = gridParam ?? 'last';
+  return `race.html${searchWithState(G, extra)}`;
 }
 
 /** 予選結果として受け取ったグリッド。無ければ最後尾スタート。 */
@@ -1644,6 +1717,7 @@ function renderAll() {
   drawModal();
   drawStatus();
   drawPitLine();
+  drawMoney();
   if (el('selCourse').dataset.ready) drawCourses();
   clearLaps();
 }
@@ -1653,8 +1727,17 @@ function renderAll() {
 // ---------------------------------------------------------------------------
 try {
   DATA = await loadAll();
+  // 進行。URL に無ければ新しいゲーム（所持金の初期値、所有なし）
+  G = stateFromSearch(location.search) ?? newGame(DATA.economy);
+  state.cls = Math.min(5, Math.max(1, G.cls));
+  state.tier = Math.min(4, Math.max(0, G.tier));
+  el('selClass').value = String(state.cls);
+  el('selTier').value = String(state.tier);
+  loadSetupFromG();
+
   el('selClass').addEventListener('change', (e) => {
     state.cls = Number(e.target.value);
+    G = { ...G, cls: state.cls };
     state.settings = {};        // 車体が変わると車高の基準も変わるので既定に戻す
     state.stash = { quali: null, race: null };   // 予選用も作り直し
     gridParam = null;           // 別クラスの予選結果は使えない
@@ -1662,7 +1745,7 @@ try {
     renderAll();
     clearLaps(true);            // 別の車になるので前回ラップとは比べない
   });
-  el('selTier').addEventListener('change', (e) => { state.tier = Number(e.target.value); renderAll(); });
+  el('selTier').addEventListener('change', (e) => { state.tier = Number(e.target.value); G = { ...G, tier: state.tier }; renderAll(); });
   el('calcBtn').addEventListener('click', calcLaps);
   // パーツ選択モニターを閉じる：✕、背景タップ、Esc
   el('modClose').addEventListener('click', closePicker);
@@ -1681,37 +1764,6 @@ try {
   el('tabRace').addEventListener('click', () => switchSession('race'));
   if (back.get('grid')) gridParam = back.get('grid');
   drawRaceButton();
-
-  // レース画面から戻ってきたときは、そのときのクラス・スポンサー・装着を復元する
-  if (back.get('cls')) {
-    state.cls = Math.min(5, Math.max(1, Number(back.get('cls'))));
-    el('selClass').value = String(state.cls);
-  }
-  if (back.get('tier')) {
-    state.tier = Math.min(4, Math.max(0, Number(back.get('tier'))));
-    el('selTier').value = String(state.tier);
-  }
-  for (const id of (back.get('parts') ?? '').split(',').filter(Boolean)) {
-    const p = partById(id);
-    if (p && isLegal(p)) equipPart(p);
-  }
-  for (const [key, short] of Object.entries(SHORT)) {
-    if (back.get(short) !== null) state.settings[key] = Number(back.get(short));
-  }
-  // 予選用セッティングが URL にあれば、決勝用とは別に控えておく
-  if (back.get('qparts') !== null || back.get('qtp') !== null) {
-    const quali = { equipped: Object.fromEntries(ALL_SLOTS.map((s) => [s, null])), settings: {} };
-    const raceNow = snapshotSetup();
-    for (const id of (back.get('qparts') ?? '').split(',').filter(Boolean)) {
-      const p = partById(id);
-      if (p && isLegal(p)) for (const slot of occupiedSlots(p)) quali.equipped[slot] = p.id;
-    }
-    for (const [key, short] of Object.entries(SHORT)) {
-      if (back.get(`q${short}`) !== null) quali.settings[key] = Number(back.get(`q${short}`));
-    }
-    state.stash.quali = quali;
-    loadSetup(raceNow);
-  }
 
   el('selCourse').dataset.ready = '1';
   drawCourses();

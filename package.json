@@ -4,6 +4,6 @@
   "type": "module",
   "description": "ハルカのセッティングノート — 依存パッケージなし。type: module は Node で src/ を ES Modules として実行するためだけにある。",
   "scripts": {
-    "test": "node --test src/engine/race.test.js"
+    "test": "node --test \"src/engine/*.test.js\""
   }
 }

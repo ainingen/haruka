@@ -194,6 +194,14 @@ h3.cap {
 
 /* --- 結果 ----------------------------------------------------------------- */
 .result { border: 1px solid var(--mon-line); }
+.balance { padding: 4px 8px; }
+.brow { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; border-bottom: 1px dashed var(--mon-line); }
+.brow:last-child { border-bottom: 0; }
+.brow .k { font-family: var(--jp-font); font-size: var(--fs-small); color: var(--mon-dim); }
+.brow .v { font-size: var(--fs-num); }
+.brow.up .v { color: var(--mon-green); }
+.brow.down .v { color: var(--mon-amber); }
+.brow.total .v { font-size: var(--fs-num-lg); font-weight: 700; }
 .rrow {
   display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: baseline;
   padding: 5px 8px; border-bottom: 1px solid var(--mon-line); font-family: var(--jp-font); font-size: var(--fs-body);
@@ -310,6 +318,8 @@ import {
   createFuelState, advanceFuel, fuelLevel, fuelLapsLeft, canRunLap,
   QUALI, START, gridBlockFactor,
 } from '../engine/race.js';
+import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
+import { prizeFor, entryFee, sponsorFee } from '../engine/economy.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const el = (id) => document.getElementById(id);
@@ -332,15 +342,30 @@ function cue(name, detail = {}) {
 
 // ---------------------------------------------------------------------------
 // URL パラメータ（setup.html から渡ってくる）
-//   course / laps / cls / tier / parts(カンマ区切りの id) / tp / rh / bb / seed
-//   ブラウザストレージは使わない（PLiCy の制約）
+//   s      進行（所持金・所有・装着・シーズン）。src/engine/save.js。ブラウザストレージは使わない
+//   session / course / laps / grid / seed   このレースの条件（進行ではない）
+//   開発用に、s が無ければ cls / tier / parts / tp / rh / bb からも組める（legacyState）
 // ---------------------------------------------------------------------------
 const Q = new URLSearchParams(location.search);
 /** 予選 (quali) か決勝 (race) か。予選は計測3周、ベストラップでグリッドを決める。 */
 const SESSION = Q.get('session') === 'quali' ? 'quali' : 'race';
 const IS_QUALI = SESSION === 'quali';
-/** 予選用のセッティングは q 付きのパラメータで来る。無ければ決勝用と同じ */
-const qp = (key, qkey) => (IS_QUALI && Q.get(qkey) !== null ? Q.get(qkey) : Q.get(key));
+/** ゲームの進行。boot で読む。決勝が終わると収支を反映した新しい G になる */
+let G = null;
+
+/** s が無い開発用リンク（?cls=&parts=…）から進行を組む。渡されたパーツは所有扱い。 */
+function legacyState(economy) {
+  const ids = (Q.get('parts') ?? '').split(',').filter(Boolean);
+  const settings = {};
+  for (const [key, short] of Object.entries({ tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' })) {
+    if (Q.get(short) !== null) settings[key] = Number(Q.get(short));
+  }
+  return {
+    ...newGame(economy),
+    cls: clamp(Number(Q.get('cls') ?? 2), 1, 5), tier: clamp(Number(Q.get('tier') ?? 1), 0, 4),
+    owned: ids, setup: { race: { parts: ids, settings }, quali: null },
+  };
+}
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const PROFILE = { straight: 'ストレート主体', corner: 'コーナー主体', balanced: 'バランス型',
                  fast: '高速コーナー主体', stopgo: 'ストップ＆ゴー' };
@@ -1114,11 +1139,9 @@ function qualiFinish() {
   commentary('quali_end', 'analyst', vars);
 
   const grid = list.map((c) => c.id).join(',');
-  const q = new URLSearchParams(location.search);
-  q.set('session', 'race');
-  q.set('grid', grid);
-  const back = new URLSearchParams(location.search);
-  back.set('grid', grid);
+  const common = { course: S.course.id, laps: Q.get('laps') ?? 10, grid };
+  const q = searchWithState(G, { ...common, session: 'race' }).slice(1);
+  const back = searchWithState(G, { ...common, session: 'quali' }).slice(1);
   el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">予選結果 — スターティンググリッド</h3>${list.map((car, i) => `
     <div class="rrow ${car.isPlayer ? 'me' : ''}">
       <span class="pos">${i + 1}</span>
@@ -1174,28 +1197,32 @@ const S = {
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
     json('../../data/radio.json'), json('../../data/commentary.json'), json('../../data/rivals.json'),
+    json('../../data/economy.json'),
   ]);
+  S.economy = economy;
+  G = stateFromSearch(location.search) ?? legacyState(economy);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
-  const cls = clamp(Number(Q.get('cls') ?? 2), 1, 5);
-  const tier = clamp(Number(Q.get('tier') ?? 1), 0, 4);
+  const cls = clamp(Number(G.cls ?? 1), 1, 5);
+  const tier = clamp(Number(G.tier ?? 0), 0, 4);
+  S.cls = cls;
   const chassis = chassisData[CLASS_CHASSIS[cls]];
   S.totalLaps = clamp(Number(Q.get('laps') ?? 10), 1, 60);
   S.course = course;
   S.load = courseLoad(course);
 
-  const ids = (qp('parts', 'qparts') ?? '').split(',').filter(Boolean);
-  const mine = ids.map((id) => parts.find((p) => p.id === id))
-    .filter((p) => p && p.class_required <= cls && p.sponsor_tier <= tier);
+  // 予選なら予選用のセッティング。無ければ決勝用と同じ。持っていない・規定外のパーツは落とす
+  const setup = (IS_QUALI && G.setup?.quali) ? G.setup.quali : (G.setup?.race ?? { parts: [], settings: {} });
+  const mine = (setup.parts ?? []).map((id) => parts.find((p) => p.id === id))
+    .filter((p) => p && G.owned.includes(p.id) && p.class_required <= cls && p.sponsor_tier <= tier);
   const settings = {};
   for (const [key, def] of Object.entries(SETTINGS)) {
-    const short = { tire_pressure: 'tp', ride_height: 'rh', brake_bias: 'bb' }[key];
-    const raw = qp(short, `q${short}`);
-    if (raw !== null && isSettingUnlocked(def, mine)) settings[key] = Number(raw);
+    const raw = setup.settings?.[key];
+    if (raw !== null && raw !== undefined && isSettingUnlocked(def, mine)) settings[key] = Number(raw);
   }
   if (IS_QUALI) S.totalLaps = QUALI.laps;
   const driver = { ...drivers[0] };
@@ -1229,7 +1256,7 @@ async function boot() {
   setupTrack(course);
   el('courseName').textContent = course.name;
   el('courseProf').textContent = `${PROFILE[course.profile] ?? ''}・1周 ${course.length.toLocaleString('ja-JP')} m・${S.totalLaps} 周・${S.cars.length} 台`;
-  el('backLink').href = `setup.html${location.search}`;
+  el('backLink').href = `setup.html${searchWithState(G, { course: course.id, laps: S.totalLaps, session: SESSION, grid: Q.get('grid') })}`;
   if (IS_QUALI) {
     document.title = '予選 — ハルカのセッティングノート';
     el('courseName').textContent = `${course.name}（予選）`;
@@ -1553,7 +1580,34 @@ function finish() {
   commentary('checkered', 'announcer', { ...vars, pos: myPos }, [myPos === 1 ? 'win' : 'notwin']);
   commentary('checkered', 'analyst', vars);
   renderPanel();
-  el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {
+
+  // --- 収支。賞金は順位別（リタイアは 0）。参加費は決勝で1回。スポンサー料は段階ごとに固定 ------
+  const me = S.cars[0];
+  const E = S.economy;
+  const balance = {
+    pos: me.retired ? null : myPos, retired: me.retired,
+    prize: prizeFor(E, S.cls, myPos, me.retired), fee: entryFee(E, S.cls), sponsorFee: sponsorFee(E, G.tier),
+    best: Number.isFinite(me.best) ? me.best : null,
+  };
+  balance.net = balance.prize + balance.sponsorFee - balance.fee;
+  G = { ...G, money: G.money + balance.net };
+  S.balance = balance;
+  cue('race.balance', { net: balance.net });
+  const nextHref = `setup.html${searchWithState(G, { course: S.course.id, laps: S.totalLaps })}`;
+  el('backLink').href = nextHref;
+
+  const yen = (n) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
+  const line = (k, v, cls = '') => `<div class="brow ${cls}"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">収支</h3>
+    <div class="balance">
+      ${line('賞金', yen(balance.prize) + (me.retired ? '（リタイア）' : `（${myPos}位）`))}
+      ${balance.sponsorFee ? line('スポンサー料', yen(balance.sponsorFee)) : ''}
+      ${line('参加費', yen(-balance.fee))}
+      ${line('差し引き', yen(balance.net), balance.net >= 0 ? 'up' : 'down')}
+      ${line('所持金', yen(G.money), 'total')}
+    </div>
+    <div class="controls" style="padding:8px"><a class="btn primary" href="${nextHref}">セッティングへ（収支を反映）</a></div>
+  </div>` + `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {
     const wear = (car.lastWear * 100).toFixed(0);
     return `<div class="rrow ${car.isPlayer ? 'me' : ''}">
       <span class="pos">${car.retired ? '—' : i + 1}</span>
