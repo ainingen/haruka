@@ -324,7 +324,7 @@ import {
 import { loadState, save, newGame, searchWithState, sawScene, markScene } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
 import { rivalSpec, fieldEntries, rivalLoadout, aiNotes } from '../engine/rivals.js';
-import { currentRound, recordResult, rivalPlanFor } from '../engine/season.js';
+import { currentRound, recordResult, rivalPlanFor, winSceneDue } from '../engine/season.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const el = (id) => document.getElementById(id);
@@ -1514,8 +1514,11 @@ function finish() {
   // クラス5の差し込み（data/radio.json の class5、where: 'race'）。**決勝のあと**に無線で出す
   showClass5Race(me);
   save(G);   // 収支と消耗を反映し終えた。ここが1戦の区切り
+  // **クラス5でシリーズ優勝が確定した戦**だけ、優勝の場面（第6場→第7場）へ渡す。
+  // 残り全戦で2位が満点を取っても届かない、が確定の条件（src/engine/season.js の titleClinched）
+  const clinched = inSeason && winSceneDue(G, list.map((c) => c.id), E);
   const nextHref = inSeason
-    ? `season.html${searchWithState(G, {})}`
+    ? `season.html${searchWithState(G, clinched ? { scene: 'win' } : {})}`
     : `setup.html${searchWithState(G, { course: S.course.id, laps: S.totalLaps })}`;
   el('backLink').href = nextHref;
   el('backLink').textContent = inSeason ? 'シーズンへ' : 'セッティングへ戻る';

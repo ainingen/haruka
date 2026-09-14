@@ -27,6 +27,11 @@ h1 {
   margin: 6px 0 2px; font-family: var(--hand-font); font-weight: 600; font-size: var(--fs-num-lg); line-height: 1.35; letter-spacing: .06em;
 }
 .by { font-family: var(--hand-font); color: var(--ink-2); font-size: var(--fs-small); letter-spacing: .04em; }
+.by span { display: block; }
+.by .taiga { letter-spacing: .3em; color: var(--ink); }
+.by .child { letter-spacing: .22em; padding-left: .6em; }
+.by .haruka { letter-spacing: .1em; padding-left: 1.2em; color: var(--ink); }
+.by .haruka[hidden] { display: none; }
 .rule { border: 0; border-top: 1px solid var(--ink-3); margin: 18px 0; }
 .lead { font-family: var(--hand-font); font-size: var(--fs-body); color: var(--ink); margin: 0 0 18px; }
 .menu { display: grid; gap: 10px; }
@@ -58,7 +63,11 @@ h1 {
 <div class="cover"><div class="cover-inner">
   <div class="k">SETTING NOTE</div>
   <h1>ハルカの<br>セッティングノート</h1>
-  <div class="by">神谷大河 — 神谷ハルカ</div>
+  <div class="by">
+    <span class="taiga">TAIGA</span>
+    <span class="child">はるか</span>
+    <span class="haruka" id="coverHaruka" hidden>ハルカ</span>
+  </div>
   <hr class="rule">
   <p class="lead">セッティングは、車の文句に返事をすること。</p>
 
@@ -90,6 +99,8 @@ const el = (id) => document.getElementById(id);
  * 保存先の切り替えは save.js の中。ここは「あるか無いか」しか見ない。
  */
 const saved = loadSaved();
+// エンディングを見たあとの表紙は三段（TAIGA／はるか／ハルカ）
+if (saved?.ending?.done) el('coverHaruka').hidden = false;
 if (saved) {
   el('continueBtn').innerHTML = 'つづきから<small>この端末の保存から再開'
     + `（${saved.season?.year ?? 1}年目・クラス${saved.cls ?? 1}）</small>`;

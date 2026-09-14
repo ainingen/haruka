@@ -138,6 +138,41 @@ export function seasonEvents(verdict) {
 }
 
 /**
+ * **シーズン優勝が確定したか。** 残り全戦で2位が満点を取っても追いつけない状態。
+ *
+ * クラス5の優勝の場面（第6場・第7場）は、この瞬間に出す。最終戦を待たない。
+ * 「決めた」瞬間に出すのがチャンピオン確定で、消化試合を挟むと嘘になる。
+ *
+ * @param {object} season  いまのシーズン（`recordResult` 済み）
+ * @param {string[]} ids   出走している車の id
+ * @param {object} economy data/economy.json（`points` の満点を見る）
+ */
+export function titleClinched(season, ids, economy) {
+  if (!season) return false;
+  const left = season.rounds.length - season.next;
+  const table = standings(season, ids);
+  if (table[0]?.id !== 'me') return false;
+  const max = economy.points[0] ?? 0;
+  const second = table[1]?.points ?? 0;
+  // 残り全部で満点を取られても届かないなら確定（同点は自車が上なので「以上」でよい）
+  return table[0].points >= second + left * max;
+}
+
+/**
+ * 優勝の場面（第6場→第7場）を出す戦かどうか。
+ * **クラス5でシリーズ優勝が確定した戦だけ、一度きり。** 決勝の結果を記録したあとに見る。
+ * クラス4以下では、シリーズ優勝でもエンディングには行かない（昇格するだけ）。
+ *
+ * @param {object} state 進行（cls, season, ending.seen）
+ * @param {string[]} ids 出走した車の id
+ */
+export function winSceneDue(state, ids, economy) {
+  if (!state || (state.cls ?? 0) < 5) return false;
+  if (state.ending?.seen?.includes('win')) return false;
+  return titleClinched(state.season, ids, economy);
+}
+
+/**
  * シーズンを閉じて次を組む。昇降格、スポンサー段階、ハルカのノート、新しい6戦。
  * @param {object[]} sponsors data/sponsors.json（段階ごとの会社）
  * @returns {{ state, verdict, note, symptom, sponsorChanged, events }}

@@ -182,3 +182,30 @@
 }
 .scene-write button.go { background: var(--car); color: var(--paper); border-color: var(--car); font-weight: 700; }
 .scene-write .count { font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--ink-2); margin-left: auto; }
+/* 第7場のスタッフロール。ノートのページを1枚ずつめくる。**BGM は無い** */
+.scene-credits {
+  margin: 14px 0; min-height: min(60vh, 15em); display: grid; align-items: center;
+}
+.scene-credits .page {
+  padding: 14px 16px; background: var(--paper-2); border: 1px solid var(--ink-3);
+  font-size: var(--fs-body); line-height: 1.8; letter-spacing: .06em; white-space: pre-wrap;
+  animation: page-turn .5s ease-out;
+}
+.scene-credits .page .k {
+  display: block; font-family: var(--jp-font); font-size: var(--fs-label);
+  letter-spacing: var(--ls-label); color: var(--ink-3); margin-bottom: 5px;
+}
+/* 大河の字＝明朝、子どもの字とハルカの字は太さと字間で分ける（書体は増やさない） */
+.scene-credits .taiga  { font-family: var(--hand-font); }
+.scene-credits .child  { font-family: var(--hand-font); letter-spacing: .22em; line-height: 2.1; color: var(--ink-2); }
+.scene-credits .haruka { font-family: var(--hand-font); letter-spacing: .1em; }
+.scene-credits .cover {
+  font-family: var(--jp-font); text-align: center; letter-spacing: .18em;
+  background: var(--paper); border-width: 2px; border-color: var(--rule); padding: 22px 16px;
+}
+.scene-credits .cover .k { letter-spacing: .3em; color: var(--ink-2); margin-bottom: 9px; }
+@keyframes page-turn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .scene-credits .page { animation: none; } }

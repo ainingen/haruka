@@ -10,10 +10,10 @@ import { dirname, join } from 'node:path';
 import {
   newSeason, currentRound, seasonOver, pointsFor, recordResult, standings, myRank,
   verdictFor, topSymptom, sponsorTierAfter, endSeason, pickNote, simulateField, coursesFor,
-  seasonEvents, SEASON_EVENTS,
+  seasonEvents, SEASON_EVENTS, titleClinched, winSceneDue,
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
-import { newGame, encode, decode } from './save.js';
+import { newGame, encode, decode, markScene, trimTo, LINE_MAX, NAME_MAX } from './save.js';
 import { buildPerformance, createRng, simulateRace, WEIGHTS } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -334,4 +334,84 @@ test('S8. 場面：台本どおりの台詞が scenes.json にあり、一度見
   // 形式を通っても消えない
   assert.deepEqual(decode(encode(g)).ending, g.ending);
   console.log(`  場面 ${SCENES.length} 本：${SCENES.map((s) => `${s.id}(台詞${s.steps.filter((x) => x.say).length})`).join(' ')}`);
+});
+
+test('S9. 優勝の場面はクラス5で優勝が確定した戦だけ。クラス4以下では出ない', () => {
+  const ids = ['me', ...Array.from({ length: 11 }, (_, i) => `ai${i}`)];
+  const max = ECONOMY.points[0];
+  // 残り2戦。2位に max*2 + 1 差を付けていれば、全部取られても届かない
+  const seasonAt = (next, lead) => ({
+    year: 5, rounds: Array.from({ length: 6 }, () => ({ course: 'kazahaya', laps: 16 })), next,
+    points: { me: 100, ai0: 100 - lead, ai1: 10 }, symptoms: {},
+  });
+  const g5 = { ...newGame(ECONOMY), cls: 5 };
+  const left = 6 - 4;
+  assert.equal(titleClinched(seasonAt(4, left * max + 1), ids, ECONOMY), true, '届かない差なら確定');
+  assert.equal(titleClinched(seasonAt(4, left * max - 1), ids, ECONOMY), false, '追いつける差なら未確定');
+  assert.equal(titleClinched(seasonAt(4, -1), ids, ECONOMY), false, '2位なら確定しない');
+  assert.equal(titleClinched(seasonAt(6, 1), ids, ECONOMY), true, '最終戦が終われば1点差でも確定');
+
+  const clinch = seasonAt(4, left * max + 1);
+  // **クラス4以下では出ない。** 優勝が確定していても、昇格するだけ
+  for (const cls of [1, 2, 3, 4]) {
+    assert.equal(winSceneDue({ ...g5, cls, season: clinch }, ids, ECONOMY), false, `クラス${cls}では出ない`);
+  }
+  assert.equal(winSceneDue({ ...g5, season: clinch }, ids, ECONOMY), true, 'クラス5の確定した戦で出る');
+  // **二度は出ない**
+  const seen = markScene({ ...g5, season: clinch }, 'win');
+  assert.equal(winSceneDue(seen, ids, ECONOMY), false, '一度見たら出ない');
+  // 確定していない戦では出ない
+  assert.equal(winSceneDue({ ...g5, season: seasonAt(4, left * max - 1) }, ids, ECONOMY), false);
+  console.log(`  優勝確定：残り${left}戦、満点${max}点 → ${left * max + 1}点差で確定`);
+});
+
+test('S10. エンディングの一行と既読が進行に残り、保存文字列は 4,000 字に収まる', () => {
+  const SCENE_DEFAULT = load('scenes.json').scenes
+    .find((s) => s.id === 'ending').steps.find((s) => s.do === 'input').default;
+  assert.equal(SCENE_DEFAULT, '今日、ウチが決めた。おいちゃんとふたりで', '第7場の既定文は台本のまま');
+
+  let g = newGame(ECONOMY);
+  assert.equal(g.ending.line, '');
+  assert.equal(g.ending.done, false);
+  // 第7場：書いた一行は 40 字まで。書かなければ既定文
+  const write = (text) => ({ ...g, ending: { ...g.ending, line: trimTo(text, LINE_MAX, SCENE_DEFAULT), done: true } });
+  assert.equal(write('').ending.line, SCENE_DEFAULT, '書かなければ既定文');
+  assert.equal([...write('あ'.repeat(80)).ending.line].length, LINE_MAX, '40 字で切る');
+
+  // 一番かさむ形（長い名前・長い一行・場面を全部見た・6戦すべて結果あり）で 4,000 字に収まる
+  g = write('あ'.repeat(LINE_MAX));
+  g = { ...g, cls: 5, player: { name: 'あ'.repeat(NAME_MAX) }, prologue: { line: 'あ'.repeat(LINE_MAX) } };
+  for (const id of load('scenes.json').scenes.map((s) => s.id)) g = markScene(g, id);
+  const ids = ['me', ...Array.from({ length: 19 }, (_, i) => `ai${i}`)];
+  g.season = newSeason(5, COURSES, ECONOMY, createRng(7));
+  for (let i = 0; i < 6; i += 1) {
+    g = recordResult(g, {
+      classification: ids.map((id, n) => ({ id, pos: n + 1, retired: false })),
+      mine: { pos: 1, retired: false, prize: 12000, fee: 3000, sponsorFee: 4000, repair: 900, best: 92.345 },
+      symptoms: { tire_wear: 3, understeer: 2 },
+    }, ECONOMY);
+  }
+  const str = encode(g);
+  assert.ok(str.length <= 4000, `保存文字列が長い：${str.length} 字`);
+  const back = decode(str);
+  assert.deepEqual(back.ending, g.ending, 'エンディングの一行と既読は形式を通っても消えない');
+  assert.equal(back.ending.done, true);
+  console.log(`  エンディング込みの保存文字列：${str.length} / 4,000 字（場面${g.ending.seen.length}本・6戦ぶん）`);
+});
+
+test('S11. 台本の台詞が、そのまま scenes.json と radio.json に入っている', async () => {
+  const { existsSync } = await import('node:fs');
+  const script = join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md');
+  if (!existsSync(script)) { console.log('  台本が無いので突き合わせを飛ばす'); return; }
+  const { build } = await import('../../tools/build-scenes.mjs');
+  const { scenes, class5, seasonNote } = build(readFileSync(script, 'utf8'));
+
+  // 場面：台本から抜いたものと data/scenes.json が一字一句同じ
+  assert.deepEqual(load('scenes.json').scenes, scenes, 'data/scenes.json が台本と合っていない（--write で作り直す）');
+  // 無線：クラス5の差し込みと、シーズン末の一行
+  assert.deepEqual(RADIO.class5, class5, 'data/radio.json の class5 が台本と合っていない');
+  assert.deepEqual(RADIO.season_note.class5, seasonNote, 'season_note.class5 が台本と合っていない');
+  const says = scenes.flatMap((s) => s.steps.filter((x) => x.say)).length;
+  const lines = Object.values(class5).filter((t) => t.lines).reduce((n, t) => n + t.lines.length, 0);
+  console.log(`  台本と一致：場面 ${scenes.length} 本 / 台詞 ${says} 行、無線 ${lines} 本、シーズン末 ${seasonNote.length} 本`);
 });

@@ -13,7 +13,7 @@
  *   ｛名前｝      → プレイヤー名、｛一行｝ → プロローグで書いた一行（scene.js が差し替える）
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -47,6 +47,7 @@ export function parseScript(md) {
   const scenes = [];
   let scene = null;
   let radio = null;
+  let inQuote = false;
   const radios = {};
   for (const raw of md.split(/\r?\n/)) {
     const line = raw.trim();
@@ -74,14 +75,28 @@ export function parseScript(md) {
     }
     if (stage) continue;
 
-    // 　「…」＝ノートや実況に出る文字。画面に出す
-    const note = raw.match(/^　+「(.+)」$/) ?? raw.match(/^　+「(.+)$/);
-    if (note) {
-      const text = note[1].replace(/」$/, '');
-      if (scene) scene.steps.push({ note: text });
-      else radio.lines.push({ note: text });
+    // 行頭が全角空白＝ノートや実況に出る文字。画面に出す
+    if (/^　/.test(raw) && line) {
+      const into = scene ? scene.steps : radio.lines;
+      // 既定文は直前の【テキスト入力】に付ける。画面に出す文字ではなく、入力欄の初期値
+      const preset = line.match(/^既定文[^：]*：「(.+)」$/);
+      if (preset) {
+        const input = [...into].reverse().find((s) => s.do === 'input');
+        if (input) input.default = preset[1];
+        inQuote = false;
+        continue;
+      }
+      // **閉じていない「 は、閉じるまでを1つにまとめる**（複数行で1つの引用になっている）
+      if (inQuote) {
+        into.at(-1).note += `\n${line.replace(/」$/, '')}`;
+        if (/」$/.test(line)) inQuote = false;
+        continue;
+      }
+      into.push({ note: line.replace(/^「/, '').replace(/」$/, '') });
+      inQuote = /^「/.test(line) && !/」$/.test(line);
       continue;
     }
+    inQuote = false;
 
     // 話者：台詞
     const say = line.match(/^([^：:【\-#]+)：(.*)$/);
@@ -110,11 +125,11 @@ const SEASON_NOTE = /シーズン終了時のノートの一行/;
 /** 話者名 → radio.json の speakers のキー。 */
 const SPEAKER = { ハルカ: 'haruka', 主人公: 'player' };
 
-const md = readFileSync(join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md'), 'utf8');
-const { scenes, radios } = parseScript(md);
+/** 台本（docs/シナリオ/クラス5台本.md）を読む。 */
+export const readScript = () => readFileSync(join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md'), 'utf8');
 
 /** 台本の差し込みを radio.json の形にする。 */
-function buildRadio() {
+function buildRadio(radios) {
   const class5 = {
     _comment: 'tools/build-scenes.mjs が docs/シナリオ/クラス5台本.md から作る。**手で直さない。**',
   };
@@ -131,7 +146,18 @@ function buildRadio() {
   const note = Object.entries(radios).find(([when]) => SEASON_NOTE.test(when));
   return { class5, seasonNote: note[1].lines.map((l) => ({ text: l.note, sound_cue: '' })) };
 }
-const { class5, seasonNote } = buildRadio();
+/** 台本 → 出力の一式。台本が無ければ投げる。 */
+export function build(md = readScript()) {
+  const { scenes, radios } = parseScript(md);
+  const { class5, seasonNote } = buildRadio(radios);
+  return { scenes, radios, class5, seasonNote };
+}
+
+const isMain = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (isMain) main();
+
+function main() {
+const { scenes, radios, class5, seasonNote } = build();
 const out = `${JSON.stringify({
   _comment: 'tools/build-scenes.mjs が docs/シナリオ/クラス5台本.md から作る。**手で直さない。** 台本を直してから作り直す。',
   scenes,
@@ -155,4 +181,5 @@ if (process.argv.includes('--write')) {
   for (const [when, r] of Object.entries(radios)) console.log(`  ${r.lines.length} 本 — ${when}`);
 } else {
   process.stdout.write(out);
+}
 }
