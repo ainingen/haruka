@@ -155,6 +155,8 @@ h3.cap {
 .row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .nm .short { display: none; }
 .row .s, .row .last, .row .gap { text-align: right; }
+/* 狭い画面で消す桁。<i> の既定の斜体を打ち消す（数字が傾くと桁が読みにくい） */
+.row .opt { font-style: normal; }
 .row .s { color: var(--mon-dim); }
 .row .s.green  { color: var(--mon-green); }
 .row .s.yellow { color: var(--mon-amber); }
@@ -208,6 +210,8 @@ h3.cap {
    .opt が付いているのは「無くても読める桁」＝セクターの 1/100 秒と、ギャップの単位。 */
 @media (max-width: 420px) {
   .row { grid-template-columns: 18px minmax(0, 1fr) repeat(3, 31px) 100px 48px; gap: 0 3px; }
+  /* 列幅は変えずに字だけ1段小さくする。右揃えなので、空いたぶんが数字の間の余白になる */
+  .row .s { font-size: var(--fs-label); }
   /* 名前はゼッケンだけにする。本物のタイミング画面と同じで、まず番号で追う */
   .row .nm .full { display: none; }
   .row .nm .short { display: inline; }

@@ -166,7 +166,7 @@ h2 {
   background: none; border: 1px solid var(--mon-line); color: var(--mon-text);
 }
 .mod-head .x:hover { border-color: var(--mon-text); }
-.mod-body { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 0; }
+.mod-body { display: grid; grid-template-columns: 288px minmax(0, 1fr); min-height: 0; }
 .mod-left { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; border-right: 1px solid var(--mon-line); }
 .mod-list { overflow-y: auto; min-height: 0; }
 .cand {
@@ -190,6 +190,8 @@ h2 {
 .cmp-cap { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--mon-dim); margin: 8px 0 2px; }
 .cmp-cap.jp { font-family: var(--jp-font); font-size: var(--fs-sub); letter-spacing: .12em; }
 .radar { width: 100%; max-width: 230px; height: auto; display: block; margin: 2px auto 0; }
+/* 狭い画面では図を詰めて、比較の数字が折り返しの上に入るようにする */
+@media (max-width: 560px) { .radar { max-width: 168px; } }
 .radar .axis-label { font-family: var(--jp-font); font-size: var(--fs-micro); fill: var(--mon-dim); }
 .axes { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
 .axes th { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--mon-dim); font-weight: 400; text-align: right; padding: 0 4px 2px; }
