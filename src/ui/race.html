@@ -323,6 +323,8 @@ import {
 } from '../engine/race.js';
 import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
+import { rivalSpec, fieldEntries } from '../engine/rivals.js';
+import { currentRound, recordResult } from '../engine/season.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const el = (id) => document.getElementById(id);
@@ -477,45 +479,12 @@ function highlightSector(idx) {
 // 出走車
 // ---------------------------------------------------------------------------
 /**
- * AI の性格（5種）。data/rivals.json の profile がこのキーを指す。
- * radio は雑談と解説の語り口（data/radio.json chat.ai、commentary.json analyst_traits）。
- * 同クラス想定なので、得意分野を散らして総合力は近づける。
+ * 名簿の1行から AI 車を組む。中身（性能・ドライバー・語り口）は src/engine/rivals.js。
+ * ここでは描画と走行の状態を足すだけ。
  */
-const AI_PROFILES = {
-  straight: { radio: 'straight', tune: { power: 10, top_speed: 6, drag: -2, downforce: -6, cornering_grip: -4 } },
-  corner:   { radio: 'corner', tune: { downforce: 12, cornering_grip: 6, drag: 5, power: -6, top_speed: -3 } },
-  balanced: { radio: 'aggressive', tune: { power: 3, cornering_grip: 2, stability: 3, weight: -6 } },
-  power:    { radio: 'straight', tune: { power: 16, heat: 5, reliability: -7, driver_demand: 4, cornering_grip: -3 } },
-  stopgo:   { radio: 'slow', tune: { acceleration: 9, traction: 7, braking: 5, top_speed: -7, tire_wear: 3 } },
-};
-/** 強さ3段階。技量の差と、全域に薄く乗せる性能差。同じ性格・同じ強さでも個体差はこの上に乗る。 */
-const AI_STRENGTH = {
-  fast:   { skill: +5, boost: 3 },
-  normal: { skill: 0, boost: 0 },
-  slow:   { skill: -5, boost: -3 },
-};
-
-/** 名簿の1行から AI 車を組む。 */
-function makeRival(entry, i, { mine, driver, chassis, settings, rng, baseSeed }) {
-  const prof = AI_PROFILES[entry.profile] ?? AI_PROFILES.balanced;
-  const str = AI_STRENGTH[entry.strength] ?? AI_STRENGTH.normal;
-  const jitter = {};
-  for (const key of ['power', 'cornering_grip', 'downforce', 'acceleration', 'braking']) {
-    jitter[key] = str.boost + Math.round((rng() - 0.5) * 6);
-  }
-  const tune = { id: `ai_tune_${i}`, effects: prof.tune, side_effects: jitter };
-  const aiDriver = {
-    ...driver,
-    skill: clamp(driver.skill + str.skill + Math.round((rng() - 0.5) * 6), 30, 99),
-    consistency: clamp(driver.consistency + Math.round((rng() - 0.5) * 30), 20, 95),
-    preferred_balance: driver.preferred_balance + Math.round((rng() - 0.5) * 4),
-  };
-  return makeCar({
-    id: `ai${i}`, name: `${entry.number}号車 ${entry.name}`, short: `#${entry.number} ${entry.name}`,
-    number: entry.number, color: 'var(--ai)', radio: prof.radio,
-    perf: buildPerformance([...mine, tune], aiDriver, chassis, settings),
-    driver: aiDriver, seed: baseSeed + i * 977,
-  });
+function makeRival(entry, i, ctx) {
+  const spec = rivalSpec(entry, i, ctx);
+  return makeCar({ ...spec, color: 'var(--ai)', seed: ctx.baseSeed + i * 977 });
 }
 
 function makeCar({ id, name, short = name, number = null, color, perf, driver, seed, isPlayer = false, radio = null }) {
@@ -1096,6 +1065,7 @@ function lapTick() {
       S.lastSnapshot = ev;
       const calls = radioForLap(ev.car.perf, ev, S.radio, S.radioRng);
       for (const call of calls) {
+        if (call.kind === 'info') S.symptoms[call.id] = (S.symptoms[call.id] ?? 0) + 1;
         if (call.kind === 'chat') {
           const line = chatLine();
           say('haruka', line.text, {
@@ -1168,7 +1138,7 @@ function retireTick() {
           lap: car.retiredLap, tire: car.tire, brake: car.brake, fuel: car.fuel,
           driver: car.driver, stopped: true,
         }, S.radio, S.radioRng);
-        for (const call of calls) sayInfo(call);
+        for (const call of calls) { S.symptoms[call.id] = (S.symptoms[call.id] ?? 0) + 1; sayInfo(call); }
       }
       // 機械的なリタイアと燃料切れで実況を選び分ける（熱と耐久の話を燃料に使わない）
       const tags = [car.retireReason === 'fuel' ? 'fuel' : 'mechanical'];
@@ -1196,6 +1166,7 @@ const S = {
   sectorGroup: [], groupBestAll: [Infinity, Infinity, Infinity],
   // ゲージの警戒段階と、前との差の増減。どちらも「変わった瞬間」を拾うために前回値を持つ
   gaugeState: { tire: '', brake: '', fuel: '' }, gapShown: null, gapCue: null,
+  symptoms: {},   // この戦で自車に出た情報系トリガー → 回数（シーズンのノート用）
   checkeredClass: '',
 };
 
@@ -1238,8 +1209,7 @@ async function boot() {
   const baseSeed = Number(Q.get('seed') ?? 20260912);
   const aiRng = createRng(baseSeed);
   // 出走台数はコース × クラスで決まる（courses.json の grid）。名簿の先頭から自車ぶんを除いて使う
-  const gridSize = clamp(Number(course.grid?.[cls] ?? 6), 2, rivals.length + 1);
-  const ai = rivals.slice(0, gridSize - 1)
+  const ai = fieldEntries(rivals, course, cls)
     .map((entry, i) => makeRival(entry, i, { mine, driver, chassis, settings, rng: aiRng, baseSeed }));
 
   S.cars = [
@@ -1607,8 +1577,23 @@ function finish() {
   G = { ...wearResult.state, money: G.money + balance.net };
   S.balance = balance;
   cue('race.balance', { net: balance.net });
-  const nextHref = `setup.html${searchWithState(G, { course: S.course.id, laps: S.totalLaps })}`;
+
+  // シーズン中なら、この戦の結果を記録する（全車の着順 → ポイント、自車の収支、症状の回数）
+  const round = G.season ? currentRound(G.season) : null;
+  const inSeason = !!round && round.course === S.course.id;
+  if (inSeason) {
+    const classification = list.map((car, i) => ({ id: car.id, pos: car.retired ? null : i + 1, retired: car.retired }));
+    G = recordResult(G, {
+      classification,
+      mine: { pos: balance.pos, retired: balance.retired, prize: balance.prize, fee: balance.fee, sponsorFee: balance.sponsorFee, repair: balance.repair, best: balance.best },
+      symptoms: S.symptoms,
+    }, E);
+  }
+  const nextHref = inSeason
+    ? `season.html${searchWithState(G, {})}`
+    : `setup.html${searchWithState(G, { course: S.course.id, laps: S.totalLaps })}`;
   el('backLink').href = nextHref;
+  el('backLink').textContent = inSeason ? 'シーズンへ' : 'セッティングへ戻る';
 
   const yen = (n) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
   const line = (k, v, cls = '') => `<div class="brow ${cls}"><span class="k">${k}</span><span class="v">${v}</span></div>`;
@@ -1625,7 +1610,7 @@ function finish() {
       }).join('<br>'), 'wear') : ''}
       ${balance.repair ? line('修理の見積もり', `${yen(-balance.repair)}<small>（払うかどうかはセッティング画面で）</small>`, 'down') : ''}
     </div>
-    <div class="controls" style="padding:8px"><a class="btn primary" href="${nextHref}">セッティングへ（収支を反映）</a></div>
+    <div class="controls" style="padding:8px"><a class="btn primary" href="${nextHref}">${inSeason ? 'シーズンへ（結果を反映）' : 'セッティングへ（収支を反映）'}</a></div>
   </div>` + `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {
     const wear = (car.lastWear * 100).toFixed(0);
     return `<div class="rrow ${car.isPlayer ? 'me' : ''}">

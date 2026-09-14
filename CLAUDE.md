@@ -56,8 +56,8 @@
 | `docs/設計/` | クラス構成、レース方式、画面設計 |
 | `docs/チューニング/` | パーツ設計（6カテゴリ） |
 | `docs/シナリオ/` | プロローグ台本、キャラクター |
-| `src/engine/` | レース計算エンジン（純関数、I/O なし）とそのテスト。`node --test src/engine/race.test.js` |
-| `src/ui/` | 画面。`setup.html`（セッティング／地は紙）と `race.html`（レース／地は画面の層）。色は `theme.css` の変数のみ。両画面は URL パラメータで装着状態を受け渡す。**HTTP 経由で開くこと**（`file://` では JSON と SVG と CSS を読めない） |
+| `src/engine/` | レース計算エンジン（純関数、I/O なし）とそのテスト。`race.js`（走行）、`economy.js`（お金・消耗）、`season.js`（シーズン・昇降格・スポンサー）、`rivals.js`（AI車）、`save.js`（進行のシリアライズ）。`npm test` |
+| `src/ui/` | 画面。`season.html`（シーズンのハブ）、`setup.html`（セッティング／地は紙）、`race.html`（レース／地は画面の層）。色は `theme.css` の変数のみ。進行は URL の `s=` 1つで持ち回る（`src/engine/save.js`）。**HTTP 経由で開くこと**（`file://` では JSON と SVG と CSS を読めない） |
 | `tools/` | **開発用スクリプト。配布物に含めない。** データを生成するだけで、ゲームからは読み込まない（`generate-courses.mjs` ＝ コース形状の生成） |
 
 ## 実装するときの指針

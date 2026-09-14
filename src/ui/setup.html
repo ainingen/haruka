@@ -303,6 +303,10 @@ h2 {
   background: var(--field); color: var(--ink); border: 1px solid var(--ink-3);
 }
 .entry .note { font-size: var(--fs-sub); color: var(--ink-2); flex-basis: 100%; }
+.entry.season { margin-bottom: 6px; }
+.entry.season .k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
+.entry.season span:last-child { font-weight: 700; }
+.entry select:disabled { color: var(--ink); opacity: 1; border-color: transparent; background: transparent; appearance: none; padding-left: 0; }
 .notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
 .notes .cap { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); padding: 4px 8px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg); }
 .notes .body { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 10px; }
@@ -429,6 +433,9 @@ h2 {
   <div id="lapsWrap"></div>
 
   <h2>出走</h2>
+  <div class="entry season" id="seasonLine" hidden>
+    <span class="k">SEASON</span><span id="seasonText">—</span>
+  </div>
   <div class="entry">
     <label>コース <select id="selCourse"></select></label>
     <label>周回 <select id="selLaps">
@@ -458,6 +465,7 @@ h2 {
 </div></div>
 
 <div class="calcbar">
+  <a class="ghost" id="seasonLink" href="season.html" hidden>シーズンへ</a>
   <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
   <button id="qualiBtn" class="ghost" type="button">予選へ</button>
   <button id="raceBtn" type="button">決勝開始</button>
@@ -490,6 +498,7 @@ import {
 } from '../engine/race.js';
 import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
+import { currentRound } from '../engine/season.js';
 
 // ---------------------------------------------------------------------------
 // 表示用の語彙（data/README.md のキー → 日本語）
@@ -1798,6 +1807,28 @@ try {
   el('tabRace').addEventListener('click', () => switchSession('race'));
   if (back.get('grid')) gridParam = back.get('grid');
   drawRaceButton();
+
+  // シーズン中なら、その戦のコースと周回に固定する。デバッグの切り替えは隠す
+  const round = G.season ? currentRound(G.season) : null;
+  if (round) {
+    wanted.course = round.course;
+    const laps = el('selLaps');
+    if (![...laps.options].some((o) => Number(o.value) === round.laps)) laps.add(new Option(`${round.laps} 周`, String(round.laps)));
+    laps.value = String(round.laps);
+    laps.disabled = true;
+    el('selCourse').disabled = true;
+    document.querySelector('.debug').hidden = true;
+    el('seasonLine').hidden = false;
+    el('seasonText').textContent = `${G.season.year}年目 第${G.season.next + 1}戦 / ${G.season.rounds.length}戦`;
+  }
+  if (G.season) {
+    el('seasonLink').hidden = false;
+    el('seasonLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      syncG();
+      location.href = `season.html${searchWithState(G, {})}`;
+    });
+  }
 
   el('selCourse').dataset.ready = '1';
   drawCourses();

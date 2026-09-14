@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="theme.css">
+<title>シーズン — ハルカのセッティングノート</title>
+<style>
+/* ===========================================================================
+   シーズン画面（docs/設計/経済とシーズン.md「画面」）。進行のハブ。
+   地は画面の層。6戦の一覧とポイント表はタイミングモニターの続き。
+   ハルカがノートに書いた一行だけ紙。**色は theme.css の変数でしか書かない。**
+   =========================================================================== */
+:root { --car: var(--mon-car); --ai: var(--mon-ai); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--mon-bg); color: var(--mon-text);
+  font-family: var(--mon-font); font-size: var(--fs-body); line-height: 1.55;
+  font-variant-numeric: tabular-nums; -webkit-text-size-adjust: 100%; padding: 6px;
+}
+.jp { font-family: var(--jp-font); }
+.sheet { max-width: 560px; margin: 0 auto; border: 1px solid var(--mon-line); padding: 3px; }
+.sheet-inner { border: 1px solid var(--mon-line); padding: 8px; }
+.sheet-inner > * + * { margin-top: 8px; }
+
+h3.cap {
+  margin: 0; font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--mon-dim); font-weight: 400;
+  padding: 4px 7px; border-bottom: 1px solid var(--mon-line); background: var(--mon-bg-2);
+}
+.box { border: 1px solid var(--mon-line); }
+
+/* --- 見出し：年・クラス・所持金・スポンサー ------------------------------------ */
+.head { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; border-bottom: 1px solid var(--mon-line); padding-bottom: 6px; }
+.head .k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--mon-green); }
+.head .title { font-family: var(--jp-font); font-size: var(--fs-title); font-weight: 700; line-height: 1.3; }
+.head .sub { font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--mon-dim); }
+.head .money { text-align: right; }
+.head .money b { display: block; font-size: var(--fs-num-lg); font-weight: 700; line-height: 1.2; }
+.head .money .k { color: var(--mon-dim); }
+
+/* --- 紙：ハルカのノートの一行 ------------------------------------------------- */
+.note {
+  position: relative; background: var(--paper); color: var(--ink);
+  padding: 8px 12px 9px 18px; font-family: var(--hand-font); font-size: var(--fs-body); line-height: 1.7; letter-spacing: .03em;
+}
+.note::before { content: ''; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: var(--accent); }
+.note .k { display: block; font-family: var(--jp-font); font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
+
+/* --- 6戦 ----------------------------------------------------------------- */
+.round {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 0 8px; align-items: baseline;
+  padding: 5px 8px; border-bottom: 1px solid var(--mon-line);
+}
+.round:last-child { border-bottom: 0; }
+.round.next { background: var(--mon-bg-2); box-shadow: inset 3px 0 0 var(--mon-green); }
+.round.done { color: var(--mon-dim); }
+.round .no { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--mon-dim); }
+.round.next .no { color: var(--mon-green); }
+.round .course { font-family: var(--jp-font); min-width: 0; }
+.round .course small { display: block; font-size: var(--fs-sub); color: var(--mon-dim); }
+.round .pos { font-size: var(--fs-num); font-weight: 700; text-align: right; color: var(--mon-text); }
+.round .pos.dnf { color: var(--mon-red); }
+.round .pts { text-align: right; font-size: var(--fs-sub); color: var(--mon-dim); min-width: 74px; }
+.round .pts b { font-weight: 400; color: var(--mon-text); }
+.round .pts .up { color: var(--mon-green); }
+.round .pts .down { color: var(--mon-amber); }
+.round.next .pos, .round.next .pts { font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--mon-green); font-weight: 400; }
+
+/* --- ポイント表 ---------------------------------------------------------- */
+.row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 56px; gap: 0 6px; align-items: baseline; padding: 3px 8px; border-bottom: 1px solid var(--mon-line); font-size: var(--fs-sub); }
+.row:last-child { border-bottom: 0; }
+.row.head { color: var(--mon-dim); font-size: var(--fs-label); letter-spacing: var(--ls-label); background: var(--mon-bg-2); }
+.row.me { background: var(--mon-bg-2); }
+.row .pos { text-align: right; color: var(--mon-dim); }
+.row.me .pos { color: var(--mon-text); }
+.row .nm { display: flex; align-items: center; gap: 5px; font-family: var(--jp-font); min-width: 0; }
+.row .nm b { width: 6px; height: 6px; border-radius: 50%; flex: none; }
+.row .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .pts { text-align: right; font-size: var(--fs-num); font-weight: 700; }
+.row.line-promote .pos::after, .row.line-relegate .pos::after { content: ''; }
+.gapline { text-align: center; color: var(--mon-dim); font-size: var(--fs-label); padding: 2px; border-bottom: 1px solid var(--mon-line); }
+.legend { font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--mon-dim); padding: 4px 8px; border-top: 1px solid var(--mon-line); }
+.legend .up { color: var(--mon-green); }
+.legend .down { color: var(--mon-amber); }
+
+/* --- 判定 ----------------------------------------------------------------- */
+.verdict { padding: 10px 12px; font-family: var(--jp-font); }
+.verdict .big { font-size: var(--fs-title); font-weight: 700; }
+.verdict .big.promote { color: var(--mon-green); }
+.verdict .big.relegate { color: var(--mon-amber); }
+.verdict .sub { color: var(--mon-dim); font-size: var(--fs-small); margin-top: 2px; }
+
+/* --- 操作 ----------------------------------------------------------------- */
+.controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.controls a, .controls button {
+  font: inherit; font-family: var(--jp-font); font-size: var(--fs-body); padding: 9px 16px; cursor: pointer; letter-spacing: .04em;
+  background: none; color: var(--mon-text); border: 1px solid var(--mon-line); text-decoration: none;
+}
+.controls a.primary, .controls button.primary { color: var(--mon-green); border-color: var(--mon-green); font-weight: 700; }
+.controls .spacer { margin-left: auto; }
+.err { border: 1px solid var(--mon-red); color: var(--mon-red); padding: 10px; font-family: var(--jp-font); font-size: var(--fs-small); }
+</style>
+</head>
+<body>
+
+<div class="sheet"><div class="sheet-inner">
+
+  <div class="head">
+    <div>
+      <div class="k">SEASON</div>
+      <div class="title" id="title">—</div>
+      <div class="sub" id="sub">—</div>
+    </div>
+    <div class="money"><span class="k">所持金</span><b id="money">—</b><span class="sub" id="sponsor"></span></div>
+  </div>
+
+  <div class="note" id="note" hidden><span class="k">前のシーズンの終わりに、ハルカが書いた一行</span><span id="noteText"></span></div>
+
+  <div class="box"><h3 class="cap">ROUNDS</h3><div id="rounds"></div></div>
+
+  <div class="box"><h3 class="cap">STANDINGS</h3><div id="standings"></div><div class="legend" id="legend"></div></div>
+
+  <div class="box" id="verdictBox" hidden><h3 class="cap">SEASON END</h3><div class="verdict" id="verdict"></div></div>
+
+  <div class="controls" id="controls"></div>
+
+</div></div>
+
+<script type="module">
+import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
+import {
+  newSeason, currentRound, seasonOver, standings, verdictFor, endSeason, myRank,
+} from '../engine/season.js';
+import { fieldEntries } from '../engine/rivals.js';
+import { createRng } from '../engine/race.js';
+
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const yen = (n) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
+const CLASS_LABEL = { 1: '走行会・草レース', 2: '地方選手権', 3: '全国耐久', 4: '上位GT', 5: 'トップカテゴリー' };
+const TIER_LABEL = ['なし（自腹）', '地元スポンサー', '地方チェーン', '全国企業', '大手メーカー'];
+const json = (p) => fetch(new URL(p, import.meta.url)).then((r) => {
+  if (!r.ok) throw new Error(`${p}: ${r.status}`);
+  return r.json();
+});
+
+let D = null;   // データ
+let G = null;   // 進行
+
+/** 出走する車の id（自車と名簿の先頭から）。ポイント表の並びに使う。 */
+function fieldIds() {
+  const round = G.season.rounds[0];
+  const course = D.courses.find((c) => c.id === round.course);
+  return ['me', ...fieldEntries(D.rivals, course, G.cls).map((_, i) => `ai${i}`)];
+}
+function carName(id) {
+  if (id === 'me') return '神谷ハルカ';
+  const entry = D.rivals[Number(id.slice(2))];
+  return entry ? `#${entry.number} ${entry.name}` : id;
+}
+
+function render() {
+  const season = G.season;
+  const ids = fieldIds();
+  const over = seasonOver(season);
+  el('title').textContent = `${season.year}年目　クラス${G.cls} ${CLASS_LABEL[G.cls]}`;
+  el('sub').textContent = over ? `全${season.rounds.length}戦 終了` : `第${season.next + 1}戦 / ${season.rounds.length}戦`;
+  el('money').textContent = yen(G.money);
+  const sp = G.sponsor && D.sponsors.find((s) => s.id === G.sponsor.id);
+  el('sponsor').textContent = sp ? `${sp.name}（段階${G.tier}）` : `スポンサー ${TIER_LABEL[G.tier]}`;
+
+  // 前のシーズンの一行
+  el('note').hidden = !season.note;
+  el('noteText').textContent = season.note ?? '';
+
+  // 6戦
+  el('rounds').innerHTML = season.rounds.map((r, i) => {
+    const c = D.courses.find((x) => x.id === r.course);
+    const cls = r.result ? 'done' : i === season.next ? 'next' : '';
+    let pos = '', pts = '';
+    if (r.result) {
+      const net = (r.result.prize ?? 0) + (r.result.sponsorFee ?? 0) - (r.result.fee ?? 0);
+      pos = r.result.retired ? '<span class="pos dnf">DNF</span>' : `<span class="pos">${r.result.pos}位</span>`;
+      pts = `<span class="pts"><b>${r.result.points}</b> pt · <span class="${net >= 0 ? 'up' : 'down'}">${yen(net)}</span></span>`;
+    } else if (i === season.next) {
+      pos = '<span class="pos">次はここ</span>'; pts = '<span class="pts"></span>';
+    } else { pos = '<span class="pos"></span>'; pts = '<span class="pts"></span>'; }
+    return `<div class="round ${cls}"><span class="no">R${i + 1}</span>
+      <span class="course">${esc(c?.name ?? r.course)}<small>${r.laps} 周</small></span>${pos}${pts}</div>`;
+  }).join('');
+
+  // ポイント表：昇格線と降格線を色で
+  const table = standings(season, ids);
+  const promoteLine = D.economy.promote[G.cls] ?? 0;
+  const relegate = D.economy.relegate[G.cls] ?? 0;
+  const meIdx = table.findIndex((s) => s.id === 'me');
+  const show = new Set([0, 1, 2, meIdx - 1, meIdx, meIdx + 1, table.length - 1].filter((i) => i >= 0 && i < table.length));
+  const rows = ['<div class="row head"><span class="pos">P</span><span>CAR</span><span class="pts">PTS</span></div>'];
+  let lastShown = -1;
+  table.forEach((s, i) => {
+    if (!show.has(i)) return;
+    if (i > lastShown + 1) rows.push(`<div class="gapline">⋯ ${i - lastShown - 1} 台</div>`);
+    lastShown = i;
+    const zone = i < promoteLine && G.cls < 5 ? 'up' : relegate && i >= table.length - relegate && G.cls > 1 ? 'down' : '';
+    rows.push(`<div class="row ${s.id === 'me' ? 'me' : ''}">
+      <span class="pos ${zone}">${i + 1}</span>
+      <span class="nm"><b style="background:${s.id === 'me' ? 'var(--car)' : 'var(--ai)'}"></b><span>${esc(carName(s.id))}</span></span>
+      <span class="pts">${s.points}</span></div>`);
+  });
+  el('standings').innerHTML = rows.join('');
+  const legend = [];
+  if (promoteLine && G.cls < 5) legend.push(`<span class="up">${promoteLine}位以内で昇格</span>`);
+  if (relegate && G.cls > 1) legend.push(`<span class="down">下から${relegate}台は降格</span>`);
+  if (G.cls === 1) legend.push('クラス1からは降格しない');
+  el('legend').innerHTML = legend.join('　');
+
+  // 操作
+  const controls = el('controls');
+  controls.innerHTML = '';
+  if (!over) {
+    const round = currentRound(season);
+    const a = document.createElement('a');
+    a.className = 'primary';
+    a.href = `setup.html${searchWithState(G, { course: round.course, laps: round.laps })}`;
+    a.textContent = `第${season.next + 1}戦のセッティングへ`;
+    controls.appendChild(a);
+    el('verdictBox').hidden = true;
+  } else {
+    const v = verdictFor(G, ids, D.economy);
+    const label = { promote: `昇格。クラス${v.to}へ`, relegate: `降格。クラス${v.to}へ`, stay: `残留。クラス${v.to}のまま` }[v.verdict];
+    el('verdictBox').hidden = false;
+    el('verdict').innerHTML = `<div class="big ${v.verdict}">${label}</div>
+      <div class="sub">シーズン ${v.rank} / ${v.total} 位</div>`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'primary';
+    b.textContent = '次のシーズンへ';
+    b.addEventListener('click', () => {
+      const rng = createRng(Date.now() % 100000);
+      const { state } = endSeason(G, ids, D.courses, D.economy, D.sponsors, rng, D.radio.season_note);
+      G = state;
+      history.replaceState(null, '', searchWithState(G, {}));
+      render();
+    });
+    controls.appendChild(b);
+  }
+}
+
+try {
+  const [economy, courses, rivals, sponsors, radio] = await Promise.all([
+    json('../../data/economy.json'), json('../../data/courses.json'), json('../../data/rivals.json'),
+    json('../../data/sponsors.json').catch(() => []), json('../../data/radio.json'),
+  ]);
+  D = { economy, courses, rivals, sponsors, radio };
+  G = stateFromSearch(location.search);
+  if (!G) {
+    // 新しいゲーム。所持金の初期値、クラス1、6戦を組む
+    G = newGame(economy);
+    G.season = newSeason(G.cls, courses, economy, createRng(Date.now() % 100000));
+    history.replaceState(null, '', searchWithState(G, {}));
+  } else if (!G.season) {
+    G.season = newSeason(G.cls, courses, economy, createRng(Date.now() % 100000));
+  }
+  render();
+} catch (err) {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div class="err">読み込みに失敗しました：${err.message}<br>このページは JSON を読み込むため、HTTP 経由で開く必要があります。</div>`);
+  console.error(err);
+}
+</script>
+</body>
+</html>
