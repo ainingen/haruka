@@ -413,9 +413,8 @@ test('S10. エンディングの一行と既読が進行に残り、保存文字
 });
 
 test('S11. 台本の台詞が、そのまま scenes.json と radio.json に入っている', async () => {
-  const { existsSync } = await import('node:fs');
+  // 台本はリポジトリに入っている。**無ければ落ちる**（生成物だけが残る事故を防ぐ）
   const script = join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md');
-  if (!existsSync(script)) { console.log('  台本が無いので突き合わせを飛ばす'); return; }
   const { build } = await import('../../tools/build-scenes.mjs');
   const { scenes, class5, seasonNote } = build(readFileSync(script, 'utf8'));
 
