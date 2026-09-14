@@ -59,6 +59,7 @@ body {
    自分の行の高さぶんしか動けず、画面下に留まれない */
 .sheet-inner { border: 1px solid var(--mon-line); padding: 8px; }
 .sheet-inner > * + * { margin-top: 8px; }
+.cols > * + *, .col > * + * { margin-top: 8px; }
 
 h3.cap {
   margin: 0; font-size: 9px; letter-spacing: .2em; color: var(--mon-dim); font-weight: 400;
@@ -232,6 +233,17 @@ h3.cap {
   .row { grid-template-columns: 16px minmax(0, 1fr) 52px 44px; }
   .row .s { display: none; }
 }
+
+/* --- 800px 以上：左＝無線ログと車両情報、右＝コース図とタイミングモニター。
+       操作列は両カラムの下（sheet-inner の直下にあるので自然にそうなる）。 --- */
+@media (min-width: 800px) {
+  .sheet { max-width: 880px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+  .cols > * + * { margin-top: 0; }
+  .log { height: 52vh; }
+  /* 縦に余裕があるので、「全車」を開いたときは中でスクロールさせない */
+  .standings .full { max-height: none; }
+}
 </style>
 </head>
 <body>
@@ -247,38 +259,45 @@ h3.cap {
     <div class="lapcount"><span>LAP</span><b id="lapNow">—</b></div>
   </div>
 
-  <!-- 1. 実況・無線ログ -->
-  <div class="logbox">
-    <h3 class="cap">実況 / 無線</h3>
-    <div class="log" id="log" aria-live="polite"></div>
-  </div>
+  <!-- 狭い画面では上から順に積む。800px 以上で左右2カラムになる（幅だけが変わる） -->
+  <div class="cols">
+    <div class="col">
+      <!-- 1. 実況・無線ログ -->
+      <div class="logbox">
+        <h3 class="cap">実況 / 無線</h3>
+        <div class="log" id="log" aria-live="polite"></div>
+      </div>
 
-  <!-- 2. 車両情報 -->
-  <div class="panel">
-    <h3 class="cap">車両情報 — 神谷ハルカ（自車）</h3>
-    <div class="grid" id="panel"></div>
-  </div>
+      <!-- 2. 車両情報 -->
+      <div class="panel">
+        <h3 class="cap">車両情報 — 神谷ハルカ（自車）</h3>
+        <div class="grid" id="panel"></div>
+      </div>
+    </div>
 
-  <!-- 3. コース図 -->
-  <div class="track">
-    <svg id="track" viewBox="0 0 400 190" role="img" aria-label="コース図と走行中の車"></svg>
-    <div class="legend">
-      <span><i style="background:var(--straight)"></i>ストレート</span>
-      <span><i style="background:var(--fast-corner)"></i>高速</span>
-      <span><i style="background:var(--slow-corner)"></i>低速</span>
-      <span><b class="dot" style="background:var(--car)"></b>自車</span>
-      <span><b class="dot" style="background:var(--ai)"></b>他車</span>
+    <div class="col">
+      <!-- 3. コース図 -->
+      <div class="track">
+        <svg id="track" viewBox="0 0 400 190" role="img" aria-label="コース図と走行中の車"></svg>
+        <div class="legend">
+          <span><i style="background:var(--straight)"></i>ストレート</span>
+          <span><i style="background:var(--fast-corner)"></i>高速</span>
+          <span><i style="background:var(--slow-corner)"></i>低速</span>
+          <span><b class="dot" style="background:var(--car)"></b>自車</span>
+          <span><b class="dot" style="background:var(--ai)"></b>他車</span>
+        </div>
+      </div>
+
+      <!-- 4. 順位表 -->
+      <div class="standings">
+        <h3 class="cap">順位表 <button type="button" id="standingsAll">全車</button></h3>
+        <div id="standings"></div>
+        <div id="standingsFull" class="full" hidden></div>
+      </div>
     </div>
   </div>
 
-  <!-- 4. 順位表 -->
-  <div class="standings">
-    <h3 class="cap">順位表 <button type="button" id="standingsAll">全車</button></h3>
-    <div id="standings"></div>
-    <div id="standingsFull" class="full" hidden></div>
-  </div>
-
-  <!-- 5. 操作 -->
+  <!-- 5. 操作（両カラムの下） -->
   <div class="controls">
     <button type="button" id="btn1" class="on">1倍</button>
     <button type="button" id="btn4">4倍</button>
