@@ -141,6 +141,10 @@ h2 {
   padding: 0 4px; margin-left: 6px; white-space: nowrap;
 }
 .badge.unit { border-color: var(--accent); color: var(--accent); }
+/* 耐久。閾値を切ると琥珀、0 で赤の「故障」 */
+.bom-row .dur { font-family: var(--mon-font); font-size: var(--fs-sub); color: var(--ink-2); margin-left: 8px; white-space: nowrap; }
+.bom-row .dur.worn { color: var(--bad); }
+.bom-row .dur.broken { color: var(--bad); font-weight: 700; }
 
 /* --- パーツ選択モニター（画面の層）。紙の図面の上に黒いモーダルで開く ----------
    docs/設計/画面設計.md「setup.html — パーツ選択モニター」。
@@ -485,7 +489,7 @@ import {
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
 } from '../engine/race.js';
 import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
-import { owns, buyBlocker, buy, sell, sellPrice } from '../engine/economy.js';
+import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
 
 // ---------------------------------------------------------------------------
 // 表示用の語彙（data/README.md のキー → 日本語）
@@ -762,9 +766,18 @@ function loadoutOf(equipped, allowId = null) {
   for (const [slot, id] of Object.entries(equipped)) {
     if (!id) continue;
     const p = partById(id);
-    if ((isLegal(p) || p.id === allowId) && p.slot === slot) map[slot] = p;   // ホームスロットの分だけ入れる
+    // ホームスロットの分だけ入れる。耐久が減っていれば効果を縮めた写し（economy.js applyWear）
+    if ((isLegal(p) || p.id === allowId) && p.slot === slot) map[slot] = applyWear(DATA.economy, p, condition(G, p));
   }
   return map;
+}
+
+/** 耐久の表示。上限に対する割合と、閾値を切っているかどうか。 */
+function durInfo(p) {
+  const cur = condition(G, p);
+  const pct = Math.round((cur / p.durability) * 100);
+  const scale = effectScale(DATA.economy, cur);
+  return { cur, pct, scale, state: cur <= 0 ? 'broken' : scale < 1 ? 'worn' : 'ok' };
 }
 const loadout = () => loadoutOf(state.equipped);
 /** 任意の装着表で性能を組む。モニターの「装着後」はこれで作る（state は変えない）。 */
@@ -1156,9 +1169,11 @@ function drawBom() {
       if (unit) {
         name = `<span class="name included">（${unit.name}に含む）</span>`;
       } else if (p) {
+        const d = durInfo(p);
         name = `<span class="name">${p.name}</span>`
           + (isLegal(p) ? '' : '<span class="badge">規定外</span>')
-          + (p.replaces?.length ? '<span class="badge unit">ユニット</span>' : '');
+          + (p.replaces?.length ? '<span class="badge unit">ユニット</span>' : '')
+          + `<span class="dur ${d.state}">${d.state === 'broken' ? '故障' : `${d.pct}%`}</span>`;
       } else {
         name = '<span class="name empty">未装着</span>';
       }
@@ -1257,7 +1272,7 @@ function drawModal() {
     // 所有していれば緑の印と「所有」、未購入は価格。規定外は錠前と理由
     btn.innerHTML = `<span class="mk">${on || owned ? '●' : legal ? '' : '🔒'}</span>
       <span class="nm">${esc(p.name)}</span>
-      <span class="pr${owned ? ' owned' : ''}">${owned ? '所有' : yen(p.price)}</span>
+      <span class="pr${owned ? ' owned' : ''}">${owned ? `所有 ${durInfo(p).pct}%` : yen(p.price)}</span>
       ${why.length ? `<span class="why">${esc(why.join(' / '))}</span>`
         : on ? '<span class="why owned">装着中</span>' : ''}`;
     btn.addEventListener('click', () => {
@@ -1326,6 +1341,16 @@ function drawModal() {
     button(`購入 ${yen(cand.price)}`, () => buyFromModal(cand), { primary: true, disabled: !!blocker });
     return;
   }
+  const d = durInfo(cand);
+  if (d.pct < 100) {
+    const cost = repairCost(DATA.economy, cand, d.cur);
+    // 修理は任意。閾値を切っていれば効果が落ちていることを先に言う
+    if (d.state !== 'ok') {
+      msg.classList.remove('ok');
+      msg.textContent = d.state === 'broken' ? '故障している。効果は出ない（副作用は残る）' : `耐久 ${d.pct}%。効果が ${Math.round(d.scale * 100)}% に落ちている`;
+    }
+    button(`修理 ${yen(cost)}`, () => repairFromModal(cand), { disabled: cost > G.money });
+  }
   if (state.equipped[slot] === cand.id) button('外す', removeFromModal);
   button(`売却 ${yen(sellPrice(DATA.economy, cand))}`, () => sellFromModal(cand));
   button(on ? '装着中' : legal ? '装着する' : '装着できない', () => equipFromModal(cand), { primary: true, disabled: !legal || on });
@@ -1336,6 +1361,15 @@ function buyFromModal(part) {
   G = buy(G, part);
   cue('part.buy', { id: part.id, price: part.price });
   renderAll();
+}
+function repairFromModal(part) {
+  const cost = repairCost(DATA.economy, part, condition(G, part));
+  if (cost > G.money) return;
+  pendingRoll = { axes: radarValues(perf()), status: statusValues() };
+  G = repair(G, part, DATA.economy);
+  cue('part.repair', { id: part.id, cost });
+  renderAll();
+  pendingRoll = null;
 }
 function sellFromModal(part) {
   if (!owns(G, part.id)) return;
