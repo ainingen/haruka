@@ -926,6 +926,243 @@ export function simulateQualifying(perf, course, driver, options = {}) {
   return { courseId: course.id, laps, best, attack: laps[QUALI.attackLap - 1] };
 }
 
+// ---------------------------------------------------------------------------
+// 場の走行（全車を同時に走らせる。画面の決勝とツールで同じ経路を使う）
+//
+// simulateRace が「1台を周ごとに積む」のに対して、ここは「全車を dt 秒ずつ進める」。
+// 同じ場にいるので、スタートの遅れと混雑（START）が効く。画面（src/ui/race.html）は
+// このまま毎フレーム呼び、ツールは runField で一気に回す。
+// ---------------------------------------------------------------------------
+
+/**
+ * 場を進める刻み。**倍速やスキップで結果が変わらないよう、必ずこの幅に割って進める。**
+ * 混雑の判定がこの間隔で入るので、細かいほど画面の見た目に忠実になる。
+ */
+export const FIELD = { dt: 0.05, guard: 2000000 };
+
+/** 刻みの端数を持ち越す入れ物。1フレームが FIELD.dt より短くても、進める幅は変えない。 */
+export const createClock = () => ({ carry: 0 });
+
+/**
+ * 走行状態を1台ぶん作る。画面はこの上に描画用の状態（色・点・数字回転）を足す。
+ * @param {object} args { perf, driver, seed, laps }
+ */
+export function createRunner({ perf, driver, seed, laps }) {
+  return {
+    perf,
+    driver,
+    rng: createRng(seed),
+    tire: createTireState(),
+    brake: createBrakeState(),
+    // 燃料は「このセッションを走り切るぶん＋余裕」を積んで出る。減りながら軽くなる
+    fuel: createFuelState(perf.stats, laps),
+    lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
+    raceTime: 0, lapTimes: [], best: Infinity,
+    // 実際にかかった時間。計画（plannedLap）と違って、スタートの遅れと混雑ぶんが入る。
+    // ラップタイムもセクタータイムもこちらで積むので、S1+S2+S3 は LAST と一致する
+    lapElapsed: 0, segElapsed: 0,
+    plan: null, plannedLap: 0,
+    finished: false, retired: false, retiredLap: null, retireReason: null,
+    lastWear: 0, lastTemp: 0, lastFade: 0,
+    // グリッドの後ろほどスタートが遅れる。混雑ぶんの速度係数は毎フレーム引き直す
+    delay: 0, gridPos: null, blockFactor: 1,
+  };
+}
+
+/**
+ * 次の周の計画を立てる。セクターごとの速度をここで決め、あとは距離を積むだけにする。
+ * 燃料切れとリタイアの判定もここ（周に入る前に決まる）。
+ * @param {object} [options] { quali } 予選ならアウト／インを流す
+ */
+export function planLap(car, course, options = {}) {
+  // 燃料切れが先。運ではないので、この周に入れないなら止まる
+  if (!canRunLap(car.fuel, car.perf.stats)) {
+    car.retired = true;
+    car.retiredLap = car.lap + 1;
+    car.retireReason = 'fuel';
+    car.plan = null;
+    return;
+  }
+  const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -car.perf.stats.reliability);
+  if (car.rng() < retireP) {
+    car.retired = true;
+    car.retiredLap = car.lap + 1;
+    car.retireReason = 'reliability';
+    car.plan = null;
+    return;
+  }
+  const eff = effectiveStats(car.perf, car.tire, car.brake, car.fuel);
+  const factor = driverTimeFactor(car.driver, car.perf.stats);
+  const sigma = WEIGHTS.driver.noiseAtZeroConsistency * (100 - (car.driver.consistency ?? 100)) / 100;
+  const noise = Math.min(1.1, Math.max(0.9, 1 + sigma * gaussian(car.rng)));
+
+  // 予選：アウトラップとインラップは流す（QUALI の係数）。アタックだけ全開
+  const lapNo = car.lap + 1;
+  const quali = !options.quali ? 1
+    : lapNo < QUALI.attackLap ? QUALI.outLapFactor : lapNo > QUALI.attackLap ? QUALI.inLapFactor : 1;
+  car.plan = course.sectors.map((s) => ({
+    len: s.length,
+    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise * quali,
+  }));
+  car.plannedLap = car.plan.reduce((a, s) => a + s.len / s.speed, 0);
+  car.lastWear = car.tire.wear;
+  car.lastTemp = car.brake.temp;
+  car.lastFade = brakeFadeLoss(car.perf.stats, car.brake);
+  car.segIdx = 0; car.segStart = 0; car.lapDist = 0;
+  car.lapElapsed = 0; car.segElapsed = 0;
+}
+
+/**
+ * 1周を閉じる。摩耗・温度・燃料を進め、次の周の計画を立てる。
+ * @param {object} [hooks] { onLap(car, event), options } 画面が無線と実況を差し込むところ
+ */
+export function completeLap(car, course, load, totalLaps, hooks = {}) {
+  // 無線と実況は「いま走り終えた周」の状態を見る。摩耗と温度を進める前に控えておく
+  // ラップタイムは実際にかかった時間。1周目は、グリッドの遅れと混雑ぶんだけ計画より遅い
+  const lapTime = car.lapElapsed;
+  const event = {
+    car, lap: car.lap + 1, tire: car.tire, brake: car.brake, driver: car.driver,
+    lapTime, bestTime: car.best,
+    prev: car.lapTimes.at(-1) ?? null,   // ラップタイムの数字回転に使う（前の周の値）
+  };
+  car.lapTimes.push(lapTime);
+  car.raceTime += lapTime;
+  if (lapTime < car.best) car.best = lapTime;
+  car.lap += 1;
+  car.tire = advanceTire(car.tire, car.perf.stats);
+  car.brake = advanceBrakes(car.brake, car.perf.stats, load);
+  car.fuel = advanceFuel(car.fuel, car.perf.stats);
+  // 燃料だけは「走り終えた時点」の量を渡す。周の終わりにメーターを見るのと同じ。
+  // 残り周回も渡す。足りるかどうかは、残量だけでは決まらない
+  event.fuel = car.fuel;
+  event.lapsToGo = totalLaps - car.lap;
+  hooks.onLap?.(car, event);
+  if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
+  planLap(car, course, hooks.options);
+}
+
+/**
+ * dt 秒ぶん進める。セクターをまたぐたびに速度を切り替える。
+ * @param {object} [hooks] { onSector(car, idx, time, sector), onLap, options }
+ */
+export function advance(car, dt, course, load, totalLaps, hooks = {}) {
+  let rest = dt;
+  // グリッドの後ろほどスタートが遅れる。この分も1周目の時間に入る
+  if (car.delay > 0) {
+    const d = Math.min(car.delay, rest);
+    car.delay -= d;
+    rest -= d;
+    car.segElapsed += d;
+  }
+  let guard = 0;
+  while (rest > 1e-9 && !car.finished && !car.retired && car.plan && guard++ < 5000) {
+    const seg = car.plan[car.segIdx];
+    const speed = seg.speed * car.blockFactor;   // スタート直後の混雑ぶん
+    const segEnd = car.segStart + seg.len;
+    const t = (segEnd - car.lapDist) / speed;
+    if (t > rest) { car.lapDist += speed * rest; car.segElapsed += rest; rest = 0; break; }
+    rest -= t;
+    car.segElapsed += t;
+    car.lapDist = segEnd;
+    car.segStart = segEnd;
+    const idx = car.segIdx;
+    // セクタータイムは実測（混雑で遅れたぶんが入る）。積めば実際のラップタイムになる
+    const time = car.segElapsed;
+    car.segElapsed = 0;
+    car.lapElapsed += time;
+    hooks.onSector?.(car, idx, time, course.sectors[idx]);
+    car.segIdx += 1;
+    if (car.segIdx >= car.plan.length) completeLap(car, course, load, totalLaps, hooks);
+  }
+}
+
+/** スタートからの総走行距離（m）。順位はこれで決まる。 */
+export const progress = (car, courseLen) => car.lap * courseLen + car.lapDist;
+
+/** いまいるセクターの速度（m/s）。 */
+export const currentSpeed = (car) => (car.plan ? car.plan[Math.min(car.segIdx, car.plan.length - 1)].speed : 0);
+
+/**
+ * その車の1周平均の速度（m/s）。
+ * 瞬間速度で割ると、いるセクターによって差の見積もりが3倍近く跳ねる
+ * （ストレート 56 m/s、低速コーナー 19 m/s）。1周のペースで割れば落ち着く。
+ */
+export const paceSpeed = (car, courseLen) =>
+  (car.plannedLap > 0 ? courseLen / car.plannedLap : Math.max(currentSpeed(car), 1));
+
+/**
+ * 2台の差（秒）。**前の車のペースで割る。**
+ * 先頭との差を全車が同じ分母で割ることになるので、順位とギャップの並びが食い違わない。
+ * 意味は「前の車がそこを通ってから何秒たったか」。
+ */
+export const gapSeconds = (ahead, behind, courseLen) =>
+  (progress(ahead, courseLen) - progress(behind, courseLen)) / Math.max(paceSpeed(ahead, courseLen), 1);
+
+/**
+ * スタート直後の混雑。1周目の最初の数セクターで、前の車が近いほど遅くなる。
+ * グリッドがあるレースだけ呼ぶ（予選と、予選なしの旧リンクでは呼ばない）。
+ */
+export function updateBlocking(cars, courseLen) {
+  const order = [...cars].filter((c) => !c.retired).sort((a, b) => progress(b, courseLen) - progress(a, courseLen));
+  order.forEach((car, i) => {
+    if (car.lap > 0 || car.segIdx >= START.sectors || car.delay > 0) { car.blockFactor = 1; return; }
+    const ahead = order[i - 1];
+    if (!ahead) { car.blockFactor = 1; return; }
+    const gap = (progress(ahead, courseLen) - progress(car, courseLen)) / Math.max(currentSpeed(car), 1);
+    car.blockFactor = gridBlockFactor(gap);
+  });
+}
+
+/** 走行位置の順（リタイアは後ろ）。予選はベストラップ順。 */
+export function rankRunners(cars, courseLen, { quali = false } = {}) {
+  const running = cars.filter((c) => !c.retired);
+  running.sort((a, b) => {
+    if (quali) {
+      // 予選はベストラップ順。まだ計測が無い車は走行位置順で後ろに
+      if (a.best !== b.best) return a.best - b.best;
+      return progress(b, courseLen) - progress(a, courseLen);
+    }
+    if (a.finished && b.finished) return a.raceTime - b.raceTime;
+    return progress(b, courseLen) - progress(a, courseLen);
+  });
+  return [...running, ...cars.filter((c) => c.retired)];
+}
+
+/**
+ * 場を dt 秒ぶん進める。**FIELD.dt に割って進めるので、呼ぶ側の刻みで結果が変わらない。**
+ * 画面の1倍・4倍・スキップが同じ結果になるのはこのため。
+ */
+export function stepField(cars, dt, { course, load, totalLaps, courseLen, grid = true, clock }, hooks = {}) {
+  clock.carry += dt;
+  let guard = 0;
+  // **必ず FIELD.dt ちょうどで進める。** 端数は次に持ち越す。呼ぶ側の刻みが
+  // 1フレーム（0.016秒）でもスキップ（2秒）でも、同じ回数・同じ幅だけ進む
+  while (clock.carry >= FIELD.dt && guard++ < FIELD.guard) {
+    clock.carry -= FIELD.dt;
+    if (grid) updateBlocking(cars, courseLen);
+    for (const car of cars) advance(car, FIELD.dt, course, load, totalLaps, hooks);
+    if (cars.every((c) => c.finished || c.retired)) { clock.carry = 0; break; }
+  }
+}
+
+/**
+ * 画面を使わずに1戦を走らせ切る。**画面の決勝と同じ経路**（season.js の simulateField、
+ * tools/simulate-season.mjs から使う）。
+ * @returns {object[]} 着順に並べた cars（渡した配列の要素そのもの）
+ */
+export function runField(cars, { course, laps, grid = true, quali = false }) {
+  const load = courseLoad(course);
+  const courseLen = course.length;
+  const hooks = { options: { quali } };
+  for (const car of cars) planLap(car, course, hooks.options);
+  const ctx = { course, load, totalLaps: laps, courseLen, grid, clock: createClock() };
+  let guard = 0;
+  while (!cars.every((c) => c.finished || c.retired) && guard++ < FIELD.guard) {
+    stepField(cars, FIELD.dt, ctx, hooks);
+  }
+  return rankRunners(cars, courseLen, { quali });
+}
+
 /** 秒 → "m:ss.mmm" */
 export function formatTime(sec) {
   if (!Number.isFinite(sec)) return '--:--.---';

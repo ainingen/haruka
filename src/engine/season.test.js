@@ -176,7 +176,8 @@ test('S5. AI の構成は自車と無関係：遅いはノートの3割、並は
   const kaza = COURSES.find((c) => c.id === 'kazahaya');
   assert.equal(baselineFor(NOTES, PARTS, kaza, 5).note.class, 3, 'かざはやのクラス5は、クラス3のノートを借りる');
 
-  // 走らせると着順が出る。自車の構成を変えても AI の速さは変わらない
+  // 走らせると着順が出る。自車の構成を変えても AI の**構成**は変わらない
+  // （タイムは変わる。同じ場で走るので、グリッドとスタートの混雑を通して影響し合う）
   const sedan = CHASSIS.sedan;
   const spec = rivalSpec(RIVALS[0], 0, { loadout: { parts: [part('tire_compound_02')], settings: {} }, driver: haruka, chassis: sedan, rng: createRng(3) });
   assert.equal(spec.id, 'ai0');
@@ -186,8 +187,11 @@ test('S5. AI の構成は自車と無関係：遅いはノートの3割、並は
   const args = { driver: haruka, chassis: sedan, course, laps: 5, rivals: RIVALS, parts: PARTS, notes: NOTES, cls, seed: 5, rivalSeed: 11 };
   const runsBare = simulateField({ ...args, myPerf: bare });
   const runsRich = simulateField({ ...args, myPerf: rich });
-  const aiTotals = (runs) => runs.filter((r) => r.id !== 'me').map((r) => [r.id, Math.round(r.total * 1000)]).sort();
-  assert.deepEqual(aiTotals(runsBare), aiTotals(runsRich), '自車の構成を変えても AI のタイムは同じ');
+  const aiParts = (runs) => runs.filter((r) => r.id !== 'me').map((r) => [r.id, r.partIds.join(',')]).sort();
+  assert.deepEqual(aiParts(runsBare), aiParts(runsRich), '自車の構成を変えても AI の構成は同じ');
+  // グリッドは予選の結果で決まり、後ろほどスタートが遅れる
+  const grid = runsRich.map((r) => r.gridPos);
+  assert.deepEqual([...grid].sort((a, b) => a - b), runsRich.map((_, i) => i + 1), '全車にグリッドが付く');
   const posBare = runsBare.find((r) => r.id === 'me').pos;
   const posRich = runsRich.find((r) => r.id === 'me').pos;
   assert.ok(posRich < posBare, `ノート通りに揃えれば順位が上がる（純正 ${posBare} 位 → ノート ${posRich} 位）`);

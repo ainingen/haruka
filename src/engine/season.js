@@ -4,7 +4,7 @@
  * 6戦、ポイント制、昇降格、オフシーズンのノート、スポンサー段階。
  * state を受け取る関数は新しい state を返し、元は変えない。数値は data/economy.json。
  */
-import { simulateRace, createRng } from './race.js';
+import { createRng, createRunner, runField, simulateQualifying, START } from './race.js';
 import { rivalSpec, fieldEntries, seasonRivalPlan, rivalLoadout } from './rivals.js';
 
 /** そのクラスで走れるコース。classes が無いデータは全クラス可とみなす。 */
@@ -150,14 +150,10 @@ export function pickNote(noteLines, symptom, rng = Math.random) {
 }
 
 /**
- * 1戦をまとめて走らせて着順を出す（画面を使わない。ツールとテスト用）。
- * 各車を simulateRace で独立に走らせ、リタイアを後ろに回して総時間で並べる。
- * スタート直後の混雑や交通は入らないので、画面のレースとは少し違う。
- *
- * @param {object} args { myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed, rivalSeed }
- * @returns {Array<{ id, name, pos, retired, total, best, partIds }>}
+ * そのレースの出走表を組む（自車 ＋ 名簿の相手）。画面（src/ui/race.html）と同じ並び。
+ * @returns {Array<{ id, name, perf, driver, partIds }>}
  */
-export function simulateField({ myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed = 1, rivalSeed = 1 }) {
+export function buildField({ myPerf, driver, chassis, course, rivals, parts, notes, cls, seed = 1, rivalSeed = 1 }) {
   const rng = createRng(seed);
   const field = [{ id: 'me', name: '神谷ハルカ', perf: myPerf, driver, partIds: myPerf.partIds }];
   const entries = fieldEntries(rivals, course, cls);
@@ -167,14 +163,43 @@ export function simulateField({ myPerf, driver, chassis, course, laps, rivals, p
     const spec = rivalSpec(entry, i, { loadout, driver, chassis, rng });
     field.push({ id: spec.id, name: spec.name, perf: spec.perf, driver: spec.driver, partIds: spec.partIds });
   }
-  const runs = field.map((car, i) => {
-    const r = simulateRace(car.perf, course, laps, car.driver, { seed: seed + i * 977 });
-    return { id: car.id, name: car.name, retired: r.retired, total: r.total, best: r.best, laps: r.laps.length, partIds: car.partIds };
+  return field;
+}
+
+/**
+ * 1戦を通しで走らせて着順を出す（画面を使わない。ツールとテスト用）。
+ *
+ * **画面の決勝と同じ経路を通る。** 予選でグリッドを決め、全車を同じ場で dt 秒ずつ進める
+ * （race.js の runField）。スタートの遅れと混雑がそのまま入るので、ここで出る順位は
+ * 画面で見る順位と同じ性質を持つ。
+ *
+ * @param {object} args { myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed, rivalSeed }
+ * @returns {Array<{ id, name, pos, retired, total, best, gridPos, partIds }>}
+ */
+export function simulateField(args) {
+  const { course, laps, seed = 1 } = args;
+  const field = buildField(args);
+
+  // --- 予選。ベストラップの順にグリッドが決まる（画面の流れと同じ） ---------
+  const grid = field
+    .map((car, i) => ({ car, best: simulateQualifying(car.perf, course, car.driver, { seed: seed + i * 977 }).best }))
+    .sort((a, b) => a.best - b.best)
+    .map((x) => x.car);
+
+  // --- 決勝 -----------------------------------------------------------------
+  const runners = field.map((car, i) => ({
+    ...car,
+    ...createRunner({ perf: car.perf, driver: car.driver, seed: seed + i * 977, laps }),
+  }));
+  const byId = Object.fromEntries(runners.map((r) => [r.id, r]));
+  grid.forEach((car, i) => {
+    const r = byId[car.id];
+    r.gridPos = i + 1;
+    r.delay = i * START.slotDelay;
   });
-  runs.sort((a, b) => {
-    if (a.retired !== b.retired) return a.retired ? 1 : -1;
-    if (a.retired) return b.laps - a.laps;
-    return a.total - b.total;
-  });
-  return runs.map((r, i) => ({ ...r, pos: i + 1 }));
+  const order = runField(runners, { course, laps, grid: true });
+  return order.map((r, i) => ({
+    id: r.id, name: r.name, pos: i + 1, retired: r.retired, retireReason: r.retireReason,
+    total: r.raceTime, best: r.best, laps: r.lapTimes.length, gridPos: r.gridPos, partIds: r.partIds,
+  }));
 }

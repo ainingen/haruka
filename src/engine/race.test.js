@@ -18,6 +18,7 @@ import {
   QUALI, START, gridBlockFactor, simulateQualifying,
   WEIGHTS, lapTime, createTireState, createBrakeState, radioSymptoms, radioForLap, createRadioState,
   createFuelState, fuelPerLap, fuelForLaps, advanceFuel, fuelLapsLeft, canRunLap, refuel,
+  createRunner, createClock, planLap, stepField, rankRunners, courseLoad,
 } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -660,4 +661,54 @@ test('23. 無線：燃料の残り少と燃料切れ。燃料切れは他を押�
     assert.ok(retire[speaker].every((e) => ['fuel', 'mechanical'].includes(e.when)), `${speaker} に印の無い台詞がある`);
   }
   console.log(`  消費率+20 の車：${r.retiredLap}周目に燃料切れ。無線 ${r.radio.filter((c) => c.id === 'fuel_low').length} 本の予告のあと「${RADIO_DATA.info.fuel_out.lines[0].text}」`);
+});
+
+test('24. 場の走行：グリッドの遅れと混雑が着順に効き、進める刻みで結果が変わらない', () => {
+  const sedan = CHASSIS.sedan;
+  // ブレのないドライバーで見る（同じ車・同じ腕なら、差はグリッドと混雑だけになる）
+  const haruka = { ...DRIVERS[0], consistency: 100 };
+  const c = COURSES.find((x) => x.id === 'asahina');
+  const laps = 5;
+  const perf = buildPerformance([], haruka, sedan);
+
+  /** 同じ顔ぶれを毎回組み直す（乱数も作り直す）。grid の順にスタートが遅れる。 */
+  const field = () => [0, 1, 2, 3, 4, 5].map((i) => ({
+    id: `c${i}`,
+    ...createRunner({ perf, driver: haruka, seed: 100 + i, laps }),
+    gridPos: i + 1,
+    delay: i * START.slotDelay,
+  }));
+
+  // --- 刻みで結果が変わらない（1倍・4倍・スキップが同じ結果になる根拠） --------
+  const drive = (cars, dts) => {
+    const ctx = { course: c, load: courseLoad(c), totalLaps: laps, courseLen: c.length, grid: true, clock: createClock() };
+    for (const car of cars) planLap(car, c);
+    let i = 0;
+    let guard = 0;
+    while (!cars.every((x) => x.finished || x.retired) && guard++ < 200000) {
+      stepField(cars, dts[i++ % dts.length], ctx, {});
+    }
+    return rankRunners(cars, c.length).map((x) => [x.id, Math.round(x.raceTime * 1e6)]);
+  };
+  const slow = drive(field(), [1 / 60, 1 / 60, 1 / 50]);   // 1倍：毎フレーム
+  const fast = drive(field(), [4 / 60]);                   // 4倍
+  const skip = drive(field(), [2]);                        // スキップ
+  assert.deepEqual(fast, slow, '4倍と1倍で結果が同じ');
+  assert.deepEqual(skip, slow, 'スキップと1倍で結果が同じ');
+
+  // --- グリッドは時間として効く。同じ車なら、前に並んだほうが必ず前で終わる --------
+  const order = drive(field(), [2]);
+  assert.deepEqual(order.map(([id]) => id), ['c0', 'c1', 'c2', 'c3', 'c4', 'c5'], 'グリッド順のまま終わる');
+  const times = Object.fromEntries(order.map(([id, t]) => [id, t / 1e6]));
+  const lost = times.c5 - times.c0;
+  assert.ok(lost > START.slotDelay * 5 * 0.9, `最後尾は ${(START.slotDelay * 5).toFixed(1)} 秒ぶん以上失う（実測 ${lost.toFixed(2)}）`);
+
+  // --- 混雑ぶんは1周目に乗る。2周目以降は誰も邪魔されない -------------------
+  const cars = field();
+  drive(cars, [2]);
+  for (const car of cars) {
+    assert.equal(car.lapTimes.length, laps);
+    assert.ok(car.lapTimes[0] >= car.lapTimes[1], `${car.id} の1周目はスタートぶん遅い`);
+  }
+  console.log(`  6台グリッドスタート：ポールとの差 ${lost.toFixed(2)} 秒（遅れ ${(START.slotDelay * 5).toFixed(1)} 秒＋混雑）`);
 });
