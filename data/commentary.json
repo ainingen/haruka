@@ -377,45 +377,75 @@
       "announcer": [
         {
           "text": "{car}、ストップ。リタイアです",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "{car}がコースサイドに車を止めました",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "リタイア。{car}、{lap}周目",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "{car}が戦列を離れました",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "{car}、ここで終わりです。{lap}周目でした",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
+        },
+        {
+          "text": "{car}、ストップ。燃料でしょうか",
+          "sound_cue": "",
+          "when": "fuel"
+        },
+        {
+          "text": "{car}がスローダウン。{lap}周目、ガス欠のようです",
+          "sound_cue": "",
+          "when": "fuel"
         }
       ],
       "analyst": [
         {
           "text": "出力を上げれば熱が出る。熱が出れば耐久が落ちる。その代償を今払いました",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "壊れる前には音がします。無線で言っていたはずです",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "速い車と、最後まで走る車は別です。今日は後者が勝つ日かもしれない",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "軽くした車は速いが、剛性を失っている。どこかで無理が出ます",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
         },
         {
           "text": "信頼性はステータスの中で一番地味で、一番残酷です",
-          "sound_cue": ""
+          "sound_cue": "",
+          "when": "mechanical"
+        },
+        {
+          "text": "積む量も勝負のうちです。軽くして速く走るか、確実に持たせるか",
+          "sound_cue": "",
+          "when": "fuel"
+        },
+        {
+          "text": "燃料は最後まで積んでいれば重い。減らせば速いが、届かなければゼロです",
+          "sound_cue": "",
+          "when": "fuel"
         }
       ]
     },

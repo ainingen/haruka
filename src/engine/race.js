@@ -168,11 +168,18 @@ export const WEIGHTS = {
  * **台詞は持たない。** トリガー ID だけを返し、文言は data/radio.json から UI が選ぶ。
  */
 export const RADIO = {
-  /** 情報系の優先順。1周に出せる本数（maxInfoPerLap）を超えたら、後ろのものは次の周に回る。 */
+  /**
+   * 情報系の優先順。1周に出せる本数（maxInfoPerLap）を超えたら、後ろのものは次の周に回る。
+   * 先頭の `fuel_out` だけは別格で、立ったらこの1本しか出さない（下の exclusive を参照）。
+   */
   priority: [
-    'retire_sign', 'brake_fade', 'tire_wear', 'understeer', 'oversteer', 'cold_tire',
-    'straight_loss', 'corner_loss', 'overtaken', 'overtake', 'good_lap',
+    'fuel_out', 'retire_sign', 'fuel_low', 'brake_fade', 'tire_wear', 'understeer', 'oversteer',
+    'cold_tire', 'straight_loss', 'corner_loss', 'overtaken', 'overtake', 'good_lap',
   ],
+  /** 立ったら他を全部押しのけるトリガー。止まった車のアンダーステアを報告しても仕方がない */
+  exclusive: ['fuel_out'],
+  /** 燃料の残りがこの周回数を切ったら「燃料、足りる？」 */
+  fuelLowLaps: 3,
   /** 出来事（抜いた・抜かれた・好調）。症状ではないので、繰り返しの抑制をかけない */
   events: ['overtake', 'overtaken', 'good_lap'],
   /** 1周あたりのリタイア確率がこれを超えたら「嫌な音がする」 */
@@ -601,11 +608,24 @@ export function createRadioState() {
  *   @param {number} [snapshot.bestTime] その周より前の自己ベスト
  *   @param {object} [snapshot.traffic]  { straightLoss, cornerLoss, overtook, overtaken }
  *                                       順位と相対速度は UI 側にしか無いので受け取る
+ *   @param {object} [snapshot.fuel]    その周を終えた時点の燃料状態
+ *   @param {boolean} [snapshot.stopped] 燃料切れで止まった。呼び出し側だけが知っている
  */
 export function radioSymptoms(perf, snapshot) {
-  const { tire, brake, driver, lapTime, bestTime, traffic = {} } = snapshot;
+  const { tire, brake, driver, lapTime, bestTime, traffic = {}, fuel } = snapshot;
   const stats = perf.stats;
   const out = {};
+
+  // 止まったかどうかは残量からは決められない（1周ぶんを切った状態でゴールすることもある）。
+  // 実際にリタイアさせた側が stopped を立てる
+  if (snapshot.stopped) out.fuel_out = 1;
+  else if (fuel) {
+    const left = fuelLapsLeft(fuel, stats);
+    // 「残りが3周分を切った」だけだと、余裕を持って走り切る周でも毎レース終盤に言うことになる。
+    // 残り周回に足りないと分かったときだけ言う（lapsToGo を渡さなければ前者だけで判定する）
+    const toGo = snapshot.lapsToGo ?? Infinity;
+    if (left < RADIO.fuelLowLaps && left < toGo) out.fuel_low = RADIO.fuelLowLaps / Math.max(left, 0.05);
+  }
 
   const retireP = WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -stats.reliability);
   if (retireP >= RADIO.retireRisk) out.retire_sign = retireP / RADIO.retireRisk;
@@ -648,6 +668,17 @@ export function radioForLap(perf, snapshot, state, rng = Math.random) {
   const lap = snapshot.lap;
   const symptoms = radioSymptoms(perf, snapshot);
   const calls = [];
+
+  // 押しのけるトリガー（燃料切れ）が立ったら、この1本だけ。上限も繰り返しの抑制も関係ない
+  const exclusive = RADIO.exclusive.find((id) => symptoms[id] !== undefined);
+  if (exclusive) {
+    const count = (state.fired[exclusive]?.count ?? 0) + 1;
+    state.fired[exclusive] = { count, lap, severity: symptoms[exclusive] };
+    state.lastLap = lap;
+    const call = { lap, id: exclusive, kind: 'info', severity: symptoms[exclusive], level: 'normal', count };
+    state.calls.push(call);
+    return [call];
+  }
 
   for (const id of RADIO.priority) {
     const severity = symptoms[id];
@@ -814,6 +845,11 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
       result.retired = true;
       result.retiredLap = i + 1;
       result.retireReason = 'fuel';
+      if (radioState) {
+        result.radio.push(...radioForLap(
+          perf, { lap: i + 1, tire, brake, fuel, driver, stopped: true }, radioState, radioRng,
+        ));
+      }
       break;
     }
     if (retire && rng() < retireP) {
@@ -830,12 +866,16 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
       lap: i + 1, time, sectors: lt.sectors,
       wear: tire.wear, gripLoss: lt.gripLoss.total,
       brakeTemp: brake.temp, brakeFade: lt.brakeFade,
-      fuel: fuel.level,
+      fuel: fuel.level,          // その周を走ったときの量
     };
+    // 燃料だけは「走り終えた時点」で見る。ハルカが周の終わりにメーターを見るのと同じ
+    const nextFuel = advanceFuel(fuel, perf.stats);
     if (radioState) {
       // 順位の絡む症状（直線／コーナーで負け、抜いた・抜かれた）は1台走行では立たない
       entry.radio = radioForLap(
-        perf, { lap: i + 1, tire, brake, driver, lapTime: time, bestTime: result.best }, radioState, radioRng,
+        perf,
+        { lap: i + 1, tire, brake, fuel: nextFuel, lapsToGo: laps - (i + 1), driver, lapTime: time, bestTime: result.best },
+        radioState, radioRng,
       );
       result.radio.push(...entry.radio);
     }
@@ -844,7 +884,7 @@ export function simulateRace(perf, course, laps, driver, options = {}) {
     if (time < result.best) result.best = time;
     tire = advanceTire(tire, perf.stats);
     brake = advanceBrakes(brake, perf.stats, load);
-    fuel = advanceFuel(fuel, perf.stats);
+    fuel = nextFuel;
   }
   result.average = result.laps.length ? result.total / result.laps.length : NaN;
   result.fuelLeft = fuel.level;

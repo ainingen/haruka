@@ -16,7 +16,7 @@ import {
   buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
   RADIO, pitComment, reactionFor, brakeThreshold, tireWearSplit, fuelLevel,
   QUALI, START, gridBlockFactor, simulateQualifying,
-  WEIGHTS, lapTime, createTireState, createBrakeState,
+  WEIGHTS, lapTime, createTireState, createBrakeState, radioSymptoms, radioForLap, createRadioState,
   createFuelState, fuelPerLap, fuelForLaps, advanceFuel, fuelLapsLeft, canRunLap, refuel,
 } from './race.js';
 
@@ -363,11 +363,17 @@ test('13. radio.json: 4層それぞれの本数、sound_cue、禁則', () => {
   assert.ok(constant >= 50, '常時層は50本以上');
   assert.ok(reaction >= 50, '反応は50本以上');
   assert.ok(chat >= 40, '雑談は40本以上');
+  // 繰り返し出るトリガーは、同じ台詞が続かないように6本以上。
+  // 燃料の2つだけ例外（docs/設計/無線.md）。燃料切れは1レースに1回きりでそこで終わり、
+  // 残り少も終盤の数周しか立たない。くり返し出ないものに悪化版と本数は要らない。
+  const FEW = new Set(['fuel_out', 'fuel_low']);
   for (const id of RADIO.priority) {
     const def = R.info[id];
     assert.ok(def, `radio.json に ${id} がない`);
     const n = def.lines.length + (def.harsh?.length ?? 0);
-    assert.ok(n >= 6, `${id} は6本以上（${n}）`);
+    const need = FEW.has(id) ? 3 : 6;
+    assert.ok(n >= need, `${id} は${need}本以上（${n}）`);
+    if (FEW.has(id)) assert.ok(!def.harsh, `${id} に悪化版は要らない`);
   }
   for (const id of RADIO.pit.priority) assert.ok(R.pit[id], `pit に ${id} がない`);
 
@@ -591,4 +597,67 @@ test('22. 燃料：満タンは重い。減りながら速くなり、尽きた�
   // 予選は計測3周ぶんしか積まないので、決勝より軽い
   const q = simulateQualifying(base, hiba, haruka, { noise: false });
   assert.ok(q.laps[0].fuel < race.laps[0].fuel, '予選のほうが軽い');
+});
+
+test('23. 無線：燃料の残り少と燃料切れ。燃料切れは他を押しのける', () => {
+  const perf = buildPerformance([part('tire_compound_02')], haruka, sedan);
+  const stats = perf.stats;
+  const snap = (fuel, extra = {}) => ({
+    lap: 5, tire: { wear: 0.5, lapsRun: 5 }, brake: { temp: 0 }, driver: haruka, fuel, ...extra,
+  });
+  const tank = (laps) => ({ level: fuelPerLap(stats) * laps, filled: 100 });
+
+  // 残り3周分を切ったら言う。それより多ければ言わない
+  assert.equal(radioSymptoms(perf, snap(tank(4))).fuel_low, undefined, '4周ぶんあれば言わない');
+  assert.ok(radioSymptoms(perf, snap(tank(2))).fuel_low > 0, '2周ぶんなら言う');
+  // ただし残り周回に足りているなら言わない。そうしないと毎レース終盤に必ず鳴る
+  assert.equal(radioSymptoms(perf, snap(tank(2), { lapsToGo: 1 })).fuel_low, undefined, '足りるなら言わない');
+  assert.ok(radioSymptoms(perf, snap(tank(2), { lapsToGo: 5 })).fuel_low > 0, '足りないなら言う');
+  // 減るほど深刻になる（悪化したら周を待たずに言い直せる）
+  assert.ok(radioSymptoms(perf, snap(tank(1))).fuel_low > radioSymptoms(perf, snap(tank(2))).fuel_low);
+
+  // 止まったかどうかは残量では決めない。呼び出し側が stopped を立てる
+  assert.equal(radioSymptoms(perf, snap({ level: 0, filled: 100 })).fuel_out, undefined, '残量だけでは立たない');
+  assert.equal(radioSymptoms(perf, snap(tank(0.5), { stopped: true })).fuel_out, 1);
+
+  // 燃料切れは他を全部押しのける。症状が山ほどあっても1本だけ
+  const wreck = buildPerformance([
+    part('tire_compound_03'),
+    { id: 'test_wreck', effects: {}, side_effects: { reliability: -20, balance: 9 } },
+  ], haruka, sedan);
+  const state = createRadioState();
+  const many = radioForLap(wreck, snap(tank(0.5)), createRadioState(), () => 0.99);
+  assert.ok(many.length > 1, '普段は1周に複数出る');
+  const one = radioForLap(wreck, snap(tank(0.5), { stopped: true }), state, () => 0.99);
+  assert.equal(one.length, 1, '燃料切れの周は1本だけ');
+  assert.equal(one[0].id, 'fuel_out');
+  assert.equal(one[0].level, 'normal', '悪化版は使わない');
+
+  // 台詞と、燃料切れ専用の返事（3択ではなく1つだけ）
+  const def = RADIO_DATA.info.fuel_out;
+  assert.equal(def.replies.length, 1, '返事は1つだけ');
+  assert.equal(def.replies[0].label, '……すまん');
+  assert.equal(def.replies[0].reactions[0].text, '次、積んで');
+  assert.equal(def.replies[0].consistency, 0, '止まったあとに調子は動かない');
+  assert.ok(!RADIO_DATA.info.fuel_low.replies, '残り少は共通の3択を使う');
+
+  // 実際に走らせて、燃料切れの周に fuel_out が出る
+  const thirsty = buildPerformance([{ id: 'thirsty2', effects: {}, side_effects: { fuel_consumption: 20 } }], haruka, sedan);
+  const r = simulateRace(thirsty, course(BALANCED), 40, haruka, { noise: false, retire: false, radio: true });
+  assert.equal(r.retireReason, 'fuel');
+  const last = r.radio.at(-1);
+  assert.equal(last.id, 'fuel_out', '最後の無線は燃料切れ');
+  assert.equal(last.lap, r.retiredLap);
+  assert.ok(r.radio.some((c) => c.id === 'fuel_low'), '止まる前に残り少を言っている');
+
+  // 燃料切れの実況が引けること（機械的なリタイアの台詞と混ざらない）
+  const retire = COMMENTARY.triggers.retire;
+  for (const speaker of ['announcer', 'analyst']) {
+    const fuelLines = retire[speaker].filter((e) => e.when === 'fuel');
+    const mech = retire[speaker].filter((e) => e.when === 'mechanical');
+    assert.ok(fuelLines.length >= 2, `${speaker} の燃料切れは2本以上`);
+    assert.ok(mech.length >= 5, `${speaker} の機械的リタイアは5本以上`);
+    assert.ok(retire[speaker].every((e) => ['fuel', 'mechanical'].includes(e.when)), `${speaker} に印の無い台詞がある`);
+  }
+  console.log(`  消費率+20 の車：${r.retiredLap}周目に燃料切れ。無線 ${r.radio.filter((c) => c.id === 'fuel_low').length} 本の予告のあと「${RADIO_DATA.info.fuel_out.lines[0].text}」`);
 });

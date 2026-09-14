@@ -588,6 +588,10 @@ function completeLap(car, course, load, totalLaps) {
   car.tire = advanceTire(car.tire, car.perf.stats);
   car.brake = advanceBrakes(car.brake, car.perf.stats, load);
   car.fuel = advanceFuel(car.fuel, car.perf.stats);
+  // 燃料だけは「走り終えた時点」の量を渡す。周の終わりにメーターを見るのと同じ。
+  // 残り周回も渡す。足りるかどうかは、残量だけでは決まらない
+  lapEvent.fuel = car.fuel;
+  lapEvent.lapsToGo = totalLaps - car.lap;
   S.lapEvents.push(lapEvent);
   if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
   planLap(car, course, load);
@@ -834,16 +838,17 @@ function sayInfo(call, opt = {}) {
   }
   const pool = call.level === 'harsh' && def.harsh?.length ? def.harsh : def.lines;
   say('haruka', textOf(pickUnique(`info/${call.id}/${call.level}`, pool)), {
-    info: true, mood: def.mood, replies: S.radioData.replies, allowInSkip: true,
+    // 返事は共通の3択。燃料切れだけは専用の1つ（data/radio.json の info.fuel_out.replies）
+    info: true, mood: def.mood, replies: def.replies ?? S.radioData.replies, allowInSkip: true,
   });
   S.lastInfoLap = call.lap;
 }
 
-/** 溜めた症状を優先順に1本ずつ出す。スキップの結末を出す直前に呼ぶ。 */
+/** 溜めた症状を、起きた順（同じ周なら優先順）に1本ずつ出す。スキップの結末を出す直前に呼ぶ。 */
 function flushSkipInfo() {
   if (!S.skipInfo.size) return;
   const calls = [...S.skipInfo.values()]
-    .sort((a, b) => RADIO.priority.indexOf(a.id) - RADIO.priority.indexOf(b.id));
+    .sort((a, b) => a.lap - b.lap || RADIO.priority.indexOf(a.id) - RADIO.priority.indexOf(b.id));
   S.skipInfo.clear();
   for (const call of calls) sayInfo(call, { flush: true });
 }
@@ -1097,8 +1102,18 @@ function retireTick() {
   for (const car of S.cars) {
     if (car.retired && !car.announcedRetire) {
       car.announcedRetire = true;
-      commentary('retire', 'announcer', { ...baseVars(), car: car.name, lap: car.retiredLap });
-      if (S.lineRng() < 0.6) commentary('retire', 'analyst', baseVars());
+      // 自車が燃料で止まったら、実況より先にハルカ。判定は race.js に任せる
+      if (car.isPlayer && car.retireReason === 'fuel') {
+        const calls = radioForLap(car.perf, {
+          lap: car.retiredLap, tire: car.tire, brake: car.brake, fuel: car.fuel,
+          driver: car.driver, stopped: true,
+        }, S.radio, S.radioRng);
+        for (const call of calls) sayInfo(call);
+      }
+      // 機械的なリタイアと燃料切れで実況を選び分ける（熱と耐久の話を燃料に使わない）
+      const tags = [car.retireReason === 'fuel' ? 'fuel' : 'mechanical'];
+      commentary('retire', 'announcer', { ...baseVars(), car: car.name, lap: car.retiredLap }, tags);
+      if (S.lineRng() < 0.6) commentary('retire', 'analyst', baseVars(), tags);
     }
   }
 }

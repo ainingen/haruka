@@ -5,6 +5,25 @@
   },
 
   "info": {
+    "fuel_out": {
+      "label": "燃料切れ",
+      "mood": "焦り",
+      "lines": [
+        { "text": "……止まった", "sound_cue": "" },
+        { "text": "エンジン、黙った", "sound_cue": "" },
+        { "text": "燃料。ねえ、燃料", "sound_cue": "" }
+      ],
+      "replies": [
+        {
+          "id": "sorry",
+          "label": "……すまん",
+          "consistency": 0,
+          "reactions": [
+            { "text": "次、積んで", "sound_cue": "" }
+          ]
+        }
+      ]
+    },
     "retire_sign": {
       "label": "リタイア予兆",
       "mood": "焦り",
@@ -18,6 +37,15 @@
         { "text": "音、大きくなってる。聞こえてないの？", "sound_cue": "" },
         { "text": "壊れる前に言ってるんだけど。壊れてから言えばよかった？", "sound_cue": "" },
         { "text": "アンタ、この音で走らせるんだ。ふうん", "sound_cue": "" }
+      ]
+    },
+    "fuel_low": {
+      "label": "燃料残り少",
+      "mood": "焦り",
+      "lines": [
+        { "text": "燃料、足りる？", "sound_cue": "" },
+        { "text": "メーター、下向いてんだけど", "sound_cue": "" },
+        { "text": "アンタの計算、合ってるよね", "sound_cue": "" }
       ]
     },
     "brake_fade": {
