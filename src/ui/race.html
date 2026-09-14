@@ -1171,13 +1171,14 @@ const S = {
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy, sponsors] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
     json('../../data/radio.json'), json('../../data/commentary.json'), json('../../data/rivals.json'),
-    json('../../data/economy.json'),
+    json('../../data/economy.json'), json('../../data/sponsors.json'),
   ]);
   S.economy = economy;
+  S.sponsors = sponsors;
   G = stateFromSearch(location.search) ?? legacyState(economy);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
@@ -1258,6 +1259,12 @@ async function boot() {
   } else {
     commentary('race_start', 'announcer', vars);
     say('announcer', textOf(pickUnique('profile', commentaryData.profile)));
+    // スポンサーが付いていれば、その名前で紹介する（段階0のあいだは何も言わない）
+    const sponsor = G.sponsor && sponsors.find((sp) => sp.id === G.sponsor.id);
+    if (sponsor) {
+      commentary('sponsor_intro', 'announcer', { ...vars, sponsor: sponsor.name });
+      if (S.lineRng() < 0.5) commentary('sponsor_intro', 'analyst', { ...vars, sponsor: sponsor.name });
+    }
     commentary('race_start', 'analyst', vars);
     const intro = radioData.chat.course_start[course.id];
     if (intro) say('haruka', textOf(pick(intro)));

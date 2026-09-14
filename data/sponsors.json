@@ -1,0 +1,17 @@
+[
+  { "id": "local_garage", "tier": 1, "name": "ながさわ自動車整備", "kind": "地元の整備工場" },
+  { "id": "local_ramen", "tier": 1, "name": "らーめん坂下", "kind": "地元のラーメン屋" },
+  { "id": "local_gas", "tier": 1, "name": "ひばり石油", "kind": "地元のガソリンスタンド" },
+
+  { "id": "regional_transport", "tier": 2, "name": "みさき運輸", "kind": "地方の運送会社" },
+  { "id": "regional_supermarket", "tier": 2, "name": "スーパーあさひな", "kind": "地方のスーパー" },
+  { "id": "regional_electric", "tier": 2, "name": "デンキのカザハヤ", "kind": "地方の家電量販店" },
+
+  { "id": "national_tire", "tier": 3, "name": "トウホウタイヤ", "kind": "タイヤメーカー" },
+  { "id": "national_oil", "tier": 3, "name": "オリオン潤滑油", "kind": "オイルメーカー" },
+  { "id": "national_drink", "tier": 3, "name": "ホシノ飲料", "kind": "飲料メーカー" },
+
+  { "id": "major_motors", "tier": 4, "name": "カミヤ・モータース", "kind": "大手メーカー（自動車）" },
+  { "id": "major_electronics", "tier": 4, "name": "ミナト電機", "kind": "大手メーカー（電機）" },
+  { "id": "major_parts", "tier": 4, "name": "セイリュウ精機", "kind": "大手メーカー（部品）" }
+]

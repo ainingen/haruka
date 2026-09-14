@@ -147,3 +147,26 @@ test('S5. AI 車と通し走行：性格ごとに得意が違い、着順が出�
   for (let i = 1; i < finished.length; i++) assert.ok(finished[i].total >= finished[i - 1].total, '総時間の順');
   console.log(`  ひばり平 5周（クラス1、8台）：自車 ${runs.find((r) => r.id === 'me').pos} 位`);
 });
+
+test('S6. スポンサー：段階1〜4に3社ずつ、架空名。実況の紹介は {sponsor} を埋める', () => {
+  const SPONSORS = load('sponsors.json');
+  const C = load('commentary.json');
+  for (const tier of [1, 2, 3, 4]) {
+    const pool = SPONSORS.filter((s) => s.tier === tier);
+    assert.ok(pool.length >= 3, `段階${tier} は3社以上（${pool.length}）`);
+  }
+  assert.equal(new Set(SPONSORS.map((s) => s.id)).size, SPONSORS.length, 'id が重複');
+  for (const s of SPONSORS) assert.ok(s.name && s.kind && s.tier >= 1 && s.tier <= 4);
+  const intro = C.triggers.sponsor_intro;
+  assert.ok(intro?.announcer.length >= 3 && intro.announcer.every((e) => e.text.includes('{sponsor}')), '実況は会社名を言う');
+  assert.ok(intro.analyst.length >= 2);
+  // 段階が上がったときだけ会社が付く。上がらなければそのまま
+  const ids = Array.from({ length: 8 }, (_, i) => (i === 0 ? 'me' : `ai${i}`));
+  const season = { year: 1, rounds: Array(6).fill({ result: {} }), next: 6, points: Object.fromEntries(ids.map((id) => [id, id === 'me' ? 30 : 1])), symptoms: {} };
+  const s = { ...newGame(ECONOMY), cls: 2, tier: 1, sponsor: { tier: 1, id: 'local_ramen' }, season };
+  const { state, sponsorChanged } = endSeason(s, ids, COURSES, ECONOMY, SPONSORS, () => 0.5, RADIO.season_note);
+  assert.equal(state.cls, 3, '昇格');
+  assert.equal(state.tier, 1, 'クラス3に上がっただけでは段階2にならない（完走してから）');
+  assert.ok(!sponsorChanged && state.sponsor.id === 'local_ramen', '会社はそのまま');
+  console.log(`  スポンサー ${SPONSORS.length} 社：${SPONSORS.map((x) => x.name).join('、')}`);
+});
