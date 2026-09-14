@@ -32,10 +32,15 @@ export const TITLE = {
   /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
   stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
   /**
-   * 絵の下端に小さく置く作り手の名前。**目立たせない**（白、字間を広く、少し薄く）。
-   * ラテンは同梱の等幅、かなと漢字は既定のゴシックへ落ちる。
+   * 作り手の名前。**チェッカーフラッグ柄の帯に載せて、右下に貼ったように置く。**
+   * size は絵の高さに対する文字の大きさ、square は市松1マス（文字の高さの半分）。
+   * angle は傾き（度）、right / bottom は絵の端からの余白（幅・高さに対する割合）。
    */
-  credit: { text: 'Produced by 夜中のBBQ', scale: 0.15, tracking: 0.28, alpha: 0.72, bottom: 0.028 },
+  credit: {
+    text: 'Produced by 夜中のBBQ',
+    size: 0.0175, tracking: 0.08, square: 0.5,
+    angle: 6, right: 0.04, bottom: 0.035, alpha: 0.92, seed: 20260914,
+  },
   /** 題の下端を、絵の下からどれだけ上に置くか（高さに対する割合）。**下三分の一**。 */
   baseline: 0.1,
   /**
@@ -91,6 +96,8 @@ const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
  *      ハルカの           小さい段
  *   セッティングノート      大きい段（白から淡い紙色への縦のグラデーション）
  *        ▬▬               白と赤の帯（スーツの配色）
+ *
+ * 作り手の名前は別（drawSticker）。チェッカー柄の貼り紙にして右下に貼る。
  *
  * 白い字に黒の細い縁と影を付けるので、下が明るくても読める。
  */
@@ -181,10 +188,105 @@ function drawText(ctx, colors) {
     stripeW, TITLE.stripe.white);
   ctx.restore();
 
-  // 作り手の名前。**絵の下端**（ボタンは canvas の外なので、その上になる）
-  const creditSize = Math.round(bottomSize * TITLE.credit.scale);
-  line(TITLE.credit.text, creditSize, Math.round(TITLE.h * (1 - TITLE.credit.bottom) - creditSize),
-    { font: `${MONO}, ${FONT}`, weight: 400, track: TITLE.credit.tracking, alpha: TITLE.credit.alpha, stroke: 0.06 });
+  ctx.restore();
+}
+
+/** 同じ絵を何度描いても同じになるように、種を決めた乱数を使う（mulberry32）。 */
+function rngFrom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * 作り手の名前を、**チェッカーフラッグ柄の貼り紙**にして右下に貼る。
+ *
+ * - 市松は canvas に直接描く（画像は足さない）。1マスは文字の高さの半分
+ * - 文字は帯の真ん中に白い欄を作って、そこに黒で入れる
+ * - 別の canvas に組んでから、**縁を荒らして**斜めに貼る。薄い影で浮かせる
+ * - 題字とは重ならない（題字は中央、これは右下）
+ *
+ * @param {number} scale 画面の倍率（devicePixelRatio）。荒れも文字も潰さない
+ */
+function drawSticker(ctx, colors, scale) {
+  const c = TITLE.credit;
+  const fs = Math.round(TITLE.h * c.size);
+  const sq = Math.max(3, Math.round(fs * c.square));     // 市松1マス
+  const track = Math.round(fs * c.tracking);
+
+  // 文字の幅を測って、マスの倍数の帯にする
+  ctx.save();
+  ctx.font = `400 ${fs}px ${MONO}, ${FONT}`;
+  ctx.letterSpacing = `${track}px`;
+  const textW = ctx.measureText(c.text).width - track;
+  ctx.restore();
+  const w = Math.ceil((textW + sq * 3) / sq) * sq;
+  const labelH = Math.round(fs * 1.6);
+  const h = labelH + sq * 2;
+
+  // 貼り紙そのものは別の canvas に組む（縁を荒らすのに要る）
+  const off = document.createElement('canvas');
+  off.width = Math.round(w * scale);
+  off.height = Math.round(h * scale);
+  const o = off.getContext('2d');
+  o.setTransform(scale, 0, 0, scale, 0, 0);
+
+  // 市松（白黒）。帯の上下の1列ぶん
+  o.fillStyle = '#ffffff';
+  o.fillRect(0, 0, w, h);
+  o.fillStyle = '#111111';
+  for (let row = 0; row < Math.ceil(h / sq); row += 1) {
+    for (let col = 0; col < w / sq; col += 1) {
+      if ((row + col) % 2 === 0) o.fillRect(col * sq, row * sq, sq, sq);
+    }
+  }
+  // 真ん中の欄。ここに文字を入れる
+  o.fillStyle = '#f4f2ec';
+  o.fillRect(0, sq, w, labelH);
+  o.fillStyle = '#111111';
+  o.font = `400 ${fs}px ${MONO}, ${FONT}`;
+  o.letterSpacing = `${track}px`;
+  o.textAlign = 'center';
+  o.textBaseline = 'middle';
+  o.fillText(c.text, w / 2 - track / 2, sq + labelH / 2 + 1);
+
+  // 縁を荒らす。**同じ種なので、描き直しても同じ荒れ方になる**
+  const rnd = rngFrom(c.seed);
+  o.globalCompositeOperation = 'destination-out';
+  const bites = Math.round((w + h) / sq);
+  for (let i = 0; i < bites; i += 1) {
+    const edge = Math.floor(rnd() * 4);
+    const r = sq * (0.25 + rnd() * 0.5);
+    const along = rnd();
+    const px = edge === 0 || edge === 2 ? along * w : (edge === 1 ? w : 0);
+    const py = edge === 1 || edge === 3 ? along * h : (edge === 2 ? h : 0);
+    o.beginPath();
+    o.arc(px, py, r, 0, Math.PI * 2);
+    o.fill();
+  }
+  // 四隅は少し大きく欠く
+  for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
+    o.beginPath();
+    o.arc(cx, cy, sq * (0.5 + rnd() * 0.4), 0, Math.PI * 2);
+    o.fill();
+  }
+  o.globalCompositeOperation = 'source-over';
+
+  // 貼る。右下、斜め、薄い影で浮かせる
+  const cx = TITLE.w * (1 - c.right) - w / 2;
+  const cy = TITLE.h * (1 - c.bottom) - h / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((c.angle * Math.PI) / 180);
+  ctx.shadowColor = 'rgba(0, 0, 0, .5)';
+  ctx.shadowBlur = Math.round(sq * 1.6);
+  ctx.shadowOffsetY = Math.round(sq * 0.5);
+  ctx.globalAlpha = c.alpha;
+  ctx.drawImage(off, -w / 2, -h / 2, w, h);
   ctx.restore();
 }
 
@@ -228,6 +330,7 @@ export async function mountTitle(canvas, opts = {}) {
     ctx.fillRect(0, 0, TITLE.w, TITLE.h);
     if (img) { drawImage(ctx, img); drawVeil(ctx); }
     drawText(ctx, colors);
+    drawSticker(ctx, colors, scale);
   };
 
   paint(null);   // 画像も書体も待たずに、まず題まで描く
