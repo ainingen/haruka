@@ -1788,6 +1788,20 @@
         "text": "今年は静かだった。エンジンの声だけ聞いてた",
         "sound_cue": ""
       }
+    ],
+    "class5": [
+      {
+        "text": "壊れる部品は、壊れない部品と組めば速い。親父は知らなかった",
+        "sound_cue": ""
+      },
+      {
+        "text": "全部積むと落ちる。これは今年、二回やった",
+        "sound_cue": ""
+      },
+      {
+        "text": "かざはや。親父の走ったところと、ウチの走ったところ、もう同じじゃない",
+        "sound_cue": ""
+      }
     ]
   },
   "season_event": {
@@ -1795,6 +1809,102 @@
     "note_ends": {
       "_comment": "クラス5へ昇格した瞬間。親父のノートがここで尽きる。ハルカと主人公の台詞を入れる（未執筆）。",
       "lines": []
+    }
+  },
+  "class5": {
+    "_comment": "tools/build-scenes.mjs が docs/シナリオ/クラス5台本.md から作る。**手で直さない。**",
+    "class5_first_works": {
+      "when": "ワークス部品を初めて装着したとき（セッティング画面、一度だけ）",
+      "once": true,
+      "where": "setup",
+      "lines": [
+        {
+          "speaker": "haruka",
+          "text": "これ、親父の字がない。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "……いいよ。ウチが書く。",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "class5_first_reinforce": {
+      "when": "補強部品を初めて見たとき（補強の区分が初めて開かれた時、一度だけ）",
+      "once": true,
+      "where": "setup",
+      "lines": [
+        {
+          "speaker": "haruka",
+          "text": "壊れない部品。親父、こういうの嫌ってたな。「速くならないもんに金使うな」って。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "player",
+          "text": "壊れたら、速くもならない。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "……そうだけど。",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "class5_works_retire": {
+      "when": "ワークス部品を積んでリタイアしたとき（決勝後、燃料切れ以外）",
+      "once": false,
+      "where": "race",
+      "lines": [
+        {
+          "speaker": "haruka",
+          "text": "壊れた。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "player",
+          "text": "直す。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "直すけど。……あれ、親父も踏んだのかな。同じとこ。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "player",
+          "text": "踏んだと思う。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "そっか。じゃあ、ウチはもう一回踏まない。",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "class5_braced_finish": {
+      "when": "補強を積んでワークスが完走したとき（決勝後、信頼性0以上でワークス装着、一度だけ）",
+      "once": true,
+      "where": "race",
+      "lines": [
+        {
+          "speaker": "haruka",
+          "text": "持った。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "player",
+          "text": "持ったな。",
+          "sound_cue": ""
+        },
+        {
+          "speaker": "haruka",
+          "text": "（ノートに書く音）……書いた。親父が知らないやつ、一個。",
+          "sound_cue": ""
+        }
+      ]
     }
   }
 }

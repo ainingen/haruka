@@ -308,6 +308,16 @@ h2 {
 .pitline[hidden] { display: none; }
 .pitline .k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); white-space: nowrap; flex: none; }
 .pitline span:last-child { color: var(--car); }
+/* クラス5の差し込み。話者名つきで数行出す（場面ではないので短く、閉じられる） */
+.pitline.talk { align-items: flex-start; border-left-color: var(--accent); }
+.pitline.talk > div { flex: 1 1 auto; min-width: 0; }
+.pitline.talk .say { display: grid; grid-template-columns: 4.5em minmax(0, 1fr); gap: 2px 8px; padding: 2px 0; }
+.pitline.talk .say .who { font-size: var(--fs-sub); color: var(--ink-2); text-align: right; }
+.pitline.talk .say .line { font-family: var(--hand-font); font-size: var(--fs-body); color: var(--ink); letter-spacing: .03em; }
+.pitline.talk .x {
+  flex: none; font: inherit; font-size: var(--fs-small); line-height: 1; padding: 3px 7px; cursor: pointer;
+  background: none; border: 1px solid var(--ink-3); color: var(--ink-2);
+}
 
 .calcbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
@@ -451,6 +461,13 @@ h2 {
     <span id="pitlineText"></span>
   </div>
 
+  <!-- クラス5の差し込み（radio.json の class5）。場面ではないので scene.js は使わない -->
+  <div class="pitline talk" id="class5Line" hidden>
+    <span class="k">PIT</span>
+    <div id="class5Lines"></div>
+    <button type="button" class="x" id="class5Close" aria-label="閉じる">✕</button>
+  </div>
+
   <h2>部品表 / スロット</h2>
   <div class="bom" id="bom"></div>
   <div id="illegalWarn"></div>
@@ -526,7 +543,7 @@ import {
   buildPerformance, simulateRace, formatTime,
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
 } from '../engine/race.js';
-import { loadState, save, newGame, searchWithState } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState, sawScene, markScene } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
 import { currentRound } from '../engine/season.js';
 
@@ -1277,6 +1294,8 @@ const candidatesFor = (slot) => DATA.parts
 let pendingRoll = null;
 
 function openPicker(slot) {
+  // 補強の区分を初めて開いたとき（クラス5の差し込み）
+  if (slotCategory(slot) === 'reinforce') showClass5('class5_first_reinforce');
   const list = candidatesFor(slot);
   state.openSlot = slot;
   state.candidate = state.equipped[slot] ?? (list.find(isLegal) ?? list[0])?.id ?? null;
@@ -1722,6 +1741,27 @@ function blinkIf(id, changed, key) {
 // ---------------------------------------------------------------------------
 /** いま出している一言の ID。変わったときだけ台詞を引き直す（触るたびに喋り直さない）。 */
 let pitShown = null;
+// ---------------------------------------------------------------------------
+// クラス5の差し込み（data/radio.json の class5）
+//
+// 場面（scene.js）ではない。**セッティング画面の短い吹き出し**として出す。
+// 一度だけのものは state の `ending.seen` に記録する（場面と同じ場所）。
+// ---------------------------------------------------------------------------
+function showClass5(id) {
+  const def = DATA.radio.class5?.[id];
+  if (!def || (def.once && sawScene(G, id))) return;
+  el('class5Lines').innerHTML = def.lines.map((l) => {
+    const who = DATA.radio.speakers?.[l.speaker]?.label ?? l.speaker;
+    return `<div class="say"><span class="who">${esc(who)}</span><span class="line">${esc(l.text)}</span></div>`;
+  }).join('');
+  el('class5Line').hidden = false;
+  if (def.once) { G = markScene(G, id); save(G); }
+}
+el('class5Close').addEventListener('click', () => { el('class5Line').hidden = true; });
+
+/** そのパーツがクラス5のワークス部品か（補強は別区分）。 */
+const isWorks = (p) => p && p.class_required === 5 && p.category !== 'reinforce';
+
 /** 判定より優先して1回だけ出す一言（ノートを写した直後の「親父ならこうしてた」など）。 */
 let pitOverride = null;
 
@@ -1945,6 +1985,8 @@ function renderAll() {
   drawBom();
   drawModal();
   drawStatus();
+  // ワークス部品を初めて装着したとき（クラス5の差し込み）。装着のたびに見る
+  if (equippedParts().some(isWorks)) showClass5('class5_first_works');
   drawPitLine();
   drawMoney();
   if (el('selCourse').dataset.ready) drawCourses();

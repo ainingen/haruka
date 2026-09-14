@@ -94,8 +94,44 @@ export function parseScript(md) {
   return { scenes, radios };
 }
 
+/**
+ * 本編差し込みの小見出し → radio.json のトリガー。
+ * `once` は一度だけ、`where` は出す画面（setup＝セッティング画面 / race＝決勝のあと）。
+ */
+export const RADIO_TRIGGERS = [
+  { id: 'class5_first_works', once: true, where: 'setup', match: /ワークス部品を初めて装着/ },
+  { id: 'class5_first_reinforce', once: true, where: 'setup', match: /補強部品を初めて見た/ },
+  { id: 'class5_works_retire', once: false, where: 'race', match: /リタイアしたとき/ },
+  { id: 'class5_braced_finish', once: true, where: 'race', match: /完走したとき/ },
+];
+/** クラス5のシーズン末の一行（season_note.class5）。 */
+const SEASON_NOTE = /シーズン終了時のノートの一行/;
+
+/** 話者名 → radio.json の speakers のキー。 */
+const SPEAKER = { ハルカ: 'haruka', 主人公: 'player' };
+
 const md = readFileSync(join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md'), 'utf8');
 const { scenes, radios } = parseScript(md);
+
+/** 台本の差し込みを radio.json の形にする。 */
+function buildRadio() {
+  const class5 = {
+    _comment: 'tools/build-scenes.mjs が docs/シナリオ/クラス5台本.md から作る。**手で直さない。**',
+  };
+  for (const t of RADIO_TRIGGERS) {
+    const found = Object.entries(radios).find(([when]) => t.match.test(when));
+    if (!found) throw new Error(`台本に見出しが無い: ${t.id}`);
+    class5[t.id] = {
+      when: found[0],
+      once: t.once,
+      where: t.where,
+      lines: found[1].lines.map((l) => ({ speaker: SPEAKER[l.say] ?? l.say, text: l.text, sound_cue: '' })),
+    };
+  }
+  const note = Object.entries(radios).find(([when]) => SEASON_NOTE.test(when));
+  return { class5, seasonNote: note[1].lines.map((l) => ({ text: l.note, sound_cue: '' })) };
+}
+const { class5, seasonNote } = buildRadio();
 const out = `${JSON.stringify({
   _comment: 'tools/build-scenes.mjs が docs/シナリオ/クラス5台本.md から作る。**手で直さない。** 台本を直してから作り直す。',
   scenes,
@@ -103,6 +139,13 @@ const out = `${JSON.stringify({
 
 if (process.argv.includes('--write')) {
   writeFileSync(join(ROOT, 'data', 'scenes.json'), out);
+  // radio.json は手書きのものが大半なので、**クラス5のぶんだけ差し替える**
+  const radioPath = join(ROOT, 'data', 'radio.json');
+  const radio = JSON.parse(readFileSync(radioPath, 'utf8'));
+  radio.class5 = class5;
+  radio.season_note.class5 = seasonNote;
+  writeFileSync(radioPath, `${JSON.stringify(radio, null, 2)}\n`);
+  console.log(`data/radio.json を更新：class5 ${RADIO_TRIGGERS.length} トリガー、season_note.class5 ${seasonNote.length} 本`);
   console.log(`data/scenes.json を書き出した：${scenes.length} 場面`);
   for (const s of scenes) {
     const says = s.steps.filter((x) => x.say).length;

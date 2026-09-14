@@ -146,7 +146,7 @@ export function endSeason(state, ids, courses, economy, sponsors, rng = Math.ran
   const verdict = verdictFor(state, ids, economy);
   const tier = sponsorTierAfter(state, verdict);
   const symptom = topSymptom(state.season);
-  const note = noteLines ? pickNote(noteLines, symptom, rng) : null;
+  const note = noteLines ? pickNote(noteLines, symptom, rng, state.cls) : null;
   let sponsor = state.sponsor;
   let sponsorChanged = false;
   if (tier > (sponsor?.tier ?? 0)) {
@@ -158,9 +158,15 @@ export function endSeason(state, ids, courses, economy, sponsors, rng = Math.ran
   return { state: next, verdict, note, symptom, sponsorChanged, events: seasonEvents(verdict) };
 }
 
-/** radio.json の season_note から一行。症状が無ければ clean。 */
-export function pickNote(noteLines, symptom, rng = Math.random) {
-  const pool = noteLines[symptom] ?? noteLines.clean;
+/**
+ * radio.json の season_note から一行。症状が無ければ clean。
+ *
+ * **クラス5だけは症状を見ない。** 親父のノートが尽きた先の一年なので、
+ * 書くことが症状ではなく「親父が知らなかったこと」に変わる（クラス5台本の差し込み）。
+ */
+export function pickNote(noteLines, symptom, rng = Math.random, cls = null) {
+  const pool = (cls >= 5 && noteLines.class5?.length ? noteLines.class5 : null)
+    ?? noteLines[symptom] ?? noteLines.clean;
   if (!pool?.length) return null;
   const e = pool[Math.floor(rng() * pool.length)];
   return typeof e === 'string' ? e : e.text;

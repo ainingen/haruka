@@ -321,7 +321,7 @@ import {
   createRunner, createClock, planLap, stepField, rankRunners, progress,
   paceSpeed as paceSpeedOf, gapSeconds as gapSecondsOf,
 } from '../engine/race.js';
-import { loadState, save, newGame, searchWithState } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState, sawScene, markScene } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
 import { rivalSpec, fieldEntries, rivalLoadout, aiNotes } from '../engine/rivals.js';
 import { currentRound, recordResult, rivalPlanFor } from '../engine/season.js';
@@ -1031,6 +1031,28 @@ function qualiFinish() {
     </div></div>`;
 }
 
+/**
+ * クラス5の差し込み（`data/radio.json` の class5、where: 'race'）。決勝が終わってから出す。
+ *
+ *   class5_works_retire   ワークスを積んでリタイア（**燃料切れ以外**）。毎回
+ *   class5_braced_finish  信頼性0以上でワークスを積んで完走。一度だけ
+ *
+ * 一度だけのものは state の `ending.seen` に記録する（場面と同じ場所）。
+ */
+function showClass5Race(me) {
+  if ((G.cls ?? 1) < 5) return;
+  const works = S.mine.some((p) => p.class_required === 5 && p.category !== 'reinforce');
+  if (!works) return;
+  const id = me.retired
+    ? (me.retireReason === 'fuel' ? null : 'class5_works_retire')
+    : (S.myPerf.stats.reliability >= 0 ? 'class5_braced_finish' : null);
+  const def = id ? S.radioData.class5?.[id] : null;
+  if (!def || (def.once && sawScene(G, id))) return;
+  // 結果が確定したあとの台詞なので、スキップ中でも通す（say の allowInSkip）
+  for (const l of def.lines) say(l.speaker === 'player' ? 'player' : 'haruka', l.text, { allowInSkip: true });
+  if (def.once) G = markScene(G, id);
+}
+
 /** リタイアした車を実況する。 */
 function retireTick() {
   for (const car of S.cars) {
@@ -1489,6 +1511,8 @@ function finish() {
       symptoms: S.symptoms,
     }, E);
   }
+  // クラス5の差し込み（data/radio.json の class5、where: 'race'）。**決勝のあと**に無線で出す
+  showClass5Race(me);
   save(G);   // 収支と消耗を反映し終えた。ここが1戦の区切り
   const nextHref = inSeason
     ? `season.html${searchWithState(G, {})}`
