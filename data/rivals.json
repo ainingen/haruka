@@ -51,7 +51,7 @@
     "number": 26,
     "name": "桐生",
     "profile": "power",
-    "strength": "fast"
+    "strength": "slow"
   },
   {
     "number": 17,
@@ -75,7 +75,7 @@
     "number": 38,
     "name": "白石",
     "profile": "balanced",
-    "strength": "normal"
+    "strength": "slow"
   },
   {
     "number": 41,
@@ -99,7 +99,7 @@
     "number": 52,
     "name": "伊吹",
     "profile": "corner",
-    "strength": "slow"
+    "strength": "normal"
   },
   {
     "number": 55,

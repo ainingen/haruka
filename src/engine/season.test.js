@@ -11,7 +11,7 @@ import {
   newSeason, currentRound, seasonOver, pointsFor, recordResult, standings, myRank,
   verdictFor, topSymptom, sponsorTierAfter, endSeason, pickNote, simulateField, coursesFor,
 } from './season.js';
-import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout } from './rivals.js';
+import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion } from './rivals.js';
 import { newGame } from './save.js';
 import { buildPerformance, createRng } from './race.js';
 
@@ -128,7 +128,7 @@ test('S4. スポンサー段階は成績とクラスで上がり、下がらな�
   console.log(`  昇格後のノート：「${note}」`);
 });
 
-test('S5. AI の構成は自車と無関係：遅いは安物、並はノート、速いはノート＋性格のパーツ。すべて規定内', () => {
+test('S5. AI の構成は自車と無関係：遅いはノートの3割、並は7割、速いは全点＋性格のパーツ。すべて規定内', () => {
   const course = COURSES.find((c) => c.id === 'hibaridaira');
   const cls = 2;
   const entries = fieldEntries(RIVALS, course, cls);
@@ -141,11 +141,18 @@ test('S5. AI の構成は自車と無関係：遅いは安物、並はノート�
     for (const p of lo.parts) assert.ok(aiLegal(p, cls), `${entry.name} の ${p.id} は規定外`);
     const ids = lo.parts.map((p) => p.id);
     seen[entry.strength] += 1;
-    if (entry.strength === 'normal') assert.deepEqual([...ids].sort(), [...note.parts].sort(), '並はノート通り');
-    if (entry.strength === 'slow') {
-      assert.ok(ids.length >= 1 && ids.length <= 2, '遅いは安物1〜2点');
-      const cheapest = PARTS.filter((p) => aiLegal(p, cls)).sort((a, b) => a.price - b.price)[0];
-      assert.ok(ids.includes(cheapest.id), '最安のパーツを持つ');
+    // 遅い・並はノートの一部。安い順に頭から取るので、欠けるのは必ず高いほう
+    if (entry.strength !== 'fast') {
+      const frac = AI_STRENGTH[entry.strength].noteFrac;
+      const want = entry.strength === 'slow'
+        ? Math.max(1, Math.floor(note.parts.length * frac))
+        : Math.round(note.parts.length * frac);
+      assert.equal(ids.length, want, `${entry.strength} はノート${note.parts.length}点のうち${want}点`);
+      for (const id of ids) assert.ok(note.parts.includes(id), 'ノートの外のパーツを積まない');
+      const dropped = note.parts.filter((id) => !ids.includes(id)).map((id) => part(id).price);
+      const kept = ids.map((id) => part(id).price);
+      if (dropped.length) assert.ok(Math.max(...kept) <= Math.min(...dropped), '欠けるのは高いほうから');
+      assert.deepEqual(lo.settings, note.settings, 'セッティングは金が要らないので全段階に付く');
     }
     if (entry.strength === 'fast') {
       const extras = plan[`ai${i}`];
@@ -159,6 +166,12 @@ test('S5. AI の構成は自車と無関係：遅いは安物、並はノート�
     }
   });
   assert.ok(seen.fast && seen.normal && seen.slow, '3段階とも名簿にいる');
+  // 丸め：ノート5点なら遅い1点・並4点（切り捨て／四捨五入）
+  const five = [1, 2, 3, 4, 5].map((n) => ({ id: `p${n}`, price: n * 1000 }));
+  assert.deepEqual(notePortion(five, AI_STRENGTH.slow).map((p) => p.id), ['p1']);
+  assert.deepEqual(notePortion(five, AI_STRENGTH.normal).map((p) => p.id), ['p1', 'p2', 'p3', 'p4']);
+  assert.equal(notePortion([{ id: 'p1', price: 1 }, { id: 'p2', price: 2 }], AI_STRENGTH.slow).length, 1, '2点でも遅いは1点');
+  assert.deepEqual(notePortion(five, AI_STRENGTH.fast), five, '速いはノート全点');
   assert.deepEqual(seasonRivalPlan(entries, PARTS, cls, createRng(11)), plan, '種が同じなら同じ構成');
   const kaza = COURSES.find((c) => c.id === 'kazahaya');
   assert.equal(baselineFor(NOTES, PARTS, kaza, 5).note.class, 3, 'かざはやのクラス5は、クラス3のノートを借りる');
