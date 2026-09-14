@@ -21,7 +21,8 @@ body {
 /* **PLiCy はページの最初の canvas からサムネイルを撮る。** 題と絵だけを描き、
    ボタンはこの下の紙の札に置く（src/ui/title.js） */
 .cover-art {
-  display: block; width: 100%; max-width: 1200px; height: auto;
+  /* 絵は縦長（4:5）。縦が伸びすぎないよう、画面の高さからも幅を抑える */
+  display: block; width: min(100%, 1200px, 62vh); height: auto; margin: 0 auto;
   background: var(--ink); box-shadow: 0 4px 18px var(--shadow);
 }
 .cover {
@@ -65,7 +66,7 @@ body {
 <body>
 
 <!-- **この canvas を body の最初の要素から動かさない。** PLiCy がサムネイルに使う -->
-<canvas class="cover-art" id="cover" width="1200" height="900" role="img"
+<canvas class="cover-art" id="cover" width="1200" height="1500" role="img"
         aria-label="ハルカのセッティングノート"></canvas>
 
 <div class="cover"><div class="cover-inner">

@@ -13,20 +13,26 @@
 
 /** 絵の大きさと、文字の置き方。**サムネイルの構図はここだけで決まる。** */
 export const TITLE = {
+  /** 写真が縦長（3:4）なので、絵も縦長の 4:5。**顔と足元の両方が入る形。** */
   w: 1200,
-  h: 900,
-  /** 題を置く左の帯（幅に対する割合）。絵のハルカは右寄り。**半分を超えない。** */
-  band: 0.5,
-  /** 帯の左右の余白（論理 px）。 */
+  h: 1500,
+  /** 題の幅の上限（幅に対する割合）。左右中央揃えで、この幅に収める。 */
+  band: 0.82,
+  /** 左右の余白（論理 px）。 */
   pad: 44,
   /** 上段と下段。下段は上段の約2倍の字。 */
   top: 'ハルカの',
   bottom: 'セッティングノート',
   topScale: 0.5,
-  /** 絵の切り取り位置（0＝左/上、1＝右/下）。顔を残すために上寄り。 */
-  focus: { x: 0.5, y: 0.18 },
-  /** 左を暗くする幕の濃さと、幕が消えきる位置。 */
-  veil: { alpha: 0.72, to: 0.72 },
+  /** 題の下端を、絵の下からどれだけ上に置くか（高さに対する割合）。**下三分の一**。 */
+  baseline: 0.1,
+  /**
+   * 絵の切り取り位置（0＝左/上、1＝右/下）。**下寄せ**。
+   * 題は足元のコンクリートの上に置くので、下を切らない。余るぶんは上（天井）から切る。
+   */
+  focus: { x: 0.5, y: 0.9 },
+  /** 下を暗くする幕。from から下が濃くなる（足元のコンクリートの上で白文字を読ませる）。 */
+  veil: { alpha: 0.66, from: 0.5 },
   /** 画像のパス（index.html からの相対）。 */
   image: 'assets/title/haruka.png',
 };
@@ -58,20 +64,21 @@ const FONT = 'system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-s
 
 /**
  * 題を描く。画像があってもなくても、同じ位置に同じ大きさで出る。
- * 白い字に薄い影と細い縁。背景が明るくても読める。
+ * **絵の下三分の一に横組み二段、左右中央揃え。** 白い字に薄い影と細い縁。
  */
 function drawText(ctx, colors) {
   const inner = TITLE.w * TITLE.band - TITLE.pad * 2;
-  const x = TITLE.pad;
+  const x = Math.round(TITLE.w / 2);
 
-  const bottomSize = fitFont(ctx, TITLE.bottom, inner, Math.round(TITLE.h * 0.12));
+  const bottomSize = fitFont(ctx, TITLE.bottom, inner, Math.round(TITLE.h * 0.1));
   const topSize = Math.round(bottomSize * TITLE.topScale);
-  const gap = Math.round(bottomSize * 0.28);
+  const gap = Math.round(bottomSize * 0.24);
   const blockH = topSize + gap + bottomSize;
-  const y = Math.round((TITLE.h - blockH) / 2);
+  const y = Math.round(TITLE.h * (1 - TITLE.baseline) - blockH);
 
   ctx.save();
   ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(0, 0, 0, .75)';
   ctx.shadowBlur = Math.round(bottomSize * 0.22);
   ctx.shadowOffsetY = Math.round(bottomSize * 0.04);
@@ -85,21 +92,21 @@ function drawText(ctx, colors) {
     ctx.fillStyle = colors.text;
     ctx.fillText(text, x, ly);
   };
-  ctx.letterSpacing = `${Math.round(topSize * 0.12)}px`;
+  ctx.letterSpacing = `${Math.round(topSize * 0.14)}px`;
   line(TITLE.top, topSize, y);
-  ctx.letterSpacing = `${Math.round(bottomSize * 0.04)}px`;
+  ctx.letterSpacing = `${Math.round(bottomSize * 0.05)}px`;
   line(TITLE.bottom, bottomSize, y + topSize + gap);
   ctx.restore();
 }
 
-/** 左を暗くする幕。画像の左端が明るくても題が読める。 */
+/** 下を暗くする幕。足元のコンクリートが明るくても題が読める。 */
 function drawVeil(ctx) {
-  const g = ctx.createLinearGradient(0, 0, TITLE.w * TITLE.veil.to, 0);
-  g.addColorStop(0, `rgba(0, 0, 0, ${TITLE.veil.alpha})`);
-  g.addColorStop(0.55, `rgba(0, 0, 0, ${TITLE.veil.alpha * 0.45})`);
-  g.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  const g = ctx.createLinearGradient(0, TITLE.h * TITLE.veil.from, 0, TITLE.h);
+  g.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  g.addColorStop(0.55, `rgba(0, 0, 0, ${TITLE.veil.alpha * 0.55})`);
+  g.addColorStop(1, `rgba(0, 0, 0, ${TITLE.veil.alpha})`);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, TITLE.w, TITLE.h);
+  ctx.fillRect(0, TITLE.h * TITLE.veil.from, TITLE.w, TITLE.h * (1 - TITLE.veil.from));
 }
 
 /** 絵を切り取って敷く（object-fit: cover と同じ。focus の点を残す）。 */
