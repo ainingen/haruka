@@ -43,7 +43,28 @@ export const TITLE = {
     /** 字の大きさの上限（絵の高さに対する割合）と、ドットの行数の下限。 */
     maxSize: 0.062, minRows: 7.5,
     pitch: 9, lit: 0.34, off: 0.14, threshold: 0.55, tracking: 0.1,
-    padX: 30, padY: 24, radius: 18, glow: 0.8, gap: 0.22,
+    padX: 30, padY: 24, glow: 0.8, gap: 0.22,
+    /**
+     * 筐体まわり。**角は丸めない**（実物は角張っている）。
+     *   outer/inner  外の太い枠と内の細い縁　bolt ボルトの頭の半径
+     *   visor        上端の庇（ひさし）と、その下に落ちる影
+     *   stripe/slots 下端の色帯（スポンサーの位置）と仕切りの数。**文字は入れない**
+     *   mesh/scan    格子の目地と走査線　gloss アクリルの反射
+     *   tilt         上辺をどれだけ広げるか（手前に傾いて見える。控えめに）
+     *   leg*         足の付け根　shadow* 床に落ちる影
+     */
+    frame: {
+      outer: 16, inner: 2, innerW: 2, bolt: 5,
+      metalTop: '#4a5058', metal: '#2c3138', metalBottom: '#171b20',
+      boltHi: '#b9c2cc', boltLo: '#5c656f',
+      visor: 14, visorOut: 10, visorShade: 7,
+      stripe: 22, slots: 6,
+      mesh: 'rgba(0, 0, 0, .45)', scan: 'rgba(0, 0, 0, .22)', scanStep: 5,
+      gloss: 0.075, glossAngle: 0.22,
+      tilt: 0.018,
+      legAt: 0.34, legW: 26, legH: 20, legFoot: 5,
+      shadowBlur: 34, shadowY: 16,
+    },
   },
   /**
    * 作り手の名前。**チェッカーフラッグ柄の帯に載せて、右下に貼ったように置く。**
@@ -89,7 +110,8 @@ function readColors(root = document.documentElement) {
     monText,
     monLit,
     monTextGlow: rgba(monText, 0.22),
-    monLitGlow: rgba(monLit, 0.26),
+    monLitGlow: rgba(monLit, 0.3),
+    monLitHalo: rgba(monLit, 0.13),
     monOff: rgba(monLit, 0.1),
   };
 }
@@ -128,8 +150,10 @@ function drawText(ctx, colors, scale) {
   // 板の中身（英数字）。1行で入って、ドットの行数も足りるならそのまま
   const board = boardLines(ctx, inner - b.padX * 2);
   const boardGap = Math.round(board.size * b.gap);
-  const boardH = board.lines.length * board.size
+  const ledH = board.lines.length * board.size
     + (board.lines.length - 1) * boardGap + b.padY * 2;
+  // 板の外寸＝庇＋枠＋LED面＋枠＋帯
+  const boardH = b.frame.visor + b.frame.outer * 2 + ledH + b.frame.stripe;
 
   // 板の下の日本語。板より小さく
   const jpSize = Math.round(TITLE.h * TITLE.jp.size);
@@ -169,11 +193,12 @@ function drawText(ctx, colors, scale) {
     return ctx.measureText(text).width - spacing;
   };
 
-  // 電光掲示板
+  // 電光掲示板。渡すのは LED 面の位置（枠と庇はその外側に出る）
   drawBoard(ctx, colors, {
-    x: Math.round(x - inner / 2), y, w: Math.round(inner), h: boardH,
+    x: Math.round(x - inner / 2), y: y + b.frame.visor + b.frame.outer,
+    w: Math.round(inner), h: ledH,
     lines: board.lines, size: board.size, gap: boardGap,
-  });
+  }, scale);
 
   // 正式な題名。白、中央、ドットにしない
   const jpY = y + boardH + jpGap;
@@ -221,71 +246,95 @@ function boardLines(ctx, maxWidth) {
   return { lines: parts, size: Math.min(...parts.map(fit)) };
 }
 
-/** 角の丸い矩形の道。古い canvas に roundRect が無くても通る。 */
-function roundRectPath(ctx, x, y, w, h, r) {
-  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
-
 /**
  * 電光掲示板（サーキットのタイミングボード）。**ドットの書体は同梱しない。**
  *
- *   1. 画面外の canvas に、いつもの書体で題を普通に描く
- *   2. その画素を `pitch` おきに拾い、濃さが `threshold` を超えた升を「光る」とする
+ *   1. 画面外の canvas に、等幅で英数字を普通に描く
+ *   2. その画素を `pitch` おきに拾い、升の中でいちばん濃いところが `threshold` を超えたら光らせる
  *   3. 本番の canvas に、その升だけを丸で描く（消えている升もかすかに置く）
  *
- * 日本語がそのまま通り、書体を足さずに済む。色は画面の層（theme.css の `--mon-*`）。
+ * 板そのものも画面外の canvas に組んでから、**上辺をわずかに広げて**貼る
+ * （少しだけ手前に傾いて見える）。金属の枠・ボルト・庇・帯・足は `TITLE.board.frame`。
+ * 色は画面の層（theme.css の `--mon-*`）と自車の赤（`--car`）。
+ *
+ * @param {object} geo LED 面の位置と大きさ（枠と庇はこの外側に出る）
+ * @param {number} scale 画面の倍率（devicePixelRatio）
  */
-function drawBoard(ctx, colors, geo) {
+function drawBoard(ctx, colors, geo, scale) {
   const b = TITLE.board;
+  const f = b.frame;
   const { x, y, w, h, lines, size, gap } = geo;
 
-  // --- 筐体 -----------------------------------------------------------------
-  ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, .55)';
-  ctx.shadowBlur = 22;
-  ctx.shadowOffsetY = 9;
-  roundRectPath(ctx, x, y, w, h, b.radius);
-  ctx.fillStyle = colors.monBg;
-  ctx.globalAlpha = 0.93;
-  ctx.fill();
-  ctx.restore();
+  // パネル＝庇＋枠＋LED面＋帯。LED 面の左上が (f.outer, f.visor + f.outer)
+  const panelW = w + f.outer * 2;
+  const panelH = f.visor + f.outer * 2 + h + f.stripe;
+  const px0 = x - f.outer;
+  const py0 = y - f.visor - f.outer;
 
-  ctx.save();
-  roundRectPath(ctx, x, y, w, h, b.radius);
-  ctx.clip();
-  // わずかな反射（上が少し明るい）
-  const gloss = ctx.createLinearGradient(0, y, 0, y + h);
-  gloss.addColorStop(0, 'rgba(255, 255, 255, .07)');
-  gloss.addColorStop(0.35, 'rgba(255, 255, 255, .015)');
-  gloss.addColorStop(1, 'rgba(0, 0, 0, .12)');
-  ctx.fillStyle = gloss;
-  ctx.fillRect(x, y, w, h);
-  ctx.restore();
-
-  // --- 題をドットに直す -------------------------------------------------------
-  // 拾うのは格子の升だけなので、画面外の canvas は論理サイズでよい
   const off = document.createElement('canvas');
-  off.width = Math.round(w);
-  off.height = Math.round(h);
+  off.width = Math.round(panelW * scale);
+  off.height = Math.round(panelH * scale);
   const o = off.getContext('2d', { willReadFrequently: true });
-  o.textAlign = 'center';
-  o.textBaseline = 'top';
-  o.fillStyle = '#ffffff';
-  // 字間を少し開ける。詰めると隣の升と滲みが繋がって、字が塊になる
+  o.setTransform(scale, 0, 0, scale, 0, 0);
+
+  const ledX = f.outer;
+  const ledY = f.visor + f.outer;
+
+  // --- 金属の枠（角は丸めない。実物は角張っている） --------------------------
+  const metal = o.createLinearGradient(0, py0 * 0 + f.visor, 0, panelH);
+  metal.addColorStop(0, f.metalTop);
+  metal.addColorStop(0.5, f.metal);
+  metal.addColorStop(1, f.metalBottom);
+  o.fillStyle = metal;
+  o.fillRect(0, f.visor, panelW, panelH - f.visor);
+
+  // 庇（ひさし）。板より少し広く張り出す
+  o.fillStyle = f.metalTop;
+  o.fillRect(-f.visorOut, 0, panelW + f.visorOut * 2, f.visor);
+  o.fillStyle = 'rgba(0, 0, 0, .35)';
+  o.fillRect(-f.visorOut, f.visor, panelW + f.visorOut * 2, f.visorShade);
+
+  // --- LED 面 ---------------------------------------------------------------
+  o.save();
+  o.beginPath();
+  o.rect(ledX, ledY, w, h);
+  o.clip();
+  o.fillStyle = colors.monBg;
+  o.fillRect(ledX, ledY, w, h);
+
+  // 目地（格子を一段暗く）と、かすかな縦の走査線
+  o.strokeStyle = f.mesh;
+  o.lineWidth = 1;
+  for (let gx = 0; gx <= w; gx += b.pitch) {
+    o.beginPath();
+    o.moveTo(ledX + gx + 0.5, ledY);
+    o.lineTo(ledX + gx + 0.5, ledY + h);
+    o.stroke();
+  }
+  for (let gy = 0; gy <= h; gy += b.pitch) {
+    o.beginPath();
+    o.moveTo(ledX, ledY + gy + 0.5);
+    o.lineTo(ledX + w, ledY + gy + 0.5);
+    o.stroke();
+  }
+  o.fillStyle = f.scan;
+  for (let sy = 0; sy < h; sy += f.scanStep) o.fillRect(ledX, ledY + sy, w, 1);
+
+  // 題をドットに直す。拾うのは格子の升だけなので、下書きは論理サイズでよい
+  const text = document.createElement('canvas');
+  text.width = Math.round(w);
+  text.height = Math.round(h);
+  const t = text.getContext('2d', { willReadFrequently: true });
+  t.textAlign = 'center';
+  t.textBaseline = 'top';
+  t.fillStyle = '#ffffff';
   const sp = Math.round(size * b.tracking);
-  o.letterSpacing = `${sp}px`;
-  o.font = `700 ${size}px ${MONO}`;
-  lines.forEach((text, i) => {
-    o.fillText(text, off.width / 2 - sp / 2, b.padY + i * (size + gap));
+  t.letterSpacing = `${sp}px`;
+  t.font = `700 ${size}px ${MONO}`;
+  lines.forEach((line, i) => {
+    t.fillText(line, text.width / 2 - sp / 2, b.padY + i * (size + gap));
   });
-  const px = o.getImageData(0, 0, off.width, off.height).data;
+  const data = t.getImageData(0, 0, text.width, text.height).data;
   /**
    * 升の濃さ（0〜1）。升の中を散らして拾い、**いちばん濃いところ**を採る。
    * 平均にすると、E の横棒のような細い画がまるごと消える。
@@ -295,55 +344,129 @@ function drawBoard(ctx, colors, geo) {
     for (let dy = -1; dy <= 1; dy += 1) {
       for (let dx = -1; dx <= 1; dx += 1) {
         const sx = Math.round(cx + (dx * b.pitch) / 3);
-        const sy = Math.round(cy + (dy * b.pitch) / 3);
-        if (sx < 0 || sy < 0 || sx >= off.width || sy >= off.height) continue;
-        max = Math.max(max, px[(sy * off.width + sx) * 4 + 3] / 255);
+        const sy2 = Math.round(cy + (dy * b.pitch) / 3);
+        if (sx < 0 || sy2 < 0 || sx >= text.width || sy2 >= text.height) continue;
+        max = Math.max(max, data[(sy2 * text.width + sx) * 4 + 3] / 255);
       }
     }
     return max;
   };
 
-  // --- ドットを打つ -----------------------------------------------------------
   const rLit = b.pitch * b.lit;
   const rOff = b.pitch * b.off;
-  // 英数字だけなので色は1つ（琥珀）。上段だけ白にする分けはもう無い
-  ctx.save();
-  roundRectPath(ctx, x, y, w, h, b.radius);
-  ctx.clip();
   const lit = [];
-  ctx.fillStyle = colors.monOff;
+  o.fillStyle = colors.monOff;
   for (let gy = b.pitch / 2; gy < h - 1; gy += b.pitch) {
     for (let gx = b.pitch / 2; gx < w - 1; gx += b.pitch) {
-      const v = cover(gx, gy);
-      if (v >= b.threshold) { lit.push([gx, gy]); continue; }
-      // 消えている升もかすかに見える（実物の LED 板と同じ）
-      ctx.beginPath();
-      ctx.arc(x + gx, y + gy, rOff, 0, Math.PI * 2);
-      ctx.fill();
+      if (cover(gx, gy) >= b.threshold) { lit.push([ledX + gx, ledY + gy]); continue; }
+      o.beginPath();
+      o.arc(ledX + gx, ledY + gy, rOff, 0, Math.PI * 2);
+      o.fill();
     }
   }
-  // 光る升。滲みを先に置いてから芯を打つ
-  ctx.fillStyle = colors.monLitGlow;
-  for (const [gx, gy] of lit) {
-    ctx.beginPath();
-    ctx.arc(x + gx, y + gy, rLit * (1 + b.glow), 0, Math.PI * 2);
-    ctx.fill();
+  // 滲みは二段。外に大きく薄く、内に小さく濃く置いてから芯を打つ
+  for (const [mul, fill] of [[1 + b.glow * 2, colors.monLitHalo], [1 + b.glow, colors.monLitGlow]]) {
+    o.fillStyle = fill;
+    for (const [gx, gy] of lit) {
+      o.beginPath();
+      o.arc(gx, gy, rLit * mul, 0, Math.PI * 2);
+      o.fill();
+    }
   }
-  ctx.fillStyle = colors.monLit;
+  o.fillStyle = colors.monLit;
   for (const [gx, gy] of lit) {
+    o.beginPath();
+    o.arc(gx, gy, rLit, 0, Math.PI * 2);
+    o.fill();
+  }
+
+  // アクリルのカバー。斜めの反射を一本だけ薄く
+  o.save();
+  o.translate(ledX, ledY);
+  o.rotate(-f.glossAngle);
+  const gl = o.createLinearGradient(0, -h, 0, h * 1.6);
+  gl.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  gl.addColorStop(0.5, `rgba(255, 255, 255, ${f.gloss})`);
+  gl.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  o.fillStyle = gl;
+  o.fillRect(-w, h * 0.1, w * 3, h * 0.34);
+  o.restore();
+  o.restore();
+
+  // LED 面の内側の細い縁（一段明るい金属）
+  o.strokeStyle = f.inner;
+  o.lineWidth = f.innerW;
+  o.strokeRect(ledX - f.innerW / 2, ledY - f.innerW / 2, w + f.innerW, h + f.innerW);
+
+  // --- 下端の帯（スポンサーの位置）。赤一本。**文字は入れない** ----------------
+  const stripeY = ledY + h + f.outer * 0.35;
+  o.fillStyle = colors.accent;
+  o.fillRect(f.outer * 0.6, stripeY, panelW - f.outer * 1.2, f.stripe * 0.62);
+  // 帯の中の小さな欄（仕切りだけ。数字は出さない）
+  o.fillStyle = 'rgba(0, 0, 0, .35)';
+  const slots = f.slots;
+  const slotW = (panelW - f.outer * 1.2) / slots;
+  for (let i = 1; i < slots; i += 1) {
+    o.fillRect(f.outer * 0.6 + slotW * i - 1, stripeY, 2, f.stripe * 0.62);
+  }
+
+  // --- ボルトの頭 -------------------------------------------------------------
+  const r = f.bolt;
+  const bx = [f.outer / 2, panelW / 2, panelW - f.outer / 2];
+  const by = [f.visor + f.outer / 2, panelH - f.stripe - f.outer / 2];
+  for (const cx of bx) {
+    for (const cy of by) {
+      o.beginPath();
+      o.arc(cx, cy + 1, r, 0, Math.PI * 2);
+      o.fillStyle = 'rgba(0, 0, 0, .55)';
+      o.fill();
+      const g2 = o.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+      g2.addColorStop(0, f.boltHi);
+      g2.addColorStop(1, f.boltLo);
+      o.beginPath();
+      o.arc(cx, cy, r, 0, Math.PI * 2);
+      o.fillStyle = g2;
+      o.fill();
+    }
+  }
+
+  // --- 足（付け根だけ）と、床に落ちる影 ---------------------------------------
+  ctx.save();
+  ctx.fillStyle = f.metalBottom;
+  const legTop = y + h + f.outer + f.stripe - 2;
+  for (const s2 of [-1, 1]) {
+    const lx = x + w / 2 + s2 * w * f.legAt - f.legW / 2;
+    // 付け根だけ。床に置かれているのが分かればよく、全部は描かない
     ctx.beginPath();
-    ctx.arc(x + gx, y + gy, rLit, 0, Math.PI * 2);
+    ctx.moveTo(lx, legTop);
+    ctx.lineTo(lx + f.legW, legTop);
+    ctx.lineTo(lx + f.legW + f.legFoot, legTop + f.legH);
+    ctx.lineTo(lx - f.legFoot, legTop + f.legH);
+    ctx.closePath();
     ctx.fill();
   }
   ctx.restore();
 
-  // --- 細い縁 ---------------------------------------------------------------
   ctx.save();
-  roundRectPath(ctx, x + 0.75, y + 0.75, w - 1.5, h - 1.5, b.radius);
-  ctx.strokeStyle = colors.monLine;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  ctx.shadowColor = 'rgba(0, 0, 0, .75)';
+  ctx.shadowBlur = f.shadowBlur;
+  ctx.shadowOffsetY = f.shadowY;
+  ctx.fillStyle = 'rgba(0, 0, 0, .9)';
+  ctx.fillRect(px0 + 8, py0 + 10, panelW - 16, panelH - 12);
   ctx.restore();
+
+  // --- 貼る。**上辺をわずかに広げる**（少しだけ手前に傾いて見える） -------------
+  drawTilted(ctx, off, px0 + panelW / 2, py0, panelW, panelH, f.tilt);
+}
+
+/** 上辺だけ広げて貼る。1行ずつ幅を変えて描くので、傾きが強くても字が割れない。 */
+function drawTilted(ctx, img, cx, top, w, h, tilt) {
+  const rows = Math.max(1, Math.round(h));
+  const sh = img.height / rows;
+  for (let i = 0; i < rows; i += 1) {
+    const rw = w * (1 + tilt * (1 - i / rows));
+    ctx.drawImage(img, 0, i * sh, img.width, sh + 1, cx - rw / 2, top + i, rw, 1.6);
+  }
 }
 
 /** 同じ絵を何度描いても同じになるように、種を決めた乱数を使う（mulberry32）。 */
