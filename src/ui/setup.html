@@ -221,7 +221,9 @@ h2 {
    位置は data/slot-coords.json のスロット座標。ここは画面の中だが**紙の層**（mod-note と同じ）。 */
 .mod-car {
   background: var(--paper); border-top: 1px solid var(--mon-line);
-  height: clamp(112px, 26vh, 240px); padding: 4px 8px;
+  /* **横幅いっぱいに置く。小さく畳まない。** 絵の比でそのまま伸ばす。
+     40vh は縦の短い画面での保険で、そこだけ letterbox になる */
+  aspect-ratio: 1200 / 535; max-height: 40vh; padding: 0;
 }
 .mod-car[hidden] { display: none; }
 .mod-car svg { width: 100%; height: 100%; display: block; }
@@ -231,16 +233,15 @@ h2 {
   :root.paper-ground .mod-car .body { filter: invert(1); opacity: .7; }
 }
 .mod-car .lead { stroke: var(--ink-2); stroke-width: 2.4; fill: none; }
-.mod-car .dot { fill: var(--ink-3); }     /* 装着済みのスロット */
+.mod-car .dot { fill: var(--ink-3); }     /* 装着済みのスロット。高さの2%（直径10） */
 .mod-car .ring { fill: none; stroke: var(--accent); stroke-width: 4; }
 .mod-car .ring.here { stroke: var(--car); stroke-width: 5; }
 .mod-car .tag {
-  font-family: var(--jp-font); font-size: 34px; fill: var(--ink);
+  font-family: var(--jp-font); font-size: 30px; fill: var(--ink);
   paint-order: stroke; stroke: var(--paper); stroke-width: 5px; stroke-linejoin: round;
 }
-.mod-car .tag.sub { font-size: 28px; fill: var(--ink-2); }
-/* 狭い画面では letterbox で絵が縮むと名前が読めない。幅いっぱいに使う */
-@media (max-width: 560px) { .mod-car { height: auto; aspect-ratio: 1200 / 535; max-height: 26vh; } }
+.mod-car .tag.sub { font-size: 24px; fill: var(--ink-2); }
+@media (max-width: 560px) { .mod-car { max-height: 30vh; } }
 
 .mod-note {
   position: relative; background: var(--paper); color: var(--ink); border-top: 1px solid var(--mon-line);
@@ -1340,20 +1341,24 @@ function drawSideView(slot, cand) {
   img.setAttribute('class', 'body');
   svg.appendChild(img);
   const at = (s) => ({ x: coords[s].x * w, y: coords[s].y * h });
+  // 丸の大きさは**絵の高さに対する割合**で決める。絵を差し替えても見え方が変わらない
+  const RING = h * 0.04;   // 直径 8%：選択中も、ユニットが潰す他のスロットも同じ大きさ
+  const DOT = h * 0.01;    // 直径 2%：装着済み。名前は出さない
 
   // 装着済みのスロットは小さい点で常時。未装着は何も出さない
   const lit = new Set(cand ? occupiedSlots(cand).filter((s) => coords[s]) : [slot]);
   for (const [s, p] of Object.entries(state.equipped)) {
     if (!p || !coords[s] || lit.has(s)) continue;
     const { x, y } = at(s);
-    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 8, class: 'dot' }));
+    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: DOT, class: 'dot' }));
   }
 
-  // ユニット部品（replaces）が潰すスロットは同時に光らせる。丸だけで、線は引かない
+  // ユニット部品（replaces）が潰すスロットは同時に光らせる。**大きさは選択中と同じ。**
+  // 数が少ない（最大5つ）ので重ならない。丸だけで、線と名前は付けない
   for (const s of lit) {
     if (s === slot) continue;
     const { x, y } = at(s);
-    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 16, class: 'ring' }));
+    svg.appendChild(svgEl('circle', { cx: x, cy: y, r: RING, class: 'ring' }));
   }
 
   // 選んでいるスロットだけ、引き出し線と名前を付ける。
@@ -1364,10 +1369,10 @@ function drawSideView(slot, cand) {
   const right = coords[slot].x < 0.5;
   const endX = Math.min(w - 10, Math.max(10, x + (right ? 96 : -96)));
   svg.appendChild(svgEl('path', { class: 'lead', d: `M${x} ${y} L${endX} ${endY}` }));
-  svg.appendChild(svgEl('circle', { cx: x, cy: y, r: 20, class: 'ring here' }));
+  svg.appendChild(svgEl('circle', { cx: x, cy: y, r: RING, class: 'ring here' }));
   const tag = svgEl('text', {
     x: endX, y: endY + (up ? 26 : -12), 'text-anchor': right ? 'start' : 'end', class: 'tag',
-  }, SLOT_LABEL[slot]);
+  }, cand ? cand.name : SLOT_LABEL[slot]);
   svg.appendChild(tag);
   if (lit.size > 1) {
     svg.appendChild(svgEl('text', {
