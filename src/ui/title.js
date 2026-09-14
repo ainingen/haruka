@@ -23,7 +23,7 @@ export const TITLE = {
   /** 上段と下段。下段は上段の約2倍の字。 */
   top: 'ハルカの',
   bottom: 'セッティングノート',
-  topScale: 0.5,
+  topScale: 0.6,
   /**
    * 題の上に置く小さなラテン。**同梱している等幅（画面の層の書体）で組む。**
    * 字間を大きく開け、両側に細い罫を伸ばす。
@@ -31,6 +31,20 @@ export const TITLE = {
   kicker: { text: 'SETTING NOTE', scale: 0.2, tracking: 0.42, rule: 0.42 },
   /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
   stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
+  /**
+   * 題を載せる電光掲示板（サーキットのタイミングボード）。
+   * **ドットマトリクスの書体は同梱しない。** 画面外の canvas に普通に題を描き、
+   * その画素を `pitch` おきに拾って、`threshold` を超えたところだけ丸で光らせる。
+   *
+   *   pitch      格子の間隔（論理 px）。字が潰れない下限がある
+   *   lit / off  光るドットと消えているドットの半径（pitch に対する割合）
+   *   threshold  光らせる濃さ（0〜1）
+   *   padX/padY  板の内側の余白、radius 角の丸み、glow 滲みの強さ
+   */
+  board: {
+    pitch: 7, lit: 0.34, off: 0.14, threshold: 0.42,
+    padX: 28, padY: 22, radius: 18, glow: 1.1, gap: 0.24,
+  },
   /**
    * 作り手の名前。**チェッカーフラッグ柄の帯に載せて、右下に貼ったように置く。**
    * size は絵の高さに対する文字の大きさ、square は市松1マス（文字の高さの半分）。
@@ -58,11 +72,25 @@ export const TITLE = {
 function readColors(root = document.documentElement) {
   const css = getComputedStyle(root);
   const pick = (name, fallback) => (css.getPropertyValue(name) || '').trim() || fallback;
+  const rgba = (hex, a) => {
+    const m = hex.replace('#', '').match(/../g)?.map((v) => parseInt(v, 16)) ?? [255, 255, 255];
+    return `rgba(${m[0]}, ${m[1]}, ${m[2]}, ${a})`;
+  };
+  const monText = pick('--mon-text', '#e8edf2');
+  const monLit = pick('--mon-amber', '#ffb347');
   return {
     ground: pick('--ink', '#23211c'),      // 画像が無いときの地
-    text: pick('--paper', '#f2efe6'),      // 題の色（紙の白）
+    text: pick('--paper', '#f2efe6'),      // 紙の白
     accent: pick('--car', '#c62828'),      // 自車の赤。題の下の帯に一本だけ
     shade: pick('--ink-2', '#6b665c'),
+    // 電光掲示板は画面の層の色。光る升と、消えている升と、滲み
+    monBg: pick('--mon-bg', '#0a0d11'),
+    monLine: pick('--mon-line', '#2a333d'),
+    monText,
+    monLit,
+    monTextGlow: rgba(monText, 0.22),
+    monLitGlow: rgba(monLit, 0.26),
+    monOff: rgba(monLit, 0.1),
   };
 }
 
@@ -90,29 +118,31 @@ const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
 
 /**
  * 題を描く。画像があってもなくても、同じ位置に同じ大きさで出る。
- * **絵の下三分の一に横組み、左右中央揃え。** 上から順に：
+ * **絵の下三分の一。** 上から順に：
  *
  *   ── SETTING NOTE ──   同梱の等幅。字間を開けて、両側に細い罫
- *      ハルカの           小さい段
- *   セッティングノート      大きい段（白から淡い紙色への縦のグラデーション）
+ *   ┌────────────┐      電光掲示板（タイミングボード）
+ *   │ ハルカの        │      ドットで光らせる。作り方は drawBoard
+ *   │ セッティングノート │
+ *   └────────────┘
  *        ▬▬               白と赤の帯（スーツの配色）
  *
  * 作り手の名前は別（drawSticker）。チェッカー柄の貼り紙にして右下に貼る。
- *
- * 白い字に黒の細い縁と影を付けるので、下が明るくても読める。
  */
-function drawText(ctx, colors) {
+function drawText(ctx, colors, scale) {
   const inner = TITLE.w * TITLE.band - TITLE.pad * 2;
   const x = Math.round(TITLE.w / 2);
+  const b = TITLE.board;
 
-  const bottomSize = fitFont(ctx, TITLE.bottom, inner, Math.round(TITLE.h * 0.1));
+  // 板の内側に収まる大きさを決める
+  const bottomSize = fitFont(ctx, TITLE.bottom, inner - b.padX * 2, Math.round(TITLE.h * 0.1));
   const topSize = Math.round(bottomSize * TITLE.topScale);
   const kickSize = Math.round(bottomSize * TITLE.kicker.scale);
-  const gap = Math.round(bottomSize * 0.2);
-  const kickGap = Math.round(bottomSize * 0.34);
+  const gap = Math.round(bottomSize * b.gap);
+  const kickGap = Math.round(bottomSize * 0.3);
   const stripeH = TITLE.stripe.red + TITLE.stripe.gap + TITLE.stripe.white;
-  const blockH = kickSize + kickGap + topSize + gap + bottomSize
-    + Math.round(bottomSize * 0.34) + stripeH;
+  const boardH = topSize + gap + bottomSize + b.padY * 2;
+  const blockH = kickSize + kickGap + boardH + Math.round(bottomSize * 0.3) + stripeH;
   const y = Math.round(TITLE.h * (1 - TITLE.baseline) - blockH);
 
   ctx.save();
@@ -165,18 +195,15 @@ function drawText(ctx, colors) {
   }
   ctx.restore();
 
-  // ハルカの ／ セッティングノート（同梱の見出し書体。太らせない）
-  const topY = y + kickSize + kickGap;
-  line(TITLE.top, topSize, topY, { font: TITLE_FONT, weight: 400, track: 0.2, stroke: 0.035 });
-  const bottomY = topY + topSize + gap;
-  const grad = ctx.createLinearGradient(0, bottomY, 0, bottomY + bottomSize);
-  grad.addColorStop(0, '#ffffff');
-  grad.addColorStop(1, colors.text);
-  line(TITLE.bottom, bottomSize, bottomY,
-    { font: TITLE_FONT, weight: 400, track: 0.04, fill: grad, stroke: 0.035 });
+  // 電光掲示板。題の2段はこの中でドットになる
+  const boardY = y + kickSize + kickGap;
+  drawBoard(ctx, colors, {
+    x: Math.round(x - inner / 2), y: boardY, w: Math.round(inner), h: boardH,
+    topSize, bottomSize, gap, scale,
+  });
 
   // 白と赤の帯
-  const stripeY = Math.round(bottomY + bottomSize + bottomSize * 0.34);
+  const stripeY = Math.round(boardY + boardH + bottomSize * 0.3);
   const stripeW = Math.round(inner * TITLE.stripe.width);
   ctx.save();
   shadow(kickSize);
@@ -188,6 +215,131 @@ function drawText(ctx, colors) {
     stripeW, TITLE.stripe.white);
   ctx.restore();
 
+  ctx.restore();
+}
+
+/** 角の丸い矩形の道。古い canvas に roundRect が無くても通る。 */
+function roundRectPath(ctx, x, y, w, h, r) {
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * 電光掲示板（サーキットのタイミングボード）。**ドットの書体は同梱しない。**
+ *
+ *   1. 画面外の canvas に、いつもの書体で題を普通に描く
+ *   2. その画素を `pitch` おきに拾い、濃さが `threshold` を超えた升を「光る」とする
+ *   3. 本番の canvas に、その升だけを丸で描く（消えている升もかすかに置く）
+ *
+ * 日本語がそのまま通り、書体を足さずに済む。色は画面の層（theme.css の `--mon-*`）。
+ */
+function drawBoard(ctx, colors, geo) {
+  const b = TITLE.board;
+  const { x, y, w, h, topSize, bottomSize, gap } = geo;
+
+  // --- 筐体 -----------------------------------------------------------------
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, .55)';
+  ctx.shadowBlur = 22;
+  ctx.shadowOffsetY = 9;
+  roundRectPath(ctx, x, y, w, h, b.radius);
+  ctx.fillStyle = colors.monBg;
+  ctx.globalAlpha = 0.93;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, b.radius);
+  ctx.clip();
+  // わずかな反射（上が少し明るい）
+  const gloss = ctx.createLinearGradient(0, y, 0, y + h);
+  gloss.addColorStop(0, 'rgba(255, 255, 255, .07)');
+  gloss.addColorStop(0.35, 'rgba(255, 255, 255, .015)');
+  gloss.addColorStop(1, 'rgba(0, 0, 0, .12)');
+  ctx.fillStyle = gloss;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
+
+  // --- 題をドットに直す -------------------------------------------------------
+  // 拾うのは格子の升だけなので、画面外の canvas は論理サイズでよい
+  const off = document.createElement('canvas');
+  off.width = Math.round(w);
+  off.height = Math.round(h);
+  const o = off.getContext('2d', { willReadFrequently: true });
+  o.textAlign = 'center';
+  o.textBaseline = 'top';
+  o.fillStyle = '#ffffff';
+  const put = (text, size, ty, track) => {
+    const sp = Math.round(size * track);
+    o.letterSpacing = `${sp}px`;
+    o.font = `400 ${size}px ${TITLE_FONT}`;
+    o.fillText(text, off.width / 2 - sp / 2, ty);
+  };
+  put(TITLE.top, topSize, b.padY, 0.2);
+  put(TITLE.bottom, bottomSize, b.padY + topSize + gap, 0.04);
+  const px = o.getImageData(0, 0, off.width, off.height).data;
+  /** 升の濃さ（0〜1）。升の中を少し散らして拾い、縁のギザギザを均す。 */
+  const cover = (cx, cy) => {
+    let sum = 0;
+    let n = 0;
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const sx = Math.round(cx + (dx * b.pitch) / 3.2);
+        const sy = Math.round(cy + (dy * b.pitch) / 3.2);
+        if (sx < 0 || sy < 0 || sx >= off.width || sy >= off.height) continue;
+        sum += px[(sy * off.width + sx) * 4 + 3] / 255;
+        n += 1;
+      }
+    }
+    return n ? sum / n : 0;
+  };
+
+  // --- ドットを打つ -----------------------------------------------------------
+  const rLit = b.pitch * b.lit;
+  const rOff = b.pitch * b.off;
+  const splitY = b.padY + topSize + gap / 2;
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, b.radius);
+  ctx.clip();
+  const lit = [];
+  ctx.fillStyle = colors.monOff;
+  for (let gy = b.pitch / 2; gy < h - 1; gy += b.pitch) {
+    for (let gx = b.pitch / 2; gx < w - 1; gx += b.pitch) {
+      const v = cover(gx, gy);
+      if (v >= b.threshold) { lit.push([gx, gy, gy < splitY]); continue; }
+      // 消えている升もかすかに見える（実物の LED 板と同じ）
+      ctx.beginPath();
+      ctx.arc(x + gx, y + gy, rOff, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // 光る升。滲みを先に置いてから芯を打つ
+  for (const [gx, gy, isTop] of lit) {
+    ctx.fillStyle = isTop ? colors.monTextGlow : colors.monLitGlow;
+    ctx.beginPath();
+    ctx.arc(x + gx, y + gy, rLit * (1 + b.glow), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  for (const [gx, gy, isTop] of lit) {
+    ctx.fillStyle = isTop ? colors.monText : colors.monLit;
+    ctx.beginPath();
+    ctx.arc(x + gx, y + gy, rLit, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // --- 細い縁 ---------------------------------------------------------------
+  ctx.save();
+  roundRectPath(ctx, x + 0.75, y + 0.75, w - 1.5, h - 1.5, b.radius);
+  ctx.strokeStyle = colors.monLine;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -329,7 +481,7 @@ export async function mountTitle(canvas, opts = {}) {
     ctx.fillStyle = colors.ground;
     ctx.fillRect(0, 0, TITLE.w, TITLE.h);
     if (img) { drawImage(ctx, img); drawVeil(ctx); }
-    drawText(ctx, colors);
+    drawText(ctx, colors, scale);
     drawSticker(ctx, colors, scale);
   };
 
