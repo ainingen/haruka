@@ -6,6 +6,16 @@
    かなと漢字は --mon-font の後ろに並べたゴシックへ自動的に落ちる。
    だから「数字だけ等幅で揃える」ことができる。
    =========================================================================== */
+/* 題字（タイトルの canvas だけで使う）。**使う字だけのサブセット**：
+   「ハルカのセッティングノート」と「夜中」。ほかの字はこのフォントに当たらず、
+   既定のゴシックへ落ちる。太くて角のある見出し用（assets/fonts/README.md） */
+@font-face {
+  font-family: "Dela Gothic One";
+  src: url("../../assets/fonts/dela-gothic-one-title.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 @font-face {
   font-family: "JetBrains Mono";
   src: url("../../assets/fonts/jetbrains-mono-latin.woff2") format("woff2");
@@ -74,6 +84,8 @@
      3つだけ。日本語本文のゴシック、紙の見出しとノートの明朝、数字の等幅。 */
   --jp-font:    system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
   --hand-font:  "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  /* 題字。同梱のサブセットに無い字は既定のゴシックへ落ちる */
+  --title-font: "Dela Gothic One", system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif;
   /* 先頭の同梱フォントはラテンと数字と記号だけを持つ。日本語はゴシックへ落ちる */
   --mon-font:   "JetBrains Mono", ui-monospace, Consolas,
                 system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif;

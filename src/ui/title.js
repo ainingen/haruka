@@ -8,7 +8,7 @@
  * - **画像が無くても成立する。** 地色と題だけ先に描き、画像が読めたら描き直す
  *   （PLiCy が早く撮っても真っ白にならない）
  * - 色は theme.css の変数から取る。canvas は変数を解釈しないので、読んで文字列にする
- * - 日本語の書体は同梱していないので、既定のゴシックに任せる
+ * - 題字は同梱のサブセット（使う字だけ）。無い字は既定のゴシックへ落ちる
  */
 
 /** 絵の大きさと、文字の置き方。**サムネイルの構図はここだけで決まる。** */
@@ -31,6 +31,11 @@ export const TITLE = {
   kicker: { text: 'SETTING NOTE', scale: 0.2, tracking: 0.42, rule: 0.42 },
   /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
   stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
+  /**
+   * 絵の下端に小さく置く作り手の名前。**目立たせない**（白、字間を広く、少し薄く）。
+   * ラテンは同梱の等幅、かなと漢字は既定のゴシックへ落ちる。
+   */
+  credit: { text: 'Produced by 夜中のBBQ', scale: 0.15, tracking: 0.28, alpha: 0.72, bottom: 0.028 },
   /** 題の下端を、絵の下からどれだけ上に置くか（高さに対する割合）。**下三分の一**。 */
   baseline: 0.1,
   /**
@@ -41,7 +46,7 @@ export const TITLE = {
   /** 下を暗くする幕。from から下が濃くなる（足元のコンクリートの上で白文字を読ませる）。 */
   veil: { alpha: 0.66, from: 0.5 },
   /** 画像のパス（index.html からの相対）。 */
-  image: 'assets/title/haruka.png',
+  image: 'assets/title/haruka.jpg',
 };
 
 /** theme.css の変数を読む。無ければ控えの色（canvas は var() を解釈しない）。 */
@@ -60,14 +65,20 @@ function readColors(root = document.documentElement) {
 function fitFont(ctx, text, maxWidth, start) {
   let size = start;
   for (let i = 0; i < 40 && size > 8; i += 1) {
-    ctx.font = `700 ${size}px ${FONT}`;
+    ctx.font = `400 ${size}px ${TITLE_FONT}`;
     if (ctx.measureText(text).width <= maxWidth) break;
     size -= Math.max(1, Math.round(size * 0.04));
   }
   return size;
 }
 
-/** 日本語は既定のゴシック。書体は同梱しない（PLiCy に上げるものを軽くしておく）。 */
+/**
+ * 題字は同梱のサブセット（assets/fonts/dela-gothic-one-title.woff2）。
+ * **使う字だけ入れてある**ので、無い字は既定のゴシックへ落ちる。
+ * 単一ウェイトの見出し用なので、**太らせない（weight 400）**。
+ */
+const TITLE_FONT = '"Dela Gothic One", system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif';
+/** 落ちる先の既定ゴシック。 */
 const FONT = 'system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
 /** ラテンだけは同梱の等幅（画面の層の書体）。assets/fonts/jetbrains-mono-latin.woff2 */
 const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
@@ -111,18 +122,20 @@ function drawText(ctx, colors) {
    * 1行引く。**字間を開けると canvas は右端にも同じ幅を足す**ので、
    * 中央揃えのときは半分だけ左に戻して、見た目の中心を合わせる。
    */
-  const line = (text, size, ly, { font = FONT, weight = 700, track = 0, fill = null } = {}) => {
+  const line = (text, size, ly, { font = FONT, weight = 700, track = 0, fill = null, stroke = 0.05, alpha = 1 } = {}) => {
     const spacing = Math.round(size * track);
     ctx.letterSpacing = `${spacing}px`;
     ctx.font = `${weight} ${size}px ${font}`;
+    ctx.globalAlpha = alpha;
     const cx = x - spacing / 2;
     shadow(size);
-    ctx.lineWidth = Math.max(2, size * 0.05);
+    ctx.lineWidth = Math.max(2, size * stroke);
     ctx.strokeStyle = 'rgba(0, 0, 0, .6)';
     ctx.strokeText(text, cx, ly);
     ctx.shadowColor = 'transparent';
     ctx.fillStyle = fill ?? colors.text;
     ctx.fillText(text, cx, ly);
+    ctx.globalAlpha = 1;
     return ctx.measureText(text).width - spacing;
   };
 
@@ -145,14 +158,15 @@ function drawText(ctx, colors) {
   }
   ctx.restore();
 
-  // ハルカの ／ セッティングノート
+  // ハルカの ／ セッティングノート（同梱の見出し書体。太らせない）
   const topY = y + kickSize + kickGap;
-  line(TITLE.top, topSize, topY, { track: 0.18 });
+  line(TITLE.top, topSize, topY, { font: TITLE_FONT, weight: 400, track: 0.2, stroke: 0.035 });
   const bottomY = topY + topSize + gap;
   const grad = ctx.createLinearGradient(0, bottomY, 0, bottomY + bottomSize);
   grad.addColorStop(0, '#ffffff');
   grad.addColorStop(1, colors.text);
-  line(TITLE.bottom, bottomSize, bottomY, { track: 0.05, fill: grad });
+  line(TITLE.bottom, bottomSize, bottomY,
+    { font: TITLE_FONT, weight: 400, track: 0.04, fill: grad, stroke: 0.035 });
 
   // 白と赤の帯
   const stripeY = Math.round(bottomY + bottomSize + bottomSize * 0.34);
@@ -166,6 +180,11 @@ function drawText(ctx, colors) {
   ctx.fillRect(x - stripeW / 2, stripeY + TITLE.stripe.red + TITLE.stripe.gap,
     stripeW, TITLE.stripe.white);
   ctx.restore();
+
+  // 作り手の名前。**絵の下端**（ボタンは canvas の外なので、その上になる）
+  const creditSize = Math.round(bottomSize * TITLE.credit.scale);
+  line(TITLE.credit.text, creditSize, Math.round(TITLE.h * (1 - TITLE.credit.bottom) - creditSize),
+    { font: `${MONO}, ${FONT}`, weight: 400, track: TITLE.credit.tracking, alpha: TITLE.credit.alpha, stroke: 0.06 });
   ctx.restore();
 }
 
@@ -215,8 +234,10 @@ export async function mountTitle(canvas, opts = {}) {
 
   // 同梱の等幅は、canvas からは読み込みが始まらない。**先に呼んでおく**
   // （間に合わなければ既定の等幅で出る。位置も大きさも変わらない）
-  const font = document.fonts?.load(`400 ${Math.round(TITLE.h * 0.02)}px "JetBrains Mono"`)
-    ?.catch(() => null) ?? Promise.resolve(null);
+  const font = Promise.all([
+    document.fonts?.load(`400 ${Math.round(TITLE.h * 0.02)}px "JetBrains Mono"`, TITLE.credit.text),
+    document.fonts?.load(`400 ${Math.round(TITLE.h * 0.1)}px "Dela Gothic One"`, TITLE.top + TITLE.bottom),
+  ].filter(Boolean)).catch(() => null);
 
   const src = opts.src ?? TITLE.image;
   let img = null;

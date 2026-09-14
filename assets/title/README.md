@@ -1,6 +1,6 @@
 # タイトルの絵
 
-`haruka.png` をここに置く。**index.html の canvas（`src/ui/title.js`）が敷く。**
+`haruka.jpg` をここに置く。**index.html の canvas（`src/ui/title.js`）が敷く。**
 
 - 置かなくても壊れない。絵が無ければ地色（`--ink`）＋題だけで出る
 - 論理サイズ 1200×1500（4:5）に `object-fit: cover` と同じ切り取りで敷く。
@@ -9,7 +9,8 @@
 - **題は絵の下三分の一に横組み二段・左右中央揃え**（上段「ハルカの」小／下段「セッティングノート」大）。
   人物は中央、下に足元と床が写っている絵が合う
 - 下半分だけ暗くする縦の幕（`TITLE.veil`）を重ねてから題を描く。床が明るくても読める
-- 大きさの目安：縦 1200〜1600px の PNG。PLiCy に上げる ZIP に丸ごと入るので、
-  重すぎるものは避ける（`node tools/pack-plicy.mjs` で一式の大きさが出る）
+- 大きさの目安：縦 1200〜1600px。**写真なので JPEG**（q86 で 170KB 前後）。
+  PNG だと同じ絵で 1.5MB になり、PLiCy に上げる ZIP がそのぶん重くなる
+  （`node tools/pack-plicy.mjs` で一式の大きさが出る）
 
 構図を変えたいときは `src/ui/title.js` の `TITLE`（w / h / band / pad / baseline / focus / veil）だけ触る。

@@ -208,8 +208,11 @@ for (const [top, size] of Object.entries(byTop)) console.log(`  ${top.padEnd(16)
 
 const first = firstBodyElement(readFileSync(join(ROOT, 'index.html'), 'utf8'));
 console.log(`index.html の body の最初の要素：<${first?.tag}${first?.id ? ` id="${first.id}"` : ''}>`);
-if (!files.includes('assets/title/haruka.png')) {
-  console.log('※ assets/title/haruka.png が無い。タイトルは地色と題だけで出る（壊れはしない）');
+// タイトルの絵は src/ui/title.js の TITLE.image が指すもの。無くても壊れないが、報せる
+const titleImage = readFileSync(join(ROOT, 'src', 'ui', 'title.js'), 'utf8')
+  .match(/image: *'([^']+)'/)?.[1];
+if (titleImage && !files.includes(titleImage)) {
+  console.log(`※ ${titleImage} が無い。タイトルは地色と題だけで出る（壊れはしない）`);
 }
 if (problems.length) {
   console.error('\n問題:');
