@@ -520,6 +520,9 @@ function fill(text, vars) {
  * @param {object} [opt]    { info: true, mood, replies: [{label, reactions, consistency}] }
  */
 function say(speaker, text, opt = {}) {
+  // スキップ中に通すのは、症状（情報系）と、結果が確定したあとの実況だけ。
+  // 常時層・反応層・雑談・解説はここで落とす（各層の入口ではなく1箇所で止める）。
+  if (S.skipping && !opt.allowInSkip) return;
   const entry = { speaker, text, info: !!opt.info, mood: opt.mood ?? null, replies: opt.replies ?? [], answer: null, id: S.logSeq++ };
   S.log.push(entry);
   if (S.log.length > LOG_KEEP) S.log.splice(0, S.log.length - LOG_KEEP);
@@ -652,14 +655,30 @@ function chatLine() {
 }
 
 /** 情報系。level が harsh なら悪化版の台詞（無ければ通常版）。 */
-function sayInfo(call) {
+function sayInfo(call, opt = {}) {
   const def = S.radioData.info[call.id];
   if (!def) return;
+  // スキップ中は溜めておき、同じトリガーは1本にまとめる（悪化版が来たらそちらで上書き）
+  if (S.skipping && !opt.flush) {
+    const prev = S.skipInfo.get(call.id);
+    if (!prev || (call.level === 'harsh' && prev.level !== 'harsh')) S.skipInfo.set(call.id, call);
+    S.lastInfoLap = call.lap;
+    return;
+  }
   const pool = call.level === 'harsh' && def.harsh?.length ? def.harsh : def.lines;
   say('haruka', textOf(pickUnique(`info/${call.id}/${call.level}`, pool)), {
-    info: true, mood: def.mood, replies: S.radioData.replies,
+    info: true, mood: def.mood, replies: S.radioData.replies, allowInSkip: true,
   });
   S.lastInfoLap = call.lap;
+}
+
+/** 溜めた症状を優先順に1本ずつ出す。スキップの結末を出す直前に呼ぶ。 */
+function flushSkipInfo() {
+  if (!S.skipInfo.size) return;
+  const calls = [...S.skipInfo.values()]
+    .sort((a, b) => RADIO.priority.indexOf(a.id) - RADIO.priority.indexOf(b.id));
+  S.skipInfo.clear();
+  for (const call of calls) sayInfo(call, { flush: true });
 }
 
 /** 反応層：セクター通過ごと。倍速では間引く。スキップ中は出さない。 */
@@ -754,7 +773,8 @@ function commentary(trigger, speaker, vars = {}, tags = []) {
   if (!all?.length) return;
   const pool = all.filter((e) => typeof e === 'string' || !e.when || tags.includes(e.when));
   if (!pool.length) return;
-  say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}/${tags.join('+')}`, pool)), vars));
+  // ここに来る時点で、スキップ中なら結果確定後の実況だけに絞られている
+  say(speaker, fill(textOf(pickUnique(`commentary/${trigger}/${speaker}/${tags.join('+')}`, pool)), vars), { allowInSkip: true });
 }
 
 function baseVars() {
@@ -922,7 +942,7 @@ function retireTick() {
 const S = {
   cars: [], course: null, load: null, totalLaps: 10,
   masterPath: null, pathLen: 0, courseLen: 0, ratio: 1, toView: (p) => p, sectorEls: [], litSector: -1,
-  speed: 1, paused: false, done: false, skipping: false, last: 0, raf: 0,
+  speed: 1, paused: false, done: false, skipping: false, skipInfo: new Map(), last: 0, raf: 0,
   radioData: null, commentary: null, radio: null, radioRng: null, lineRng: null,
   lapEvents: [], sectorEvents: [], metRivals: new Set(), used: new Map(),
   log: [], logSeq: 0, logDirty: false, lastInfoLap: -9, lastSnapshot: null,
@@ -1221,6 +1241,7 @@ function finish() {
   if (S.done) return;
   S.done = true;
   renderPanel();
+  flushSkipInfo();     // スキップで溜めた症状を、結末の実況より先に出す
   if (IS_QUALI) { qualiFinish(); return; }
   const list = ranked();
   const vars = baseVars();
@@ -1257,8 +1278,10 @@ el('btn1').addEventListener('click', () => { S.paused = false; setSpeed(1); sync
 el('btn4').addEventListener('click', () => { S.paused = false; setSpeed(4); syncPause(); });
 el('btnSkip').addEventListener('click', () => {
   if (S.done) return;
-  // 決着まで一気に進める。常時層と反応は出さず、情報系と実況だけ残す
+  // 決着まで一気に進める。残すのは症状（情報系）と結末の実況だけ。
+  // 症状は同じトリガーを1本にまとめてから、決着の直前にまとめて出す。
   S.skipping = true;
+  S.skipInfo.clear();
   let guard = 0;
   while (!S.done && guard++ < 200000) step(2);
   S.skipping = false;
