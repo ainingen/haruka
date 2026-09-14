@@ -13,6 +13,12 @@
 
 /** 絵の大きさと、文字の置き方。**サムネイルの構図はここだけで決まる。** */
 export const TITLE = {
+  /**
+   * 題字の案。**ここ1行で切り替わる。**
+   *   'board'   電光掲示板（英数字のドット）＋板の下に日本語
+   *   'sticker' レース用ステッカー風（斜体＋多重の縁取り）。板は出ない
+   */
+  style: 'board',
   /** 写真が縦長（3:4）なので、絵も縦長の 4:5。**顔と足元の両方が入る形。** */
   w: 1200,
   h: 1500,
@@ -25,6 +31,19 @@ export const TITLE = {
    * 読めることが第一なので、板の英語より小さくても字面を優先する。
    */
   jp: { text: 'ハルカのセッティングノート', size: 0.037, tracking: 0.06, gap: 0.26 },
+  /**
+   * 案B（`style: 'sticker'`）。レース用ステッカー風。
+   *   angle    斜体の角度（度。右上がり）
+   *   ring     縁の太さの基準（字の大きさに対する割合）。外へ 赤→青→黄→黒 と重ねる
+   *   maxSize  字の大きさの上限、minSize これを下回るなら split の2行に割る
+   */
+  sticker: {
+    text: 'ハルカのセッティングノート',
+    split: ['ハルカの', 'セッティングノート'],
+    kicker: 'SETTING NOTE',
+    angle: 12, ring: 0.06, tracking: 0.02, lineH: 1.16,
+    band: 0.94, maxSize: 0.1, minSize: 0.072, kickScale: 0.22,
+  },
   /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
   stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
   /**
@@ -113,6 +132,11 @@ function readColors(root = document.documentElement) {
     monLitGlow: rgba(monLit, 0.3),
     monLitHalo: rgba(monLit, 0.13),
     monOff: rgba(monLit, 0.1),
+    // 案B の多重の縁。外へ 赤 → 青 → 黄 → 締めの黒
+    stickerRed: pick('--car', '#c62828'),
+    stickerBlue: pick('--mon-ai', '#4da3ff'),
+    stickerYellow: pick('--mon-amber', '#ffb347'),
+    stickerEdge: pick('--ink', '#23211c'),
   };
 }
 
@@ -143,6 +167,7 @@ const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
  * 作り手の名前は別（drawSticker）。チェッカー柄の貼り紙にして右下に貼る。
  */
 function drawText(ctx, colors, scale) {
+  if (TITLE.style === 'sticker') { drawStickerTitle(ctx, colors, scale); return; }
   const inner = TITLE.w * TITLE.band - TITLE.pad * 2;
   const x = Math.round(TITLE.w / 2);
   const b = TITLE.board;
@@ -467,6 +492,87 @@ function drawTilted(ctx, img, cx, top, w, h, tilt) {
     const rw = w * (1 + tilt * (1 - i / rows));
     ctx.drawImage(img, 0, i * sh, img.width, sh + 1, cx - rw / 2, top + i, rw, 1.6);
   }
+}
+
+/**
+ * 案B：レース用ステッカー風の題字。**電光掲示板は出さない。**
+ *
+ * 既定のゴシックの太字を canvas で傾けて（斜体に変形して）、
+ * 外側へ 赤 → 青 → 黄 → 締めの黒、と縁を三重＋一重に重ねる。
+ * 太い縁から順に引いて、最後に白で塗ると多重の縁取りになる。
+ */
+function drawStickerTitle(ctx, colors, scale) {
+  const st = TITLE.sticker;
+  const inner = TITLE.w * st.band - TITLE.pad * 2;
+  const x = Math.round(TITLE.w / 2);
+  const tan = Math.tan((st.angle * Math.PI) / 180);
+
+  // 1行で入るか。小さくなりすぎるなら「ハルカの」「セッティングノート」に割る
+  const fit = (text, max) => {
+    let size = max;
+    for (let i = 0; i < 60 && size > 8; i += 1) {
+      ctx.font = `700 ${size}px ${JP_FONT}`;
+      // 傾けるぶん、横に食う幅が増える
+      if (ctx.measureText(text).width + size * Math.abs(tan) <= inner) break;
+      size -= Math.max(1, Math.round(size * 0.04));
+    }
+    return size;
+  };
+  const max = Math.round(TITLE.h * st.maxSize);
+  const one = fit(st.text, max);
+  const lines = one >= TITLE.h * st.minSize ? [st.text] : st.split;
+  const size = lines.length === 1 ? one : Math.min(...lines.map((t) => fit(t, max)));
+
+  const lineH = Math.round(size * st.lineH);
+  const kickSize = Math.round(size * st.kickScale);
+  const blockH = lines.length * lineH + Math.round(size * 0.3) + kickSize;
+  const y = Math.round(TITLE.h * (1 - TITLE.baseline) - blockH);
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  // **太い縁から順に引く。** 後から引いた細い縁が内側を塗り直すので、
+  // 見える帯の太さは（外−内）÷2。等間隔に離して、4色が同じ太さで出るようにする
+  const rings = [
+    [st.ring * 4.6, colors.stickerEdge],
+    [st.ring * 3.3, colors.stickerYellow],
+    [st.ring * 2.1, colors.stickerBlue],
+    [st.ring * 1.0, colors.stickerRed],
+  ];
+  lines.forEach((text, i) => {
+    const cy = y + lineH * i + lineH / 2;
+    ctx.save();
+    ctx.translate(x, cy);
+    ctx.transform(1, 0, -tan, 1, 0, 0);   // 右上がりに傾ける
+    ctx.font = `700 ${size}px ${JP_FONT}`;
+    ctx.letterSpacing = `${Math.round(size * st.tracking)}px`;
+    // 影は一番外の縁にだけ付ける（重ねるたびに濃くならないように）
+    ctx.shadowColor = 'rgba(0, 0, 0, .55)';
+    ctx.shadowBlur = Math.round(size * 0.18);
+    ctx.shadowOffsetY = Math.round(size * 0.06);
+    rings.forEach(([w, color], r) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size * w;
+      ctx.strokeText(text, 0, 0);
+      if (r === 0) ctx.shadowColor = 'transparent';
+    });
+    ctx.fillStyle = colors.text;
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  });
+
+  // 小さく添える欧文（板の「SETTING NOTE」と同じ字）
+  ctx.font = `400 ${kickSize}px ${MONO}`;
+  const sp = Math.round(kickSize * 0.42);
+  ctx.letterSpacing = `${sp}px`;
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = 'rgba(0, 0, 0, .7)';
+  ctx.shadowBlur = Math.round(kickSize * 0.4);
+  ctx.fillStyle = colors.text;
+  ctx.fillText(st.kicker, x - sp / 2, y + lines.length * lineH + Math.round(size * 0.22));
+  ctx.restore();
 }
 
 /** 同じ絵を何度描いても同じになるように、種を決めた乱数を使う（mulberry32）。 */
