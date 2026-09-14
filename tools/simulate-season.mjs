@@ -27,7 +27,7 @@ import { dirname, join } from 'node:path';
 import { buildPerformance, createRng, WEIGHTS } from '../src/engine/race.js';
 import { newGame } from '../src/engine/save.js';
 import { newSeason, currentRound, recordResult, simulateField, seasonOver, verdictFor } from '../src/engine/season.js';
-import { baselineFor } from '../src/engine/rivals.js';
+import { baselineFor, aiNotes } from '../src/engine/rivals.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost, repair, buy, buyBlocker } from '../src/engine/economy.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -52,7 +52,8 @@ const CHASSIS = load('chassis.json');
 const COURSES = load('courses.json');
 // --rivals で名簿を差し替えられる（比率を試すとき。既定は data/rivals.json）
 const RIVALS = args.rivals ? JSON.parse(readFileSync(String(args.rivals), 'utf8')) : load('rivals.json');
-const NOTES = load('notes.json');
+// AI が見る基準。親父のノート＋クラス5の内部基準（プレイヤーには出さない）
+const NOTES = aiNotes(load('notes.json'), load('ai-baseline.json'));
 const driver = load('drivers.json')[0];
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const part = (id) => PARTS.find((p) => p.id === id);

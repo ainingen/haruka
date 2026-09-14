@@ -68,6 +68,17 @@ export function notePortion(noteParts, str) {
     .slice(0, Math.min(n, noteParts.length));
 }
 
+/**
+ * AI が見る基準の一覧。**親父のノート（`data/notes.json`）＋ AI 専用の基準構成
+ * （`data/ai-baseline.json`）。**
+ *
+ * 親父のノートはクラス4で終わる。クラス5は親父が走っていない領域で、そこから先は
+ * ハルカとプレイヤーが自分で書く（`docs/シナリオ/キャラクター.md`）。
+ * だが AI はクラス5でも走るので、内部にだけ基準を持つ。**プレイヤー側の画面には出さない。**
+ * `setup.html` は `notes.json` しか読まないので、「ノート通りにする」はクラス5では出ない。
+ */
+export const aiNotes = (notes, baseline = []) => [...notes, ...baseline];
+
 /** AI が使える規定内のパーツ。スポンサー段階はクラス − 1 とみなす。 */
 export const aiLegal = (part, cls) => part.class_required <= cls && part.sponsor_tier <= Math.max(0, cls - 1);
 

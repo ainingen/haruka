@@ -451,6 +451,30 @@ test('15. notes.json: 全ノートが装着できて規定を満たす。クラ�
   console.log(`  ノート ${NOTES.length} 冊：クラス別 ${[1, 2, 3, 4].map((k) => `${k}=${NOTES.filter((n) => n.class === k).length}`).join(' ')}`);
 });
 
+test('15b. ai-baseline.json: AI 専用のクラス5基準。プレイヤーには出さない', () => {
+  const BASE = load('ai-baseline.json');
+  const byCourse = Object.fromEntries(COURSES.map((c) => [c.id, c]));
+  // クラス5で走れるコースぶんある。中身はクラス5の規定を満たし、装着できる
+  const cls5 = COURSES.filter((c) => c.classes.includes(5));
+  for (const c of cls5) assert.ok(BASE.some((n) => n.course === c.id), `クラス5の ${c.id} の基準がない`);
+  for (const n of BASE) {
+    assert.equal(n.class, 5, 'ai-baseline はクラス5だけ（ほかのクラスは親父のノートがある）');
+    assert.ok(byCourse[n.course]?.classes.includes(5), `${n.course} はクラス5では走れない`);
+    const parts = n.parts.map(part);
+    for (const p of parts) {
+      assert.ok(p.class_required <= 5, `${n.course}: ${p.id} は規定外`);
+      assert.ok(p.sponsor_tier <= 4, `${n.course}: ${p.id} はスポンサー段階が足りない`);
+    }
+    resolveLoadout(parts);   // スロット重複なら例外
+    const perf = buildPerformance(parts, haruka, CHASSIS.formula, n.settings);
+    assert.ok(Number.isFinite(perf.stats.power));
+    // **親父の書き込みを持たない。** ここは父が走っていない領域で、見せる文章は無い
+    assert.ok(!('note' in n), `${n.course}: ai-baseline に note があってはいけない（親父のノートではない）`);
+    assert.ok(parts.some((p) => p.class_required === 5), `${n.course}: クラス5で解禁されるパーツが入っていない`);
+  }
+  console.log(`  クラス5の内部基準 ${BASE.length} 件：${BASE.map((n) => `${n.course}=${n.parts.length}点`).join(' ')}`);
+});
+
 test('17. 出走台数：コースの grid はクラス別に 8/12/16/20、名簿は20台ぶんある', () => {
   const RIVALS = load('rivals.json');
   const want = { 1: 8, 2: 12, 3: 16, 4: 20, 5: 20 };

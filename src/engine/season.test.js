@@ -10,8 +10,9 @@ import { dirname, join } from 'node:path';
 import {
   newSeason, currentRound, seasonOver, pointsFor, recordResult, standings, myRank,
   verdictFor, topSymptom, sponsorTierAfter, endSeason, pickNote, simulateField, coursesFor,
+  seasonEvents, SEASON_EVENTS,
 } from './season.js';
-import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion } from './rivals.js';
+import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
 import { newGame } from './save.js';
 import { buildPerformance, createRng } from './race.js';
 
@@ -24,6 +25,7 @@ const CHASSIS = load('chassis.json');
 const RIVALS = load('rivals.json');
 const RADIO = load('radio.json');
 const NOTES = load('notes.json');
+const BASELINE = load('ai-baseline.json');
 const haruka = load('drivers.json')[0];
 const part = (id) => PARTS.find((p) => p.id === id);
 
@@ -223,4 +225,58 @@ test('S6. スポンサー：段階1〜4に3社ずつ、架空名。実況の紹�
   assert.equal(state.tier, 1, 'クラス3に上がっただけでは段階2にならない（完走してから）');
   assert.ok(!sponsorChanged && state.sponsor.id === 'local_ramen', '会社はそのまま');
   console.log(`  スポンサー ${SPONSORS.length} 社：${SPONSORS.map((x) => x.name).join('、')}`);
+});
+
+test('S7. クラス5に親父のノートは無い。AI だけが内部の基準を持ち、昇格で note_ends が立つ', () => {
+  // --- 親父のノートはクラス4で終わる -----------------------------------------
+  assert.ok(!NOTES.some((n) => n.class === 5), 'notes.json にクラス5は無い');
+  // setup.html（プレイヤーの画面）は notes.json しか読まない。
+  // ここが崩れると「ノート通りにする」がクラス5でも出てしまう
+  const setupHtml = readFileSync(join(ROOT, 'src', 'ui', 'setup.html'), 'utf8');
+  assert.ok(setupHtml.includes('data/notes.json'), 'setup.html は親父のノートを読む');
+  assert.ok(!setupHtml.includes('ai-baseline'), 'setup.html は AI の基準を読んではいけない');
+
+  // --- AI は内部の基準で組む ---------------------------------------------------
+  const all = aiNotes(NOTES, BASELINE);
+  const course = COURSES.find((c) => c.id === 'kazahaya');
+  const base = baselineFor(all, PARTS, course, 5);
+  assert.equal(base.note.class, 5, 'クラス5は自分の基準を引く（クラス3を借りない）');
+  assert.ok(base.parts.some((p) => p.class_required === 5), 'クラス5のパーツが入っている');
+  // 借用規則は生きている：クラス4のかざはやはノートが無いのでクラス3を借りる
+  assert.equal(baselineFor(all, PARTS, course, 4).note.class, 3, 'クラス4のかざはやはクラス3を借りる');
+
+  const entries = fieldEntries(RIVALS, course, 5);
+  const plan = seasonRivalPlan(entries, PARTS, 5, createRng(11));
+  const seen = { slow: 0, normal: 0, fast: 0 };
+  for (const [i, entry] of entries.entries()) {
+    const lo = rivalLoadout(entry, i, plan, PARTS, all, course, 5);
+    seen[entry.strength] += 1;
+    assert.ok(lo.parts.length >= 1, `${entry.name} の構成が空`);
+    for (const p of lo.parts) assert.ok(aiLegal(p, 5), `${entry.name} の ${p.id} は規定外`);
+    if (entry.strength !== 'fast') {
+      for (const p of lo.parts) assert.ok(base.parts.includes(p), '基準の外のパーツを積まない');
+    }
+  }
+  assert.ok(seen.fast && seen.normal && seen.slow, '3段階とも出走する');
+
+  // --- クラス5へ昇格した瞬間に note_ends -----------------------------------------
+  assert.deepEqual(seasonEvents({ verdict: 'promote', to: 5, from: 4 }), ['note_ends']);
+  assert.deepEqual(seasonEvents({ verdict: 'promote', to: 4, from: 3 }), [], 'クラス4では立たない');
+  assert.deepEqual(seasonEvents({ verdict: 'stay', to: 5, from: 5 }), [], '残留では立たない');
+  assert.ok(SEASON_EVENTS.includes('note_ends'));
+  // 台詞の枠は radio.json にある（中身はこれから書く）
+  assert.ok(RADIO.season_event?.note_ends, 'radio.json に season_event.note_ends の枠がある');
+  assert.ok(Array.isArray(RADIO.season_event.note_ends.lines), 'lines は配列');
+
+  // ハルカのノート（症状の一行）はクラス5でも書かれる
+  const ids = Array.from({ length: 20 }, (_, i) => (i === 0 ? 'me' : `ai${i}`));
+  const s5 = {
+    ...newGame(ECONOMY), cls: 4, tier: 3,
+    season: { year: 3, rounds: Array(6).fill({ result: {} }), next: 6, symptoms: { tire_wear: 4 }, points: Object.fromEntries(ids.map((id) => [id, id === 'me' ? 60 : 1])) },
+  };
+  const out = endSeason(s5, ids, COURSES, ECONOMY, [], () => 0, RADIO.season_note);
+  assert.equal(out.state.cls, 5);
+  assert.deepEqual(out.events, ['note_ends']);
+  assert.ok(out.note && out.note.length > 0, 'クラス5でもハルカの一行は書かれる');
+  console.log(`  クラス5昇格：note_ends。ハルカの一行は残る「${out.note}」`);
 });

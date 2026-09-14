@@ -1,17 +1,29 @@
 {
   "speakers": {
-    "haruka": { "label": "ハルカ" },
-    "player": { "label": "ピット" }
+    "haruka": {
+      "label": "ハルカ"
+    },
+    "player": {
+      "label": "ピット"
+    }
   },
-
   "info": {
     "fuel_out": {
       "label": "燃料切れ",
       "mood": "焦り",
       "lines": [
-        { "text": "……止まった", "sound_cue": "" },
-        { "text": "エンジン、黙った", "sound_cue": "" },
-        { "text": "燃料。ねえ、燃料", "sound_cue": "" }
+        {
+          "text": "……止まった",
+          "sound_cue": ""
+        },
+        {
+          "text": "エンジン、黙った",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃料。ねえ、燃料",
+          "sound_cue": ""
+        }
       ],
       "replies": [
         {
@@ -19,7 +31,10 @@
           "label": "……すまん",
           "consistency": 0,
           "reactions": [
-            { "text": "次、積んで", "sound_cue": "" }
+            {
+              "text": "次、積んで",
+              "sound_cue": ""
+            }
           ]
         }
       ]
@@ -28,141 +43,336 @@
       "label": "リタイア予兆",
       "mood": "焦り",
       "lines": [
-        { "text": "なんか嫌な音してる", "sound_cue": "" },
-        { "text": "水温、見えてる？　こっちは見えてない", "sound_cue": "" },
-        { "text": "さっきから足元がうるさい。気のせいならいいけど", "sound_cue": "" },
-        { "text": "この子、我慢してる。いつまでかは知らない", "sound_cue": "" }
+        {
+          "text": "なんか嫌な音してる",
+          "sound_cue": ""
+        },
+        {
+          "text": "水温、見えてる？　こっちは見えてない",
+          "sound_cue": ""
+        },
+        {
+          "text": "さっきから足元がうるさい。気のせいならいいけど",
+          "sound_cue": ""
+        },
+        {
+          "text": "この子、我慢してる。いつまでかは知らない",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "音、大きくなってる。聞こえてないの？", "sound_cue": "" },
-        { "text": "壊れる前に言ってるんだけど。壊れてから言えばよかった？", "sound_cue": "" },
-        { "text": "アンタ、この音で走らせるんだ。ふうん", "sound_cue": "" }
+        {
+          "text": "音、大きくなってる。聞こえてないの？",
+          "sound_cue": ""
+        },
+        {
+          "text": "壊れる前に言ってるんだけど。壊れてから言えばよかった？",
+          "sound_cue": ""
+        },
+        {
+          "text": "アンタ、この音で走らせるんだ。ふうん",
+          "sound_cue": ""
+        }
       ]
     },
     "fuel_low": {
       "label": "燃料残り少",
       "mood": "焦り",
       "lines": [
-        { "text": "燃料、足りる？", "sound_cue": "" },
-        { "text": "メーター、下向いてんだけど", "sound_cue": "" },
-        { "text": "アンタの計算、合ってるよね", "sound_cue": "" }
+        {
+          "text": "燃料、足りる？",
+          "sound_cue": ""
+        },
+        {
+          "text": "メーター、下向いてんだけど",
+          "sound_cue": ""
+        },
+        {
+          "text": "アンタの計算、合ってるよね",
+          "sound_cue": ""
+        }
       ]
     },
     "brake_fade": {
       "label": "ブレーキフェード",
       "mood": "焦り",
       "lines": [
-        { "text": "ブレーキ、奥まで踏んでも止まんなくなってきた", "sound_cue": "" },
-        { "text": "ペダルが深い。次の周もこれだと怖い", "sound_cue": "" },
-        { "text": "一回踏むたびに、次が遠くなる", "sound_cue": "" },
-        { "text": "止まらない。止まる場所がどんどん手前に要る", "sound_cue": "" }
+        {
+          "text": "ブレーキ、奥まで踏んでも止まんなくなってきた",
+          "sound_cue": ""
+        },
+        {
+          "text": "ペダルが深い。次の周もこれだと怖い",
+          "sound_cue": ""
+        },
+        {
+          "text": "一回踏むたびに、次が遠くなる",
+          "sound_cue": ""
+        },
+        {
+          "text": "止まらない。止まる場所がどんどん手前に要る",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "止まんないって言ってんの。聞いてる？", "sound_cue": "" },
-        { "text": "ペダルが床。床だよ、床", "sound_cue": "" },
-        { "text": "壁に刺さったらアンタのせいだからね", "sound_cue": "" }
+        {
+          "text": "止まんないって言ってんの。聞いてる？",
+          "sound_cue": ""
+        },
+        {
+          "text": "ペダルが床。床だよ、床",
+          "sound_cue": ""
+        },
+        {
+          "text": "壁に刺さったらアンタのせいだからね",
+          "sound_cue": ""
+        }
       ]
     },
     "tire_wear": {
       "label": "タイヤ摩耗",
       "mood": "不機嫌",
       "lines": [
-        { "text": "後ろが軽い。あと何周？", "sound_cue": "" },
-        { "text": "もうタイヤ終わりかけ。誰が選んだのこれ", "sound_cue": "" },
-        { "text": "接地してる感じがしない。滑ってるほうが長い", "sound_cue": "" },
-        { "text": "同じように走ってるのに、同じように曲がらない", "sound_cue": "" }
+        {
+          "text": "後ろが軽い。あと何周？",
+          "sound_cue": ""
+        },
+        {
+          "text": "もうタイヤ終わりかけ。誰が選んだのこれ",
+          "sound_cue": ""
+        },
+        {
+          "text": "接地してる感じがしない。滑ってるほうが長い",
+          "sound_cue": ""
+        },
+        {
+          "text": "同じように走ってるのに、同じように曲がらない",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "タイヤ、もう無い。無いものは無い", "sound_cue": "" },
-        { "text": "これ以上は減らない。減るとこが無いから", "sound_cue": "" },
-        { "text": "四つとも氷。滑ってるのが普通になった", "sound_cue": "" }
+        {
+          "text": "タイヤ、もう無い。無いものは無い",
+          "sound_cue": ""
+        },
+        {
+          "text": "これ以上は減らない。減るとこが無いから",
+          "sound_cue": ""
+        },
+        {
+          "text": "四つとも氷。滑ってるのが普通になった",
+          "sound_cue": ""
+        }
       ]
     },
     "understeer": {
       "label": "アンダー",
       "mood": "不機嫌",
       "lines": [
-        { "text": "前が逃げる。曲がんない", "sound_cue": "" },
-        { "text": "ハンドル切ってんのに真っ直ぐ行く。おかしくない？", "sound_cue": "" },
-        { "text": "鼻先が入らない。押し出される", "sound_cue": "" },
-        { "text": "曲がりたいのはウチだけみたい", "sound_cue": "" }
+        {
+          "text": "前が逃げる。曲がんない",
+          "sound_cue": ""
+        },
+        {
+          "text": "ハンドル切ってんのに真っ直ぐ行く。おかしくない？",
+          "sound_cue": ""
+        },
+        {
+          "text": "鼻先が入らない。押し出される",
+          "sound_cue": ""
+        },
+        {
+          "text": "曲がりたいのはウチだけみたい",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "だから前が逃げるって。何回言えばいい", "sound_cue": "" },
-        { "text": "曲がんない。ずっと曲がんない。聞こえてる？", "sound_cue": "" },
-        { "text": "アンタが乗ってみれば分かる。ハンドルが飾り", "sound_cue": "" }
+        {
+          "text": "だから前が逃げるって。何回言えばいい",
+          "sound_cue": ""
+        },
+        {
+          "text": "曲がんない。ずっと曲がんない。聞こえてる？",
+          "sound_cue": ""
+        },
+        {
+          "text": "アンタが乗ってみれば分かる。ハンドルが飾り",
+          "sound_cue": ""
+        }
       ]
     },
     "oversteer": {
       "label": "オーバー",
       "mood": "不機嫌",
       "lines": [
-        { "text": "後ろ出るんだけど。ウチのせいじゃないよね", "sound_cue": "" },
-        { "text": "リアが軽すぎ。踊ってる", "sound_cue": "" },
-        { "text": "毎回カウンター当ててる。疲れる", "sound_cue": "" },
-        { "text": "尻から先に行こうとする。行かせないけど", "sound_cue": "" }
+        {
+          "text": "後ろ出るんだけど。ウチのせいじゃないよね",
+          "sound_cue": ""
+        },
+        {
+          "text": "リアが軽すぎ。踊ってる",
+          "sound_cue": ""
+        },
+        {
+          "text": "毎回カウンター当ててる。疲れる",
+          "sound_cue": ""
+        },
+        {
+          "text": "尻から先に行こうとする。行かせないけど",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "後ろ、もう抑えきれない。回る前に言っとく", "sound_cue": "" },
-        { "text": "ケツが勝手に動く。ウチが動かしてるんじゃない", "sound_cue": "" },
-        { "text": "スピンしたら、ウチのせいにしないでよ", "sound_cue": "" }
+        {
+          "text": "後ろ、もう抑えきれない。回る前に言っとく",
+          "sound_cue": ""
+        },
+        {
+          "text": "ケツが勝手に動く。ウチが動かしてるんじゃない",
+          "sound_cue": ""
+        },
+        {
+          "text": "スピンしたら、ウチのせいにしないでよ",
+          "sound_cue": ""
+        }
       ]
     },
     "cold_tire": {
       "label": "冷間",
       "mood": "通常",
       "lines": [
-        { "text": "まだ温まってない。3周ちょうだい", "sound_cue": "" },
-        { "text": "今は無理。タイヤが起きてない", "sound_cue": "" },
-        { "text": "冷たい。踏んでも乗ってこない", "sound_cue": "" },
-        { "text": "起きるまで待つ。それまでは流す", "sound_cue": "" }
+        {
+          "text": "まだ温まってない。3周ちょうだい",
+          "sound_cue": ""
+        },
+        {
+          "text": "今は無理。タイヤが起きてない",
+          "sound_cue": ""
+        },
+        {
+          "text": "冷たい。踏んでも乗ってこない",
+          "sound_cue": ""
+        },
+        {
+          "text": "起きるまで待つ。それまでは流す",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "まだ冷たい。これ、いつ起きるの", "sound_cue": "" },
-        { "text": "温まる前に終わりそう。そういうタイヤ？", "sound_cue": "" },
-        { "text": "冷たいまんま。石を履いてるみたい", "sound_cue": "" }
+        {
+          "text": "まだ冷たい。これ、いつ起きるの",
+          "sound_cue": ""
+        },
+        {
+          "text": "温まる前に終わりそう。そういうタイヤ？",
+          "sound_cue": ""
+        },
+        {
+          "text": "冷たいまんま。石を履いてるみたい",
+          "sound_cue": ""
+        }
       ]
     },
     "straight_loss": {
       "label": "直線で負け",
       "mood": "不機嫌",
       "lines": [
-        { "text": "直線で抜かれた。エンジンなに積んでんの", "sound_cue": "" },
-        { "text": "真っ直ぐで負けるのは悔しい", "sound_cue": "" },
-        { "text": "並ばれた。伸びが違う", "sound_cue": "" },
-        { "text": "ストレートだけ、置いていかれる", "sound_cue": "" }
+        {
+          "text": "直線で抜かれた。エンジンなに積んでんの",
+          "sound_cue": ""
+        },
+        {
+          "text": "真っ直ぐで負けるのは悔しい",
+          "sound_cue": ""
+        },
+        {
+          "text": "並ばれた。伸びが違う",
+          "sound_cue": ""
+        },
+        {
+          "text": "ストレートだけ、置いていかれる",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "また直線。コーナーで稼いだぶん、全部持ってかれる", "sound_cue": "" },
-        { "text": "アクセル床まで踏んでこれ。踏むとこがもう無い", "sound_cue": "" },
-        { "text": "真っ直ぐで勝てないのはウチの仕事じゃない。分かってるよね", "sound_cue": "" }
+        {
+          "text": "また直線。コーナーで稼いだぶん、全部持ってかれる",
+          "sound_cue": ""
+        },
+        {
+          "text": "アクセル床まで踏んでこれ。踏むとこがもう無い",
+          "sound_cue": ""
+        },
+        {
+          "text": "真っ直ぐで勝てないのはウチの仕事じゃない。分かってるよね",
+          "sound_cue": ""
+        }
       ]
     },
     "corner_loss": {
       "label": "コーナーで負け",
       "mood": "不機嫌",
       "lines": [
-        { "text": "コーナーで追いつかれる。足が合ってない", "sound_cue": "" },
-        { "text": "曲がりで詰められてる。ウチの走りじゃなくて車の話", "sound_cue": "" },
-        { "text": "同じ場所で毎周、離される", "sound_cue": "" },
-        { "text": "向こうのほうが曲がる。悔しいけど曲がる", "sound_cue": "" }
+        {
+          "text": "コーナーで追いつかれる。足が合ってない",
+          "sound_cue": ""
+        },
+        {
+          "text": "曲がりで詰められてる。ウチの走りじゃなくて車の話",
+          "sound_cue": ""
+        },
+        {
+          "text": "同じ場所で毎周、離される",
+          "sound_cue": ""
+        },
+        {
+          "text": "向こうのほうが曲がる。悔しいけど曲がる",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "曲がりで負けるのは一番悔しい。ウチの領分なんだけど", "sound_cue": "" },
-        { "text": "コーナーごとに離される。毎周、毎コーナー", "sound_cue": "" },
-        { "text": "足が付いてこない。ウチは付いていける", "sound_cue": "" }
+        {
+          "text": "曲がりで負けるのは一番悔しい。ウチの領分なんだけど",
+          "sound_cue": ""
+        },
+        {
+          "text": "コーナーごとに離される。毎周、毎コーナー",
+          "sound_cue": ""
+        },
+        {
+          "text": "足が付いてこない。ウチは付いていける",
+          "sound_cue": ""
+        }
       ]
     },
     "overtake": {
       "label": "抜いた",
       "mood": "通常",
       "lines": [
-        { "text": "抜いた", "sound_cue": "" },
-        { "text": "一台", "sound_cue": "" },
-        { "text": "前、空いた", "sound_cue": "" },
-        { "text": "行った", "sound_cue": "" },
-        { "text": "……よし", "sound_cue": "" },
-        { "text": "はい、次", "sound_cue": "" }
+        {
+          "text": "抜いた",
+          "sound_cue": ""
+        },
+        {
+          "text": "一台",
+          "sound_cue": ""
+        },
+        {
+          "text": "前、空いた",
+          "sound_cue": ""
+        },
+        {
+          "text": "行った",
+          "sound_cue": ""
+        },
+        {
+          "text": "……よし",
+          "sound_cue": ""
+        },
+        {
+          "text": "はい、次",
+          "sound_cue": ""
+        }
       ],
       "harsh": []
     },
@@ -170,352 +380,1002 @@
       "label": "抜かれた",
       "mood": "通常",
       "lines": [
-        { "text": "……抜かれた", "sound_cue": "" },
-        { "text": "行かれた", "sound_cue": "" },
-        { "text": "一台、前に", "sound_cue": "" },
-        { "text": "取られた", "sound_cue": "" }
+        {
+          "text": "……抜かれた",
+          "sound_cue": ""
+        },
+        {
+          "text": "行かれた",
+          "sound_cue": ""
+        },
+        {
+          "text": "一台、前に",
+          "sound_cue": ""
+        },
+        {
+          "text": "取られた",
+          "sound_cue": ""
+        }
       ],
       "harsh": [
-        { "text": "また抜かれた。……また", "sound_cue": "" },
-        { "text": "何台目？　数えるのやめた", "sound_cue": "" }
+        {
+          "text": "また抜かれた。……また",
+          "sound_cue": ""
+        },
+        {
+          "text": "何台目？　数えるのやめた",
+          "sound_cue": ""
+        }
       ]
     },
     "good_lap": {
       "label": "好調",
       "mood": "楽しい",
       "lines": [
-        { "text": "今の周、良かった。車がちゃんと返事してる", "sound_cue": "" },
-        { "text": "今のは気持ちよかった。もう一回やる", "sound_cue": "" },
-        { "text": "噛み合ってる。このまま行く", "sound_cue": "" },
-        { "text": "この車、今日はいい子", "sound_cue": "" },
-        { "text": "今の周、見てた？　見てたよね", "sound_cue": "" },
-        { "text": "話が通じてる。車と", "sound_cue": "" }
+        {
+          "text": "今の周、良かった。車がちゃんと返事してる",
+          "sound_cue": ""
+        },
+        {
+          "text": "今のは気持ちよかった。もう一回やる",
+          "sound_cue": ""
+        },
+        {
+          "text": "噛み合ってる。このまま行く",
+          "sound_cue": ""
+        },
+        {
+          "text": "この車、今日はいい子",
+          "sound_cue": ""
+        },
+        {
+          "text": "今の周、見てた？　見てたよね",
+          "sound_cue": ""
+        },
+        {
+          "text": "話が通じてる。車と",
+          "sound_cue": ""
+        }
       ],
       "harsh": []
     }
   },
-
   "reaction": {
     "good": [
-      { "text": "よし", "sound_cue": "" },
-      { "text": "今の見た？", "sound_cue": "" },
-      { "text": "うん、いい", "sound_cue": "" },
-      { "text": "決まった", "sound_cue": "" },
-      { "text": "そう、これ", "sound_cue": "" },
-      { "text": "乗った", "sound_cue": "" },
-      { "text": "きれいに抜けた", "sound_cue": "" },
-      { "text": "今のは合ってる", "sound_cue": "" },
-      { "text": "ふふ", "sound_cue": "" },
-      { "text": "……悪くない", "sound_cue": "" },
-      { "text": "手応えあった", "sound_cue": "" },
-      { "text": "そこ、ウチの", "sound_cue": "" },
-      { "text": "いける", "sound_cue": "" },
-      { "text": "うまい。ウチが", "sound_cue": "" },
-      { "text": "この感じ、覚えとく", "sound_cue": "" },
-      { "text": "刺さった", "sound_cue": "" },
-      { "text": "ぴったり", "sound_cue": "" },
-      { "text": "返事きた", "sound_cue": "" }
+      {
+        "text": "よし",
+        "sound_cue": ""
+      },
+      {
+        "text": "今の見た？",
+        "sound_cue": ""
+      },
+      {
+        "text": "うん、いい",
+        "sound_cue": ""
+      },
+      {
+        "text": "決まった",
+        "sound_cue": ""
+      },
+      {
+        "text": "そう、これ",
+        "sound_cue": ""
+      },
+      {
+        "text": "乗った",
+        "sound_cue": ""
+      },
+      {
+        "text": "きれいに抜けた",
+        "sound_cue": ""
+      },
+      {
+        "text": "今のは合ってる",
+        "sound_cue": ""
+      },
+      {
+        "text": "ふふ",
+        "sound_cue": ""
+      },
+      {
+        "text": "……悪くない",
+        "sound_cue": ""
+      },
+      {
+        "text": "手応えあった",
+        "sound_cue": ""
+      },
+      {
+        "text": "そこ、ウチの",
+        "sound_cue": ""
+      },
+      {
+        "text": "いける",
+        "sound_cue": ""
+      },
+      {
+        "text": "うまい。ウチが",
+        "sound_cue": ""
+      },
+      {
+        "text": "この感じ、覚えとく",
+        "sound_cue": ""
+      },
+      {
+        "text": "刺さった",
+        "sound_cue": ""
+      },
+      {
+        "text": "ぴったり",
+        "sound_cue": ""
+      },
+      {
+        "text": "返事きた",
+        "sound_cue": ""
+      }
     ],
     "bad": [
-      { "text": "ちっ", "sound_cue": "" },
-      { "text": "今の失敗", "sound_cue": "" },
-      { "text": "違う", "sound_cue": "" },
-      { "text": "……はあ", "sound_cue": "" },
-      { "text": "今のなし", "sound_cue": "" },
-      { "text": "ずれた", "sound_cue": "" },
-      { "text": "外した", "sound_cue": "" },
-      { "text": "遅い。今のは遅い", "sound_cue": "" },
-      { "text": "乗れなかった", "sound_cue": "" },
-      { "text": "うわ", "sound_cue": "" },
-      { "text": "見なかったことにして", "sound_cue": "" },
-      { "text": "ミス。ウチの", "sound_cue": "" },
-      { "text": "合ってない", "sound_cue": "" },
-      { "text": "……今のは言わないで", "sound_cue": "" },
-      { "text": "取り返す", "sound_cue": "" },
-      { "text": "もたついた", "sound_cue": "" },
-      { "text": "だめ、今の", "sound_cue": "" },
-      { "text": "くそ", "sound_cue": "" }
+      {
+        "text": "ちっ",
+        "sound_cue": ""
+      },
+      {
+        "text": "今の失敗",
+        "sound_cue": ""
+      },
+      {
+        "text": "違う",
+        "sound_cue": ""
+      },
+      {
+        "text": "……はあ",
+        "sound_cue": ""
+      },
+      {
+        "text": "今のなし",
+        "sound_cue": ""
+      },
+      {
+        "text": "ずれた",
+        "sound_cue": ""
+      },
+      {
+        "text": "外した",
+        "sound_cue": ""
+      },
+      {
+        "text": "遅い。今のは遅い",
+        "sound_cue": ""
+      },
+      {
+        "text": "乗れなかった",
+        "sound_cue": ""
+      },
+      {
+        "text": "うわ",
+        "sound_cue": ""
+      },
+      {
+        "text": "見なかったことにして",
+        "sound_cue": ""
+      },
+      {
+        "text": "ミス。ウチの",
+        "sound_cue": ""
+      },
+      {
+        "text": "合ってない",
+        "sound_cue": ""
+      },
+      {
+        "text": "……今のは言わないで",
+        "sound_cue": ""
+      },
+      {
+        "text": "取り返す",
+        "sound_cue": ""
+      },
+      {
+        "text": "もたついた",
+        "sound_cue": ""
+      },
+      {
+        "text": "だめ、今の",
+        "sound_cue": ""
+      },
+      {
+        "text": "くそ",
+        "sound_cue": ""
+      }
     ],
     "neutral": [
-      { "text": "ん", "sound_cue": "" },
-      { "text": "まあまあ", "sound_cue": "" },
-      { "text": "普通", "sound_cue": "" },
-      { "text": "……", "sound_cue": "" },
-      { "text": "次", "sound_cue": "" },
-      { "text": "はい", "sound_cue": "" },
-      { "text": "変わんない", "sound_cue": "" },
-      { "text": "そんなもん", "sound_cue": "" },
-      { "text": "ふう", "sound_cue": "" },
-      { "text": "うん", "sound_cue": "" }
+      {
+        "text": "ん",
+        "sound_cue": ""
+      },
+      {
+        "text": "まあまあ",
+        "sound_cue": ""
+      },
+      {
+        "text": "普通",
+        "sound_cue": ""
+      },
+      {
+        "text": "……",
+        "sound_cue": ""
+      },
+      {
+        "text": "次",
+        "sound_cue": ""
+      },
+      {
+        "text": "はい",
+        "sound_cue": ""
+      },
+      {
+        "text": "変わんない",
+        "sound_cue": ""
+      },
+      {
+        "text": "そんなもん",
+        "sound_cue": ""
+      },
+      {
+        "text": "ふう",
+        "sound_cue": ""
+      },
+      {
+        "text": "うん",
+        "sound_cue": ""
+      }
     ],
     "straight": [
-      { "text": "伸びろ", "sound_cue": "" },
-      { "text": "ここは我慢", "sound_cue": "" },
-      { "text": "真っ直ぐは退屈", "sound_cue": "" },
-      { "text": "頭、下げとく", "sound_cue": "" }
+      {
+        "text": "伸びろ",
+        "sound_cue": ""
+      },
+      {
+        "text": "ここは我慢",
+        "sound_cue": ""
+      },
+      {
+        "text": "真っ直ぐは退屈",
+        "sound_cue": ""
+      },
+      {
+        "text": "頭、下げとく",
+        "sound_cue": ""
+      }
     ],
     "fast_corner": [
-      { "text": "抜けた", "sound_cue": "" },
-      { "text": "ここ、気持ちいい", "sound_cue": "" },
-      { "text": "全開でいける", "sound_cue": "" },
-      { "text": "翼、効いてる", "sound_cue": "" }
+      {
+        "text": "抜けた",
+        "sound_cue": ""
+      },
+      {
+        "text": "ここ、気持ちいい",
+        "sound_cue": ""
+      },
+      {
+        "text": "全開でいける",
+        "sound_cue": ""
+      },
+      {
+        "text": "翼、効いてる",
+        "sound_cue": ""
+      }
     ],
     "slow_corner": [
-      { "text": "止めて、向けて、開ける", "sound_cue": "" },
-      { "text": "立ち上がり", "sound_cue": "" },
-      { "text": "ここが勝負", "sound_cue": "" },
-      { "text": "頭、入れ", "sound_cue": "" }
+      {
+        "text": "止めて、向けて、開ける",
+        "sound_cue": ""
+      },
+      {
+        "text": "立ち上がり",
+        "sound_cue": ""
+      },
+      {
+        "text": "ここが勝負",
+        "sound_cue": ""
+      },
+      {
+        "text": "頭、入れ",
+        "sound_cue": ""
+      }
     ]
   },
-
   "constant": {
     "haruka": [
-      { "text": "聞こえてる", "sound_cue": "" },
-      { "text": "問題なし", "sound_cue": "" },
-      { "text": "車、静か。いいこと", "sound_cue": "" },
-      { "text": "今のとこ、言うことない", "sound_cue": "" },
-      { "text": "前、見えてる", "sound_cue": "" },
-      { "text": "後ろ、鏡に入った", "sound_cue": "" },
-      { "text": "ペース、こんなもん", "sound_cue": "" },
-      { "text": "集中してる。話しかけないで……いや、いい", "sound_cue": "" },
-      { "text": "手、汗かいてる", "sound_cue": "" },
-      { "text": "風、横から来てる", "sound_cue": "" },
-      { "text": "路面、ちょっと荒れてきた", "sound_cue": "" },
-      { "text": "ハンドル、重い。いい重さ", "sound_cue": "" },
-      { "text": "まだ余裕ある", "sound_cue": "" },
-      { "text": "余裕ない。でも大丈夫", "sound_cue": "" },
-      { "text": "この周は流す", "sound_cue": "" },
-      { "text": "この周は行く", "sound_cue": "" },
-      { "text": "アンタ、そこにいる？", "sound_cue": "" },
-      { "text": "ノート、膝の上にある気がする", "sound_cue": "" },
-      { "text": "熱い。車が", "sound_cue": "" },
-      { "text": "静か。エンジンの声だけ", "sound_cue": "" },
-      { "text": "前の車、ラインが汚い", "sound_cue": "" },
-      { "text": "後ろの車、ラインがきれい。やだ", "sound_cue": "" },
-      { "text": "コース、覚えた", "sound_cue": "" },
-      { "text": "縁石、使える", "sound_cue": "" },
-      { "text": "縁石、使えない。跳ねる", "sound_cue": "" },
-      { "text": "了解", "sound_cue": "" },
-      { "text": "分かってる", "sound_cue": "" },
-      { "text": "うるさい。……ごめん、続けて", "sound_cue": "" }
+      {
+        "text": "聞こえてる",
+        "sound_cue": ""
+      },
+      {
+        "text": "問題なし",
+        "sound_cue": ""
+      },
+      {
+        "text": "車、静か。いいこと",
+        "sound_cue": ""
+      },
+      {
+        "text": "今のとこ、言うことない",
+        "sound_cue": ""
+      },
+      {
+        "text": "前、見えてる",
+        "sound_cue": ""
+      },
+      {
+        "text": "後ろ、鏡に入った",
+        "sound_cue": ""
+      },
+      {
+        "text": "ペース、こんなもん",
+        "sound_cue": ""
+      },
+      {
+        "text": "集中してる。話しかけないで……いや、いい",
+        "sound_cue": ""
+      },
+      {
+        "text": "手、汗かいてる",
+        "sound_cue": ""
+      },
+      {
+        "text": "風、横から来てる",
+        "sound_cue": ""
+      },
+      {
+        "text": "路面、ちょっと荒れてきた",
+        "sound_cue": ""
+      },
+      {
+        "text": "ハンドル、重い。いい重さ",
+        "sound_cue": ""
+      },
+      {
+        "text": "まだ余裕ある",
+        "sound_cue": ""
+      },
+      {
+        "text": "余裕ない。でも大丈夫",
+        "sound_cue": ""
+      },
+      {
+        "text": "この周は流す",
+        "sound_cue": ""
+      },
+      {
+        "text": "この周は行く",
+        "sound_cue": ""
+      },
+      {
+        "text": "アンタ、そこにいる？",
+        "sound_cue": ""
+      },
+      {
+        "text": "ノート、膝の上にある気がする",
+        "sound_cue": ""
+      },
+      {
+        "text": "熱い。車が",
+        "sound_cue": ""
+      },
+      {
+        "text": "静か。エンジンの声だけ",
+        "sound_cue": ""
+      },
+      {
+        "text": "前の車、ラインが汚い",
+        "sound_cue": ""
+      },
+      {
+        "text": "後ろの車、ラインがきれい。やだ",
+        "sound_cue": ""
+      },
+      {
+        "text": "コース、覚えた",
+        "sound_cue": ""
+      },
+      {
+        "text": "縁石、使える",
+        "sound_cue": ""
+      },
+      {
+        "text": "縁石、使えない。跳ねる",
+        "sound_cue": ""
+      },
+      {
+        "text": "了解",
+        "sound_cue": ""
+      },
+      {
+        "text": "分かってる",
+        "sound_cue": ""
+      },
+      {
+        "text": "うるさい。……ごめん、続けて",
+        "sound_cue": ""
+      }
     ],
     "player": {
       "gap_ahead": [
-        { "text": "前まで{gap}", "sound_cue": "" },
-        { "text": "前、{gap}。見えてるか", "sound_cue": "" },
-        { "text": "前との差、{gap}", "sound_cue": "" },
-        { "text": "{gap}で前。詰まってる", "sound_cue": "" },
-        { "text": "前の{car}まで{gap}", "sound_cue": "" }
+        {
+          "text": "前まで{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "前、{gap}。見えてるか",
+          "sound_cue": ""
+        },
+        {
+          "text": "前との差、{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{gap}で前。詰まってる",
+          "sound_cue": ""
+        },
+        {
+          "text": "前の{car}まで{gap}",
+          "sound_cue": ""
+        }
       ],
       "gap_behind": [
-        { "text": "後ろ来てる。{gap}", "sound_cue": "" },
-        { "text": "後ろ、{gap}", "sound_cue": "" },
-        { "text": "後ろとの差、{gap}。詰まってる", "sound_cue": "" },
-        { "text": "後ろの{car}、{gap}まで来た", "sound_cue": "" },
-        { "text": "{gap}後ろにいる", "sound_cue": "" }
+        {
+          "text": "後ろ来てる。{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろ、{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろとの差、{gap}。詰まってる",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろの{car}、{gap}まで来た",
+          "sound_cue": ""
+        },
+        {
+          "text": "{gap}後ろにいる",
+          "sound_cue": ""
+        }
       ],
       "gap_behind_safe": [
-        { "text": "後ろ、離れてる。{gap}", "sound_cue": "" },
-        { "text": "後ろは気にしなくていい。{gap}", "sound_cue": "" },
-        { "text": "後ろ、{gap}。余裕", "sound_cue": "" }
+        {
+          "text": "後ろ、離れてる。{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろは気にしなくていい。{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろ、{gap}。余裕",
+          "sound_cue": ""
+        }
       ],
       "laps_left": [
-        { "text": "あと{left}周", "sound_cue": "" },
-        { "text": "残り{left}", "sound_cue": "" },
-        { "text": "あと{left}周。このまま", "sound_cue": "" },
-        { "text": "{left}周残ってる", "sound_cue": "" }
+        {
+          "text": "あと{left}周",
+          "sound_cue": ""
+        },
+        {
+          "text": "残り{left}",
+          "sound_cue": ""
+        },
+        {
+          "text": "あと{left}周。このまま",
+          "sound_cue": ""
+        },
+        {
+          "text": "{left}周残ってる",
+          "sound_cue": ""
+        }
       ],
       "final_lap": [
-        { "text": "最終周", "sound_cue": "" },
-        { "text": "ラスト。もらってこい", "sound_cue": "" },
-        { "text": "最後の周だ", "sound_cue": "" }
+        {
+          "text": "最終周",
+          "sound_cue": ""
+        },
+        {
+          "text": "ラスト。もらってこい",
+          "sound_cue": ""
+        },
+        {
+          "text": "最後の周だ",
+          "sound_cue": ""
+        }
       ],
       "lap_time": [
-        { "text": "今の周、{time}", "sound_cue": "" },
-        { "text": "{time}。今の周", "sound_cue": "" },
-        { "text": "ラップ、{time}", "sound_cue": "" },
-        { "text": "{time}。ベストは{best}", "sound_cue": "" }
+        {
+          "text": "今の周、{time}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{time}。今の周",
+          "sound_cue": ""
+        },
+        {
+          "text": "ラップ、{time}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{time}。ベストは{best}",
+          "sound_cue": ""
+        }
       ],
       "best_lap": [
-        { "text": "ベスト更新。{time}", "sound_cue": "" },
-        { "text": "{time}、今のがベスト", "sound_cue": "" },
-        { "text": "今の周が一番速い。{time}", "sound_cue": "" }
+        {
+          "text": "ベスト更新。{time}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{time}、今のがベスト",
+          "sound_cue": ""
+        },
+        {
+          "text": "今の周が一番速い。{time}",
+          "sound_cue": ""
+        }
       ],
       "sector": [
-        { "text": "{sector}、{time}", "sound_cue": "" },
-        { "text": "{sector}通過。{time}", "sound_cue": "" },
-        { "text": "{time}。{sector}", "sound_cue": "" }
+        {
+          "text": "{sector}、{time}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{sector}通過。{time}",
+          "sound_cue": ""
+        },
+        {
+          "text": "{time}。{sector}",
+          "sound_cue": ""
+        }
       ],
       "leader": [
-        { "text": "トップだ", "sound_cue": "" },
-        { "text": "先頭。後ろだけ見てろ", "sound_cue": "" },
-        { "text": "先頭にいる。守れ", "sound_cue": "" }
+        {
+          "text": "トップだ",
+          "sound_cue": ""
+        },
+        {
+          "text": "先頭。後ろだけ見てろ",
+          "sound_cue": ""
+        },
+        {
+          "text": "先頭にいる。守れ",
+          "sound_cue": ""
+        }
       ],
       "position": [
-        { "text": "今{pos}番手", "sound_cue": "" },
-        { "text": "{pos}番手。前の{car}", "sound_cue": "" },
-        { "text": "順位、{pos}", "sound_cue": "" }
+        {
+          "text": "今{pos}番手",
+          "sound_cue": ""
+        },
+        {
+          "text": "{pos}番手。前の{car}",
+          "sound_cue": ""
+        },
+        {
+          "text": "順位、{pos}",
+          "sound_cue": ""
+        }
       ],
       "encourage": [
-        { "text": "いいぞ", "sound_cue": "" },
-        { "text": "そのまま", "sound_cue": "" },
-        { "text": "落ち着いて", "sound_cue": "" },
-        { "text": "無理するな", "sound_cue": "" },
-        { "text": "聞こえてるか", "sound_cue": "" }
+        {
+          "text": "いいぞ",
+          "sound_cue": ""
+        },
+        {
+          "text": "そのまま",
+          "sound_cue": ""
+        },
+        {
+          "text": "落ち着いて",
+          "sound_cue": ""
+        },
+        {
+          "text": "無理するな",
+          "sound_cue": ""
+        },
+        {
+          "text": "聞こえてるか",
+          "sound_cue": ""
+        }
       ]
     }
   },
-
   "chat": {
     "general": [
-      { "text": "ねえ、今日の弁当なに", "sound_cue": "" },
-      { "text": "ラジオ入る？　静かすぎて眠い", "sound_cue": "" },
-      { "text": "今のコーナー、ウチ天才じゃない？", "sound_cue": "" },
-      { "text": "観客、何人いる？　……三人？　多いじゃん", "sound_cue": "" },
-      { "text": "風強くない？　髪がヘルメットの中でぐちゃぐちゃ", "sound_cue": "" },
-      { "text": "このコース、看板の字が古い。誰も直さないの", "sound_cue": "" },
-      { "text": "アンタ、ちゃんと見てる？　寝てない？", "sound_cue": "" },
-      { "text": "終わったらラーメン。決まり", "sound_cue": "" },
-      { "text": "あの雲、タイヤの形してる", "sound_cue": "" },
-      { "text": "無線、ウチの声どう聞こえてる？　変な声してない？", "sound_cue": "" },
-      { "text": "前の車のテールランプ、片方切れてる。教えてあげたい", "sound_cue": "" },
-      { "text": "ヘルメットの中、鼻かゆい", "sound_cue": "" },
-      { "text": "今日、空が高い", "sound_cue": "" },
-      { "text": "この無線、たまに変な音入る。アンタの鼻息？", "sound_cue": "" },
-      { "text": "コースの外に犬いた。散歩？", "sound_cue": "" },
-      { "text": "終わったら寝る。十時間", "sound_cue": "" },
-      { "text": "この車、名前つけようか。……やっぱいい", "sound_cue": "" },
-      { "text": "ピットの前、誰か手振ってた。誰？", "sound_cue": "" },
-      { "text": "サーキットの弁当、いつも唐揚げ。文句はない", "sound_cue": "" },
-      { "text": "旗振ってる人、腕疲れないのかな", "sound_cue": "" },
-      { "text": "この先の看板、傾いてる。前から", "sound_cue": "" },
-      { "text": "ウチの声、録音してない？　してたら消して", "sound_cue": "" },
-      { "text": "今日の空気、重い。雨来る？", "sound_cue": "" },
-      { "text": "ヘルメット、新しいの欲しい。これ古い", "sound_cue": "" },
-      { "text": "アンタ、昼ごはん食べた？　ウチは食べてない", "sound_cue": "" },
-      { "text": "この車のシート、ウチの背中の形になってきた", "sound_cue": "" },
-      { "text": "外、何度？　こっちは蒸し風呂", "sound_cue": "" },
-      { "text": "帰りの車、ウチが運転する。……冗談", "sound_cue": "" },
-      { "text": "コース脇の草、伸びすぎ。誰が刈るの", "sound_cue": "" },
-      { "text": "無線の向こう、静かすぎ。何かしゃべって", "sound_cue": "" },
-      { "text": "今の路面、いい匂いした。タイヤの", "sound_cue": "" },
-      { "text": "終わったら、車洗う。ウチが", "sound_cue": "" },
-      { "text": "鳥。コースの上、飛んでた", "sound_cue": "" },
-      { "text": "アンタの声、無線だと若く聞こえる。少しだけ", "sound_cue": "" },
-      { "text": "この周、鼻歌うたってた。聞こえた？", "sound_cue": "" },
-      { "text": "ピットの時計、遅れてない？", "sound_cue": "" }
+      {
+        "text": "ねえ、今日の弁当なに",
+        "sound_cue": ""
+      },
+      {
+        "text": "ラジオ入る？　静かすぎて眠い",
+        "sound_cue": ""
+      },
+      {
+        "text": "今のコーナー、ウチ天才じゃない？",
+        "sound_cue": ""
+      },
+      {
+        "text": "観客、何人いる？　……三人？　多いじゃん",
+        "sound_cue": ""
+      },
+      {
+        "text": "風強くない？　髪がヘルメットの中でぐちゃぐちゃ",
+        "sound_cue": ""
+      },
+      {
+        "text": "このコース、看板の字が古い。誰も直さないの",
+        "sound_cue": ""
+      },
+      {
+        "text": "アンタ、ちゃんと見てる？　寝てない？",
+        "sound_cue": ""
+      },
+      {
+        "text": "終わったらラーメン。決まり",
+        "sound_cue": ""
+      },
+      {
+        "text": "あの雲、タイヤの形してる",
+        "sound_cue": ""
+      },
+      {
+        "text": "無線、ウチの声どう聞こえてる？　変な声してない？",
+        "sound_cue": ""
+      },
+      {
+        "text": "前の車のテールランプ、片方切れてる。教えてあげたい",
+        "sound_cue": ""
+      },
+      {
+        "text": "ヘルメットの中、鼻かゆい",
+        "sound_cue": ""
+      },
+      {
+        "text": "今日、空が高い",
+        "sound_cue": ""
+      },
+      {
+        "text": "この無線、たまに変な音入る。アンタの鼻息？",
+        "sound_cue": ""
+      },
+      {
+        "text": "コースの外に犬いた。散歩？",
+        "sound_cue": ""
+      },
+      {
+        "text": "終わったら寝る。十時間",
+        "sound_cue": ""
+      },
+      {
+        "text": "この車、名前つけようか。……やっぱいい",
+        "sound_cue": ""
+      },
+      {
+        "text": "ピットの前、誰か手振ってた。誰？",
+        "sound_cue": ""
+      },
+      {
+        "text": "サーキットの弁当、いつも唐揚げ。文句はない",
+        "sound_cue": ""
+      },
+      {
+        "text": "旗振ってる人、腕疲れないのかな",
+        "sound_cue": ""
+      },
+      {
+        "text": "この先の看板、傾いてる。前から",
+        "sound_cue": ""
+      },
+      {
+        "text": "ウチの声、録音してない？　してたら消して",
+        "sound_cue": ""
+      },
+      {
+        "text": "今日の空気、重い。雨来る？",
+        "sound_cue": ""
+      },
+      {
+        "text": "ヘルメット、新しいの欲しい。これ古い",
+        "sound_cue": ""
+      },
+      {
+        "text": "アンタ、昼ごはん食べた？　ウチは食べてない",
+        "sound_cue": ""
+      },
+      {
+        "text": "この車のシート、ウチの背中の形になってきた",
+        "sound_cue": ""
+      },
+      {
+        "text": "外、何度？　こっちは蒸し風呂",
+        "sound_cue": ""
+      },
+      {
+        "text": "帰りの車、ウチが運転する。……冗談",
+        "sound_cue": ""
+      },
+      {
+        "text": "コース脇の草、伸びすぎ。誰が刈るの",
+        "sound_cue": ""
+      },
+      {
+        "text": "無線の向こう、静かすぎ。何かしゃべって",
+        "sound_cue": ""
+      },
+      {
+        "text": "今の路面、いい匂いした。タイヤの",
+        "sound_cue": ""
+      },
+      {
+        "text": "終わったら、車洗う。ウチが",
+        "sound_cue": ""
+      },
+      {
+        "text": "鳥。コースの上、飛んでた",
+        "sound_cue": ""
+      },
+      {
+        "text": "アンタの声、無線だと若く聞こえる。少しだけ",
+        "sound_cue": ""
+      },
+      {
+        "text": "この周、鼻歌うたってた。聞こえた？",
+        "sound_cue": ""
+      },
+      {
+        "text": "ピットの時計、遅れてない？",
+        "sound_cue": ""
+      }
     ],
     "with_reply": [
       {
         "text": "あ、ヘアピンにネコいた",
         "sound_cue": "",
         "replies": [
-          { "label": "ネコ？", "answer": "三毛。かわいかった" },
-          { "label": "集中しろ", "answer": "してるってば" }
+          {
+            "label": "ネコ？",
+            "answer": "三毛。かわいかった"
+          },
+          {
+            "label": "集中しろ",
+            "answer": "してるってば"
+          }
         ]
       },
       {
         "text": "隣の青いやつ、さっきから煽ってくる。友達になれそう",
         "sound_cue": "",
         "replies": [
-          { "label": "集中しろ", "answer": "してるってば" },
-          { "label": "友達は後で", "answer": "じゃあ抜いてから決める" }
+          {
+            "label": "集中しろ",
+            "answer": "してるってば"
+          },
+          {
+            "label": "友達は後で",
+            "answer": "じゃあ抜いてから決める"
+          }
         ]
       },
       {
         "text": "暑い。エアコン付けて",
         "sound_cue": "",
         "replies": [
-          { "label": "付いてないよ", "answer": "知ってる" },
-          { "label": "我慢して", "answer": "……はいはい" }
+          {
+            "label": "付いてないよ",
+            "answer": "知ってる"
+          },
+          {
+            "label": "我慢して",
+            "answer": "……はいはい"
+          }
         ]
       },
       {
         "text": "終わったら何食べる？",
         "sound_cue": "",
         "replies": [
-          { "label": "ラーメン", "answer": "決まり" },
-          { "label": "走ってから決めろ", "answer": "ケチ" }
+          {
+            "label": "ラーメン",
+            "answer": "決まり"
+          },
+          {
+            "label": "走ってから決めろ",
+            "answer": "ケチ"
+          }
         ]
       },
       {
         "text": "アンタ、ウチの走り、ちゃんと見てる？",
         "sound_cue": "",
         "replies": [
-          { "label": "見てる", "answer": "ならいい" },
-          { "label": "数字は見てる", "answer": "数字じゃなくてウチを見て" }
+          {
+            "label": "見てる",
+            "answer": "ならいい"
+          },
+          {
+            "label": "数字は見てる",
+            "answer": "数字じゃなくてウチを見て"
+          }
         ]
       }
     ],
     "rare": [
-      { "text": "おいちゃ……アンタ、聞こえてる？", "sound_cue": "" },
-      { "text": "……親父も、こんな声で聞いてたのかな", "sound_cue": "" }
+      {
+        "text": "おいちゃ……アンタ、聞こえてる？",
+        "sound_cue": ""
+      },
+      {
+        "text": "……親父も、こんな声で聞いてたのかな",
+        "sound_cue": ""
+      }
     ],
     "quali": [
-      { "text": "予選って一発じゃん。一発、好き", "sound_cue": "" },
-      { "text": "アタック前。静かにして", "sound_cue": "" },
-      { "text": "今の一周、録画してる？　してないの", "sound_cue": "" }
+      {
+        "text": "予選って一発じゃん。一発、好き",
+        "sound_cue": ""
+      },
+      {
+        "text": "アタック前。静かにして",
+        "sound_cue": ""
+      },
+      {
+        "text": "今の一周、録画してる？　してないの",
+        "sound_cue": ""
+      }
     ],
     "ai": {
       "straight": [
-        { "text": "あいつ直線だけ速い。コーナーで返す", "sound_cue": "" },
-        { "text": "真っ直ぐだけの車。見てればわかる", "sound_cue": "" },
-        { "text": "直線で並ばれる。曲がりで置いてく", "sound_cue": "" }
+        {
+          "text": "あいつ直線だけ速い。コーナーで返す",
+          "sound_cue": ""
+        },
+        {
+          "text": "真っ直ぐだけの車。見てればわかる",
+          "sound_cue": ""
+        },
+        {
+          "text": "直線で並ばれる。曲がりで置いてく",
+          "sound_cue": ""
+        }
       ],
       "corner": [
-        { "text": "あいつ曲がるの上手い。真似したい", "sound_cue": "" },
-        { "text": "きれいに曲がる。ちょっと見とく", "sound_cue": "" },
-        { "text": "コーナーで詰めてくる。直線で逃げる", "sound_cue": "" }
+        {
+          "text": "あいつ曲がるの上手い。真似したい",
+          "sound_cue": ""
+        },
+        {
+          "text": "きれいに曲がる。ちょっと見とく",
+          "sound_cue": ""
+        },
+        {
+          "text": "コーナーで詰めてくる。直線で逃げる",
+          "sound_cue": ""
+        }
       ],
       "slow": [
-        { "text": "あいつ、立ち上がりが変。何かやってる", "sound_cue": "" },
-        { "text": "低速の出方が違う。何か入れてる", "sound_cue": "" },
-        { "text": "ヘアピンの出口で前に出られる。悔しい", "sound_cue": "" }
+        {
+          "text": "あいつ、立ち上がりが変。何かやってる",
+          "sound_cue": ""
+        },
+        {
+          "text": "低速の出方が違う。何か入れてる",
+          "sound_cue": ""
+        },
+        {
+          "text": "ヘアピンの出口で前に出られる。悔しい",
+          "sound_cue": ""
+        }
       ],
       "aggressive": [
-        { "text": "後ろ、うるさい。教育していい？", "sound_cue": "" },
-        { "text": "煽ってくる。ウチ、そういうの覚えるタイプ", "sound_cue": "" },
-        { "text": "後ろのやつ、鏡いっぱいに来てる。近い", "sound_cue": "" }
+        {
+          "text": "後ろ、うるさい。教育していい？",
+          "sound_cue": ""
+        },
+        {
+          "text": "煽ってくる。ウチ、そういうの覚えるタイプ",
+          "sound_cue": ""
+        },
+        {
+          "text": "後ろのやつ、鏡いっぱいに来てる。近い",
+          "sound_cue": ""
+        }
       ],
       "rival": [
-        { "text": "またあいつ。もう顔覚えた", "sound_cue": "" },
-        { "text": "さっきの車。しつこい", "sound_cue": "" },
-        { "text": "また来た。飽きないね", "sound_cue": "" }
+        {
+          "text": "またあいつ。もう顔覚えた",
+          "sound_cue": ""
+        },
+        {
+          "text": "さっきの車。しつこい",
+          "sound_cue": ""
+        },
+        {
+          "text": "また来た。飽きないね",
+          "sound_cue": ""
+        }
       ]
     },
     "course_start": {
       "asahina": [
-        { "text": "庭。目つぶっても走れる", "sound_cue": "" },
-        { "text": "ここ、匂いで分かる", "sound_cue": "" }
+        {
+          "text": "庭。目つぶっても走れる",
+          "sound_cue": ""
+        },
+        {
+          "text": "ここ、匂いで分かる",
+          "sound_cue": ""
+        }
       ],
       "kazahaya": [
-        { "text": "ここ、ずっと走りたかった", "sound_cue": "" },
-        { "text": "高いとこから見ると街が小さい", "sound_cue": "" }
+        {
+          "text": "ここ、ずっと走りたかった",
+          "sound_cue": ""
+        },
+        {
+          "text": "高いとこから見ると街が小さい",
+          "sound_cue": ""
+        }
       ],
       "nagasawa": [
-        { "text": "直線ばっかりで退屈。エンジン次第じゃん", "sound_cue": "" },
-        { "text": "長い。真っ直ぐが長い", "sound_cue": "" }
+        {
+          "text": "直線ばっかりで退屈。エンジン次第じゃん",
+          "sound_cue": ""
+        },
+        {
+          "text": "長い。真っ直ぐが長い",
+          "sound_cue": ""
+        }
       ],
       "misaki": [
-        { "text": "みさきは好き。曲がってる", "sound_cue": "" },
-        { "text": "ここは曲がってばっかり。好き", "sound_cue": "" }
+        {
+          "text": "みさきは好き。曲がってる",
+          "sound_cue": ""
+        },
+        {
+          "text": "ここは曲がってばっかり。好き",
+          "sound_cue": ""
+        }
       ],
       "hibaridaira": [
-        { "text": "普通。普通が一番むずかしい", "sound_cue": "" },
-        { "text": "全部ある。全部やらされる", "sound_cue": "" }
+        {
+          "text": "普通。普通が一番むずかしい",
+          "sound_cue": ""
+        },
+        {
+          "text": "全部ある。全部やらされる",
+          "sound_cue": ""
+        }
       ]
     }
   },
-
   "replies": [
     {
       "id": "fix",
       "label": "わかった、次で直す",
       "consistency": 3,
       "reactions": [
-        { "text": "うん", "sound_cue": "" },
-        { "text": "頼んだ", "sound_cue": "" },
-        { "text": "じゃ、それで", "sound_cue": "" }
+        {
+          "text": "うん",
+          "sound_cue": ""
+        },
+        {
+          "text": "頼んだ",
+          "sound_cue": ""
+        },
+        {
+          "text": "じゃ、それで",
+          "sound_cue": ""
+        }
       ]
     },
     {
@@ -523,8 +1383,14 @@
       "label": "我慢して",
       "consistency": 0,
       "reactions": [
-        { "text": "……はいはい", "sound_cue": "" },
-        { "text": "言われなくても", "sound_cue": "" }
+        {
+          "text": "……はいはい",
+          "sound_cue": ""
+        },
+        {
+          "text": "言われなくても",
+          "sound_cue": ""
+        }
       ]
     },
     {
@@ -532,177 +1398,403 @@
       "label": "気のせいだろ",
       "consistency": -3,
       "reactions": [
-        { "text": "気のせいで済むならウチ要らないじゃん", "sound_cue": "" },
-        { "text": "はあ？", "sound_cue": "" }
+        {
+          "text": "気のせいで済むならウチ要らないじゃん",
+          "sound_cue": ""
+        },
+        {
+          "text": "はあ？",
+          "sound_cue": ""
+        }
       ]
     }
   ],
-
   "quali": {
     "out": [
-      { "text": "アウトラップ。温める", "sound_cue": "" },
-      { "text": "まだ踏まない。起こしてる", "sound_cue": "" },
-      { "text": "一周、流す", "sound_cue": "" }
+      {
+        "text": "アウトラップ。温める",
+        "sound_cue": ""
+      },
+      {
+        "text": "まだ踏まない。起こしてる",
+        "sound_cue": ""
+      },
+      {
+        "text": "一周、流す",
+        "sound_cue": ""
+      }
     ],
     "attack_start": [
-      { "text": "行く", "sound_cue": "" },
-      { "text": "アタック。黙ってて", "sound_cue": "" },
-      { "text": "ここから一発", "sound_cue": "" }
+      {
+        "text": "行く",
+        "sound_cue": ""
+      },
+      {
+        "text": "アタック。黙ってて",
+        "sound_cue": ""
+      },
+      {
+        "text": "ここから一発",
+        "sound_cue": ""
+      }
     ],
     "attack_good": [
-      { "text": "今の区間、いい", "sound_cue": "" },
-      { "text": "乗ってる。このまま", "sound_cue": "" },
-      { "text": "今の、悪くない", "sound_cue": "" }
+      {
+        "text": "今の区間、いい",
+        "sound_cue": ""
+      },
+      {
+        "text": "乗ってる。このまま",
+        "sound_cue": ""
+      },
+      {
+        "text": "今の、悪くない",
+        "sound_cue": ""
+      }
     ],
     "attack_bad": [
-      { "text": "今の区間、落とした", "sound_cue": "" },
-      { "text": "ちょっとミスった", "sound_cue": "" },
-      { "text": "……もう一回は無いんだよね", "sound_cue": "" }
+      {
+        "text": "今の区間、落とした",
+        "sound_cue": ""
+      },
+      {
+        "text": "ちょっとミスった",
+        "sound_cue": ""
+      },
+      {
+        "text": "……もう一回は無いんだよね",
+        "sound_cue": ""
+      }
     ],
     "traffic": [
-      { "text": "前に遅いのがいる", "sound_cue": "" },
-      { "text": "前、邪魔。どいて", "sound_cue": "" },
-      { "text": "前の車、アタックしてない。抜けない", "sound_cue": "" }
+      {
+        "text": "前に遅いのがいる",
+        "sound_cue": ""
+      },
+      {
+        "text": "前、邪魔。どいて",
+        "sound_cue": ""
+      },
+      {
+        "text": "前の車、アタックしてない。抜けない",
+        "sound_cue": ""
+      }
     ],
     "in": [
-      { "text": "終わり。戻る", "sound_cue": "" },
-      { "text": "インラップ。冷やす", "sound_cue": "" },
-      { "text": "一発は出した。あとは知らない", "sound_cue": "" }
+      {
+        "text": "終わり。戻る",
+        "sound_cue": ""
+      },
+      {
+        "text": "インラップ。冷やす",
+        "sound_cue": ""
+      },
+      {
+        "text": "一発は出した。あとは知らない",
+        "sound_cue": ""
+      }
     ],
     "done": [
-      { "text": "これがウチの一発", "sound_cue": "" },
-      { "text": "出た。見た？", "sound_cue": "" },
-      { "text": "……こんなもん", "sound_cue": "" }
+      {
+        "text": "これがウチの一発",
+        "sound_cue": ""
+      },
+      {
+        "text": "出た。見た？",
+        "sound_cue": ""
+      },
+      {
+        "text": "……こんなもん",
+        "sound_cue": ""
+      }
     ]
   },
-
   "pit": {
     "understeer": {
       "mood": "不機嫌",
       "lines": [
-        { "text": "前、固すぎない？", "sound_cue": "" },
-        { "text": "これ、鼻先入る？", "sound_cue": "" }
+        {
+          "text": "前、固すぎない？",
+          "sound_cue": ""
+        },
+        {
+          "text": "これ、鼻先入る？",
+          "sound_cue": ""
+        }
       ]
     },
     "oversteer": {
       "mood": "不機嫌",
       "lines": [
-        { "text": "後ろ、もうちょい出る方がウチは好き", "sound_cue": "" },
-        { "text": "リア、ちょっと出しすぎ", "sound_cue": "" }
+        {
+          "text": "後ろ、もうちょい出る方がウチは好き",
+          "sound_cue": ""
+        },
+        {
+          "text": "リア、ちょっと出しすぎ",
+          "sound_cue": ""
+        }
       ]
     },
     "just_right": {
       "mood": "楽しい",
       "lines": [
-        { "text": "これ。これが好き", "sound_cue": "" },
-        { "text": "うん、いい。触んないで", "sound_cue": "" }
+        {
+          "text": "これ。これが好き",
+          "sound_cue": ""
+        },
+        {
+          "text": "うん、いい。触んないで",
+          "sound_cue": ""
+        }
       ]
     },
     "pressure_high": {
       "mood": "通常",
       "lines": [
-        { "text": "予選用？　決勝もこれで行くの？", "sound_cue": "" },
-        { "text": "その圧、一周は速いよ。一周はね", "sound_cue": "" }
+        {
+          "text": "予選用？　決勝もこれで行くの？",
+          "sound_cue": ""
+        },
+        {
+          "text": "その圧、一周は速いよ。一周はね",
+          "sound_cue": ""
+        }
       ]
     },
     "stabi_front_only": {
       "mood": "不機嫌",
       "lines": [
-        { "text": "前だけ固めてどうすんの", "sound_cue": "" },
-        { "text": "片っぽだけ。もう片方は？", "sound_cue": "" }
+        {
+          "text": "前だけ固めてどうすんの",
+          "sound_cue": ""
+        },
+        {
+          "text": "片っぽだけ。もう片方は？",
+          "sound_cue": ""
+        }
       ]
     },
     "stabi_rear_only": {
       "mood": "不機嫌",
       "lines": [
-        { "text": "後ろだけ固めるんだ。ふうん", "sound_cue": "" },
-        { "text": "リアだけ。そういう趣味？", "sound_cue": "" }
+        {
+          "text": "後ろだけ固めるんだ。ふうん",
+          "sound_cue": ""
+        },
+        {
+          "text": "リアだけ。そういう趣味？",
+          "sound_cue": ""
+        }
       ]
     },
     "too_demanding": {
       "mood": "通常",
       "lines": [
-        { "text": "これ、ウチにはまだ早い気がする", "sound_cue": "" },
-        { "text": "乗れなくはない。乗れてるとは言わない", "sound_cue": "" }
+        {
+          "text": "これ、ウチにはまだ早い気がする",
+          "sound_cue": ""
+        },
+        {
+          "text": "乗れなくはない。乗れてるとは言わない",
+          "sound_cue": ""
+        }
       ]
     },
     "quali_pressure_ok": {
       "mood": "通常",
       "lines": [
-        { "text": "一発なら高めでいい。決勝はまた考える", "sound_cue": "" },
-        { "text": "予選はこれでいい。一周だけ持てばいい", "sound_cue": "" }
+        {
+          "text": "一発なら高めでいい。決勝はまた考える",
+          "sound_cue": ""
+        },
+        {
+          "text": "予選はこれでいい。一周だけ持てばいい",
+          "sound_cue": ""
+        }
       ]
     },
     "from_notes": {
       "mood": "通常",
       "lines": [
-        { "text": "親父ならこうしてた", "sound_cue": "" },
-        { "text": "親父のやつ。ここから触る", "sound_cue": "" },
-        { "text": "……そのページ、覚えてる", "sound_cue": "" }
+        {
+          "text": "親父ならこうしてた",
+          "sound_cue": ""
+        },
+        {
+          "text": "親父のやつ。ここから触る",
+          "sound_cue": ""
+        },
+        {
+          "text": "……そのページ、覚えてる",
+          "sound_cue": ""
+        }
       ]
     },
     "no_notes": {
       "mood": "通常",
       "lines": [
-        { "text": "この先、親父は書いてない", "sound_cue": "" },
-        { "text": "ここのページは白紙", "sound_cue": "" }
+        {
+          "text": "この先、親父は書いてない",
+          "sound_cue": ""
+        },
+        {
+          "text": "ここのページは白紙",
+          "sound_cue": ""
+        }
       ]
     }
   },
-
   "season_note": {
     "_comment": "シーズンの終わりにハルカがノートに書く一行。その年にいちばん多かった情報系トリガーで選ぶ（season.js pickNote）。次のシーズンの最初に読み返す",
     "understeer": [
-      { "text": "今年は前が逃げてばっかりだった", "sound_cue": "" },
-      { "text": "曲がらない車で一年走った。来年は曲がる車がいい", "sound_cue": "" },
-      { "text": "ハンドル切っても真っ直ぐ。何回言ったか、もう数えてない", "sound_cue": "" }
+      {
+        "text": "今年は前が逃げてばっかりだった",
+        "sound_cue": ""
+      },
+      {
+        "text": "曲がらない車で一年走った。来年は曲がる車がいい",
+        "sound_cue": ""
+      },
+      {
+        "text": "ハンドル切っても真っ直ぐ。何回言ったか、もう数えてない",
+        "sound_cue": ""
+      }
     ],
     "oversteer": [
-      { "text": "後ろが出る車だった。抑えて走った一年", "sound_cue": "" },
-      { "text": "リアが軽いのは楽しい。でも速くはなかった", "sound_cue": "" },
-      { "text": "踊る車を一年なだめてた。来年はウチが踊りたい", "sound_cue": "" }
+      {
+        "text": "後ろが出る車だった。抑えて走った一年",
+        "sound_cue": ""
+      },
+      {
+        "text": "リアが軽いのは楽しい。でも速くはなかった",
+        "sound_cue": ""
+      },
+      {
+        "text": "踊る車を一年なだめてた。来年はウチが踊りたい",
+        "sound_cue": ""
+      }
     ],
     "tire_wear": [
-      { "text": "タイヤを使い切る前に終わる。もっと攻めていい", "sound_cue": "" },
-      { "text": "終盤はいつも後ろが軽かった。タイヤ、誰が選んでるんだっけ", "sound_cue": "" },
-      { "text": "最後の周に何も残ってない。その走り方をやめたい", "sound_cue": "" }
+      {
+        "text": "タイヤを使い切る前に終わる。もっと攻めていい",
+        "sound_cue": ""
+      },
+      {
+        "text": "終盤はいつも後ろが軽かった。タイヤ、誰が選んでるんだっけ",
+        "sound_cue": ""
+      },
+      {
+        "text": "最後の周に何も残ってない。その走り方をやめたい",
+        "sound_cue": ""
+      }
     ],
     "brake_fade": [
-      { "text": "ブレーキが奥に行く一年だった。踏む前に祈ってた", "sound_cue": "" },
-      { "text": "止まらない車で走らせないで。来年の最初に書いとく", "sound_cue": "" },
-      { "text": "ペダルが深くなる感じ、もう覚えたくない", "sound_cue": "" }
+      {
+        "text": "ブレーキが奥に行く一年だった。踏む前に祈ってた",
+        "sound_cue": ""
+      },
+      {
+        "text": "止まらない車で走らせないで。来年の最初に書いとく",
+        "sound_cue": ""
+      },
+      {
+        "text": "ペダルが深くなる感じ、もう覚えたくない",
+        "sound_cue": ""
+      }
     ],
     "straight_loss": [
-      { "text": "直線で負けた数、数えるのやめた", "sound_cue": "" },
-      { "text": "コーナーで詰めて直線で離される。それを一年", "sound_cue": "" },
-      { "text": "真っ直ぐで抜かれるのはウチの仕事じゃない。分かってるよね", "sound_cue": "" }
+      {
+        "text": "直線で負けた数、数えるのやめた",
+        "sound_cue": ""
+      },
+      {
+        "text": "コーナーで詰めて直線で離される。それを一年",
+        "sound_cue": ""
+      },
+      {
+        "text": "真っ直ぐで抜かれるのはウチの仕事じゃない。分かってるよね",
+        "sound_cue": ""
+      }
     ],
     "corner_loss": [
-      { "text": "コーナーで追いつかれた。足の話は聞いてもらえなかった", "sound_cue": "" },
-      { "text": "曲がるところで負けるのが一番くやしい。今年はそれが多かった", "sound_cue": "" },
-      { "text": "直線は勝てた。曲がるとこで返された。来年は逆にする", "sound_cue": "" }
+      {
+        "text": "コーナーで追いつかれた。足の話は聞いてもらえなかった",
+        "sound_cue": ""
+      },
+      {
+        "text": "曲がるところで負けるのが一番くやしい。今年はそれが多かった",
+        "sound_cue": ""
+      },
+      {
+        "text": "直線は勝てた。曲がるとこで返された。来年は逆にする",
+        "sound_cue": ""
+      }
     ],
     "retire_sign": [
-      { "text": "嫌な音がする車に一年乗った。今も耳に残ってる", "sound_cue": "" },
-      { "text": "壊れる前に言ってる。来年はもっと早く言う", "sound_cue": "" },
-      { "text": "この子、今年よく我慢した。ウチも", "sound_cue": "" }
+      {
+        "text": "嫌な音がする車に一年乗った。今も耳に残ってる",
+        "sound_cue": ""
+      },
+      {
+        "text": "壊れる前に言ってる。来年はもっと早く言う",
+        "sound_cue": ""
+      },
+      {
+        "text": "この子、今年よく我慢した。ウチも",
+        "sound_cue": ""
+      }
     ],
     "cold_tire": [
-      { "text": "温まる前に勝負が終わってた。スタートが遠い", "sound_cue": "" },
-      { "text": "最初の周でいつも置いていかれた。起きるのが遅い車", "sound_cue": "" }
+      {
+        "text": "温まる前に勝負が終わってた。スタートが遠い",
+        "sound_cue": ""
+      },
+      {
+        "text": "最初の周でいつも置いていかれた。起きるのが遅い車",
+        "sound_cue": ""
+      }
     ],
     "fuel_low": [
-      { "text": "燃料の計算、アンタのせいにしとく", "sound_cue": "" },
-      { "text": "メーターを見る癖がついた。見たくなかったのに", "sound_cue": "" }
+      {
+        "text": "燃料の計算、アンタのせいにしとく",
+        "sound_cue": ""
+      },
+      {
+        "text": "メーターを見る癖がついた。見たくなかったのに",
+        "sound_cue": ""
+      }
     ],
     "fuel_out": [
-      { "text": "止まった日のことは書かない。書かなくても忘れない", "sound_cue": "" },
-      { "text": "燃料。次は積んで。それだけ", "sound_cue": "" }
+      {
+        "text": "止まった日のことは書かない。書かなくても忘れない",
+        "sound_cue": ""
+      },
+      {
+        "text": "燃料。次は積んで。それだけ",
+        "sound_cue": ""
+      }
     ],
     "clean": [
-      { "text": "文句のない一年。……書くことがない。それがいいのか悪いのか", "sound_cue": "" },
-      { "text": "車がちゃんと返事してた。親父、聞こえてた？", "sound_cue": "" },
-      { "text": "今年は静かだった。エンジンの声だけ聞いてた", "sound_cue": "" }
+      {
+        "text": "文句のない一年。……書くことがない。それがいいのか悪いのか",
+        "sound_cue": ""
+      },
+      {
+        "text": "車がちゃんと返事してた。親父、聞こえてた？",
+        "sound_cue": ""
+      },
+      {
+        "text": "今年は静かだった。エンジンの声だけ聞いてた",
+        "sound_cue": ""
+      }
     ]
+  },
+  "season_event": {
+    "_comment": "シーズンの節目に出す台詞（src/engine/season.js SEASON_EVENTS）。キーはイベント名。",
+    "note_ends": {
+      "_comment": "クラス5へ昇格した瞬間。親父のノートがここで尽きる。ハルカと主人公の台詞を入れる（未執筆）。",
+      "lines": []
+    }
   }
 }

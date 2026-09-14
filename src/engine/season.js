@@ -121,9 +121,26 @@ export function sponsorTierAfter(state, verdict) {
 }
 
 /**
+ * シーズンの節目に立つ出来事。画面はこれを見て演出を足す。
+ *
+ *   note_ends  クラス5へ昇格した瞬間。**親父のノートがここで尽きる。**
+ *              大河はクラス4までしか走っていない。この先はハルカとプレイヤーが自分で書く
+ *              （`docs/シナリオ/キャラクター.md`、題名の回収）。台詞は radio.json の
+ *              `season_event.note_ends`。いまは空の枠だけ置いてある
+ */
+export const SEASON_EVENTS = Object.freeze(['note_ends']);
+
+/** そのシーズン終了で立つ出来事。 */
+export function seasonEvents(verdict) {
+  const events = [];
+  if (verdict.verdict === 'promote' && verdict.to === 5) events.push('note_ends');
+  return events;
+}
+
+/**
  * シーズンを閉じて次を組む。昇降格、スポンサー段階、ハルカのノート、新しい6戦。
  * @param {object[]} sponsors data/sponsors.json（段階ごとの会社）
- * @returns {{ state, verdict, note, sponsorChanged }}
+ * @returns {{ state, verdict, note, symptom, sponsorChanged, events }}
  */
 export function endSeason(state, ids, courses, economy, sponsors, rng = Math.random, noteLines = null) {
   const verdict = verdictFor(state, ids, economy);
@@ -138,7 +155,7 @@ export function endSeason(state, ids, courses, economy, sponsors, rng = Math.ran
   }
   const next = { ...state, cls: verdict.to, tier, sponsor };
   next.season = newSeason(verdict.to, courses, economy, rng, state.season.year + 1, note);
-  return { state: next, verdict, note, symptom, sponsorChanged };
+  return { state: next, verdict, note, symptom, sponsorChanged, events: seasonEvents(verdict) };
 }
 
 /** radio.json の season_note から一行。症状が無ければ clean。 */

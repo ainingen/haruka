@@ -261,13 +261,32 @@ function render() {
     b.textContent = '次のシーズンへ';
     b.addEventListener('click', () => {
       const rng = createRng(Date.now() % 100000);
-      const { state } = endSeason(G, ids, D.courses, D.economy, D.sponsors, rng, D.radio.season_note);
+      const { state, events } = endSeason(G, ids, D.courses, D.economy, D.sponsors, rng, D.radio.season_note);
       G = state;
+      // シーズンの節目（いまは note_ends ＝ クラス5昇格でノートが尽きる）。
+      // 台詞は radio.json の season_event。まだ空なので、入るまでは何も出ない
+      for (const ev of events ?? []) showSeasonEvent(ev);
       history.replaceState(null, '', searchWithState(G, {}));
       render();
     });
     controls.appendChild(b);
   }
+}
+
+/**
+ * シーズンの節目の演出（`src/engine/season.js` の SEASON_EVENTS）。
+ * いまは `note_ends`（クラス5へ昇格＝親父のノートが尽きる）だけ。
+ * 台詞は `data/radio.json` の `season_event` に入れる。**空のあいだは何も出さない。**
+ */
+function showSeasonEvent(name) {
+  const lines = D.radio.season_event?.[name]?.lines ?? [];
+  if (!lines.length) return;
+  const rows = lines.map((e) => {
+    const text = typeof e === 'string' ? e : e.text;
+    const who = typeof e === 'string' ? '' : (D.radio.speakers?.[e.speaker] ?? e.speaker ?? '');
+    return `<div class="sub">${who ? `<b>${esc(who)}</b>　` : ''}${esc(text)}</div>`;
+  }).join('');
+  el('verdict').insertAdjacentHTML('beforeend', rows);
 }
 
 el('copyBtn').addEventListener('click', async () => {

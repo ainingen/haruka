@@ -323,7 +323,7 @@ import {
 } from '../engine/race.js';
 import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
-import { rivalSpec, fieldEntries, rivalLoadout } from '../engine/rivals.js';
+import { rivalSpec, fieldEntries, rivalLoadout, aiNotes } from '../engine/rivals.js';
 import { currentRound, recordResult, rivalPlanFor } from '../engine/season.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -1075,11 +1075,12 @@ const S = {
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy, sponsors, notes] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy, sponsors, playerNotes, aiBaseline] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
     json('../../data/radio.json'), json('../../data/commentary.json'), json('../../data/rivals.json'),
     json('../../data/economy.json'), json('../../data/sponsors.json'), json('../../data/notes.json'),
+    json('../../data/ai-baseline.json'),
   ]);
   S.economy = economy;
   S.sponsors = sponsors;
@@ -1110,6 +1111,10 @@ async function boot() {
   const myPerf = buildPerformance(mineWorn, driver, chassis, settings);
   S.mine = mine;
   S.myPerf = myPerf;
+
+  // AI が見る基準：親父のノート＋クラス5の内部基準。プレイヤー側の画面（setup.html）は
+  // notes.json しか読まないので、「ノート通りにする」はクラス5では出ない
+  const notes = aiNotes(playerNotes, aiBaseline);
 
   const baseSeed = Number(Q.get('seed') ?? 20260912);
   const aiRng = createRng(baseSeed);
