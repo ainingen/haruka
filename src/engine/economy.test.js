@@ -164,6 +164,17 @@ test('E7. セーブの長さ：終盤の大きな state でも URL に収まる'
   // 超えたら save.js の encode だけを圧縮に変える（画面は触らない）
   assert.ok(str.length < 4000, `s= が ${str.length} 文字。長すぎる`);
   console.log(`  終盤の state：JSON ${JSON.stringify(s).length} 文字 → s= ${str.length} 文字`);
+
+  // プロローグの枠を上限まで埋めても収まること（名前20字、一行40字）
+  const full = {
+    ...s,
+    player: { name: 'あ'.repeat(20) },
+    prologue: { line: 'あ'.repeat(40), pressure: 'high', sprocket: 'top', sidebar: true, pos: 2 },
+  };
+  const fullStr = encode(full);
+  assert.deepEqual(decode(fullStr), full);
+  assert.ok(fullStr.length < 4000, `プロローグ込みで ${fullStr.length} 文字。長すぎる`);
+  console.log(`  プロローグの枠を上限まで埋めて：s= ${fullStr.length} 文字（+${fullStr.length - str.length}）`);
 });
 
 test('E8. 保存先：localStorage があればそちら、無ければ URL の s=。URL 文字列はどちらでも出せる', async () => {
@@ -218,4 +229,38 @@ test('E8. 保存先：localStorage があればそちら、無ければ URL の 
   } finally {
     delete globalThis.localStorage;
   }
+});
+
+test('E9. プロローグの枠：名前と一行、選択3つと順位。既定が入っていて、上限で切れる', async () => {
+  const S = await import('./save.js');
+  const g = newGame(ECONOMY);
+
+  // 既定が入っている。プロローグが上書きするまで、これが使われる
+  assert.equal(g.player.name, '主人公');
+  assert.equal(g.prologue.line, 'きょう　あたしがきめた。おいちゃんとふたりで');
+  assert.equal(g.prologue.pressure, 'mid');
+  assert.equal(g.prologue.sprocket, 'mid');
+  assert.equal(g.prologue.sidebar, false);
+  assert.equal(g.prologue.pos, 1);
+  assert.ok(S.DEFAULT_LINE.length <= S.LINE_MAX, '既定の一行が上限を超えている');
+  assert.ok(S.DEFAULT_NAME.length <= S.NAME_MAX);
+  assert.ok(!S.DEFAULT_LINE.includes('ハルノート'), '呼称ルール（docs/シナリオ/キャラクター.md）');
+
+  // 選択肢の顔ぶれ。プロローグの画面はここを見る
+  assert.deepEqual(S.PROLOGUE_CHOICES.pressure, ['low', 'mid', 'high']);
+  assert.deepEqual(S.PROLOGUE_CHOICES.sprocket, ['accel', 'mid', 'top']);
+  assert.ok([1, 2].includes(g.prologue.pos), '順位は1か2');
+
+  // 上限で切る。未入力・空白だけ・壊れていれば既定に戻る
+  assert.equal(S.playerName({ player: { name: 'あ'.repeat(30) } }).length, S.NAME_MAX);
+  assert.equal(S.prologueLine({ prologue: { line: 'い'.repeat(60) } }).length, S.LINE_MAX);
+  assert.equal(S.playerName({ player: { name: '  ' } }), S.DEFAULT_NAME, '空白だけなら既定');
+  assert.equal(S.playerName({}), S.DEFAULT_NAME);
+  assert.equal(S.playerName(null), S.DEFAULT_NAME);
+  assert.equal(S.prologueLine(undefined), S.DEFAULT_LINE);
+  assert.equal(S.playerName({ player: { name: '  ハルカの後輩  ' } }), 'ハルカの後輩', '前後の空白は落とす');
+
+  // 形式を通っても消えない
+  assert.deepEqual(decode(encode(g)), g);
+  console.log(`  既定の state：s= ${encode(g).length} 文字（名前「${g.player.name}」／一行「${g.prologue.line}」）`);
 });

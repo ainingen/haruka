@@ -23,7 +23,12 @@ export const SAVE_VERSION = 1;
 /** 長いキー → 短いキー。両方向で使う。 */
 const KEYS = {
   v: 'v', money: 'm', cls: 'c', tier: 't', owned: 'o', cond: 'd', setup: 's',
-  season: 'z', sponsor: 'p',
+  season: 'z', sponsor: 'p', player: 'A', prologue: 'B',
+  // player
+  name: 'w',
+  // prologue（プロローグで決まったもの。短いものだけ。台本は docs/シナリオ/プロローグ台本.md）
+  // 順位は result と同じ短いキー（pos: 'a'）を使う。下の「result」に定義がある
+  line: 'x', pressure: 'u', sprocket: 'e', sidebar: 'k',
   // setup
   race: 'r', quali: 'q', parts: 'P', settings: 'S',
   // season
@@ -85,8 +90,41 @@ function migrate(state) {
   return state;
 }
 
+/** プレイヤー名の上限。長い名前は実況の行に収まらない。 */
+export const NAME_MAX = 20;
+/** ハルカがプロローグで書いた一行の上限。ノートの1行に収まる長さ。 */
+export const LINE_MAX = 40;
+
+/** 名前の既定。台本では「主人公」と表記する（docs/シナリオ/キャラクター.md）。 */
+export const DEFAULT_NAME = '主人公';
+/** プロローグでハルカが書く一行の既定。ひらがなが多いのは、まだ小さいから。 */
+export const DEFAULT_LINE = 'きょう　あたしがきめた。おいちゃんとふたりで';
+
+/**
+ * プロローグで決まるもの。**値はプロローグが入れる。ここでは枠と既定だけ。**
+ *
+ *   pressure  空気圧を下げたか上げたか（low / mid / high）
+ *   sprocket  スプロケットを加速寄りにしたか最高速寄りにしたか（accel / mid / top）
+ *   sidebar   サイドバーを入れたか（true / false）
+ *   pos       そのレースの順位（1 か 2）
+ *
+ * 3つの選択と順位は、あとの台詞とハルカの記憶の引き出しに使う。
+ * 数値としてレースに効かせるものではない（プロローグの車はもう無い）。
+ */
+export const PROLOGUE_CHOICES = Object.freeze({
+  pressure: ['low', 'mid', 'high'],
+  sprocket: ['accel', 'mid', 'top'],
+});
+
+/** 文字列を上限で切る。前後の空白は落とし、空なら既定。 */
+export const trimTo = (value, max, fallback) => {
+  const s = String(value ?? '').trim();
+  return s ? s.slice(0, max) : fallback;
+};
+
 /**
  * 新しいゲーム。所持金と空の所有リスト。シーズンは season.js が作る（ここでは null）。
+ * プレイヤー名とプロローグの記録は既定値で入れておく（プロローグが上書きする）。
  * @param {object} economy data/economy.json
  */
 export function newGame(economy) {
@@ -100,8 +138,15 @@ export function newGame(economy) {
     setup: { race: { parts: [], settings: {} }, quali: null },
     season: null,
     sponsor: null,
+    player: { name: DEFAULT_NAME },
+    prologue: { line: DEFAULT_LINE, pressure: 'mid', sprocket: 'mid', sidebar: false, pos: 1 },
   };
 }
+
+/** プレイヤー名。未入力・壊れていれば既定。 */
+export const playerName = (state) => trimTo(state?.player?.name, NAME_MAX, DEFAULT_NAME);
+/** プロローグでハルカが書いた一行。無ければ既定。 */
+export const prologueLine = (state) => trimTo(state?.prologue?.line, LINE_MAX, DEFAULT_LINE);
 
 /** URL の検索文字列から state を取り出す。無ければ null。 */
 export function stateFromSearch(search) {
