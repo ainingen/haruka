@@ -853,32 +853,76 @@ test('26. slot-coords.json: 側面図の位置指示。全スロットに座標�
   console.log(`  側面図の位置指示：${keys.length} スロット（うち補強 ${re}）。基準長 ${DATA._base_len}、番号の丸 ${style.badge_diameter}`);
 });
 
-test('27. 側面図の位置指示：ユニット部品が同時に光らせる丸が重ならない', () => {
-  const DATA = load('slot-coords.json');
+
+/**
+ * 位置指示の当たり判定（テスト27・28で使う）。setup.html の drawSideView と同じ置き方。
+ * 文字幅は DOM が無いので見積もり。**広めに取る**（見落とすより、余計に鳴るほうがいい）。
+ */
+function sideMarks(DATA, slots) {
   const W = 1200; const H = 535;
-  const R = (DATA._style.badge_diameter / 2) * H;
+  const S = (k) => DATA._style[k] * H;
+  const R = S('badge_diameter') / 2;
+  const gap = R + S('label_gap');
+  const size = S('label_size');
   const VEC = { r: [1, 0], l: [-1, 0], u: [0, -1], d: [0, 1] };
-  const badge = (slot) => {
+  const charW = (ch) => (/[\x20-\x7E]/.test(ch) ? 0.65 : 1.0) * size;
+  return slots.map((slot) => {
     const c = DATA.slots[slot];
     const [dx, dy] = VEC[c.dir];
     const len = DATA._base_len * c.len * H;
-    return { x: c.x * W + dx * len, y: c.y * H + dy * len, no: c.no, label: c.label };
-  };
+    const bx = c.x * W + dx * len;
+    const by = c.y * H + dy * len;
+    const tw = [...c.label].reduce((a, ch) => a + charW(ch), 0);
+    // ラベルの矩形。置き場所は dir に従う（l=丸の左 r=右 u=上 d=下）。
+    // 高さと上端は**ブラウザで実測した値**に合わせてある（文字の上下の出っ張りとフチのぶん、
+    // 文字の大きさより 1.34 倍高い）。少し広めに取って、見落とさないようにする
+    const th = size * 1.4;
+    const lx = c.dir === 'l' ? bx - gap - tw : c.dir === 'r' ? bx + gap : bx - tw / 2;
+    const ly = c.dir === 'u' ? by - gap - size * 1.15
+      : c.dir === 'd' ? by + gap - size * 0.25
+        : by - size * 0.7;
+    return { slot, no: c.no, label: c.label, badge: { x: bx, y: by, r: R }, rect: { x: lx, y: ly, w: tw, h: th } };
+  });
+}
+/** 矩形と円が当たるか。 */
+const hitsCircle = (rect, c) => {
+  const x = Math.max(rect.x, Math.min(c.x, rect.x + rect.w));
+  const y = Math.max(rect.y, Math.min(c.y, rect.y + rect.h));
+  return Math.hypot(c.x - x, c.y - y) < c.r;
+};
+/** 矩形どうしが当たるか。 */
+const hitsRect = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-  // replaces を持つ部品は潰す全スロットを同時に出す。そのとき番号の丸が重なると読めない
-  const overlaps = [];
-  for (const p of PARTS.filter((x) => x.replaces?.length)) {
-    const bs = occupiedSlots(p).filter((s) => DATA.slots[s]).map(badge);
-    for (let i = 0; i < bs.length; i++) {
-      for (let j = i + 1; j < bs.length; j++) {
-        const d = Math.hypot(bs[i].x - bs[j].x, bs[i].y - bs[j].y);
-        if (d < 2 * R) overlaps.push(`${p.name}: ${bs[i].no}(${bs[i].label}) と ${bs[j].no}(${bs[j].label}) が ${d.toFixed(0)} < ${(2 * R).toFixed(0)}`);
-      }
+/** そのスロットの組で当たっているものを全部返す。 */
+function sideCollisions(DATA, slots) {
+  const m = sideMarks(DATA, slots);
+  const out = [];
+  for (let i = 0; i < m.length; i++) {
+    for (let j = i + 1; j < m.length; j++) {
+      const a = m[i]; const b = m[j];
+      const d = Math.hypot(a.badge.x - b.badge.x, a.badge.y - b.badge.y);
+      if (d < a.badge.r + b.badge.r) out.push(`丸どうし ${a.no}(${a.label}) ↔ ${b.no}(${b.label}) 中心間 ${d.toFixed(0)}`);
+      if (hitsRect(a.rect, b.rect)) out.push(`ラベルどうし ${a.label} ↔ ${b.label}`);
+    }
+    for (const b of m) {
+      if (b === m[i]) continue;
+      if (hitsCircle(m[i].rect, b.badge)) out.push(`ラベルと丸 「${m[i].label}」 が ${b.no}(${b.label}) の丸に掛かる`);
     }
   }
-  // **重なりは1組も許さない。** 直すのは slot-coords.json の dir / len で、コードではない
-  assert.deepEqual(overlaps, [], `丸が重なる。slot-coords.json の dir / len を見直す`);
-  const pairs = PARTS.filter((x) => x.replaces?.length);
-  const most = Math.max(...pairs.map((p) => occupiedSlots(p).length));
-  console.log(`  ユニット部品 ${pairs.length} 点（最大 ${most} スロット同時）：丸の重なりなし`);
+  return out;
+}
+
+test('27. 側面図の位置指示：ユニット部品が同時に出す丸とラベルが、どれも当たらない', () => {
+  const DATA = load('slot-coords.json');
+  const units = PARTS.filter((x) => x.replaces?.length);
+  const all = [];
+  for (const p of units) {
+    const slots = occupiedSlots(p).filter((s) => DATA.slots[s]);
+    for (const c of sideCollisions(DATA, slots)) all.push(`${p.name}: ${c}`);
+  }
+  // **丸どうし・ラベルと丸・ラベルどうし、どれも0組。**
+  // 直すのは slot-coords.json の dir / len で、コードではない
+  assert.deepEqual(all, [], '位置指示が当たっている。slot-coords.json の dir / len を見直す');
+  const most = Math.max(...units.map((p) => occupiedSlots(p).length));
+  console.log(`  ユニット部品 ${units.length} 点（最大 ${most} スロット同時）：丸もラベルも当たりなし`);
 });
