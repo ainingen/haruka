@@ -1486,8 +1486,10 @@ function drawModal() {
   // --- 側面図：その部品が車のどこに付くか --------------------------------
   drawSideView(slot, cand);
 
-  // 書き込みの無い部品（補強＝親父が使っていない区分）は、文章を作らず**白紙のまま出す**
-  const hand = cand?.note ? esc(cand.note) : `<span class="blank">${cand ? 'このページは白紙。' : '—'}</span>`;
+  // **クラス5では、部品の書き込みが全部白紙になる**（第5場のあと。補強も同じ）。
+  // 親父はクラス5を走っていないので、ここから先のページに字は無い
+  const blank = state.cls >= 5 || !cand?.note;
+  const hand = !blank ? esc(cand.note) : `<span class="blank">${cand ? 'このページは白紙。' : '—'}</span>`;
   el('modNote').innerHTML = `<span class="k">親父のノート</span>${hand}`;
 
   // --- フッター ----------------------------------------------------------

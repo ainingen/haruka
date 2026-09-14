@@ -23,9 +23,11 @@ export const SAVE_VERSION = 1;
 /** 長いキー → 短いキー。両方向で使う。 */
 const KEYS = {
   v: 'v', money: 'm', cls: 'c', tier: 't', owned: 'o', cond: 'd', setup: 's',
-  season: 'z', sponsor: 'p', player: 'A', prologue: 'B',
+  season: 'z', sponsor: 'p', player: 'A', prologue: 'B', ending: 'D',
   // player
   name: 'w',
+  // ending（見た場面の記録と、第7場で書いた一行）
+  seen: 'G', done: 'H',
   // prologue（プロローグで決まったもの。短いものだけ。台本は docs/シナリオ/プロローグ台本.md）
   // 順位は result と同じ短いキー（pos: 'a'）を使う。下の「result」に定義がある
   line: 'x', pressure: 'u', sprocket: 'e', sidebar: 'k',
@@ -140,7 +142,18 @@ export function newGame(economy) {
     sponsor: null,
     player: { name: DEFAULT_NAME },
     prologue: { line: DEFAULT_LINE, pressure: 'mid', sprocket: 'mid', sidebar: false, pos: 1 },
+    ending: { seen: [], line: '', done: false },
   };
+}
+
+/** 場面を見たか（`ending.seen`）。場面は一度だけ出す。 */
+export const sawScene = (state, id) => !!state?.ending?.seen?.includes(id);
+
+/** 場面を見た記録を足した state。**元は変えない。** 二度目は同じものを返す。 */
+export function markScene(state, id) {
+  if (sawScene(state, id)) return state;
+  const ending = state.ending ?? { seen: [], line: '', done: false };
+  return { ...state, ending: { ...ending, seen: [...(ending.seen ?? []), id] } };
 }
 
 /** プレイヤー名。未入力・壊れていれば既定。 */

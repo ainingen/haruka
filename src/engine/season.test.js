@@ -13,7 +13,7 @@ import {
   seasonEvents, SEASON_EVENTS,
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
-import { newGame } from './save.js';
+import { newGame, encode, decode } from './save.js';
 import { buildPerformance, createRng, simulateRace, WEIGHTS } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -305,4 +305,33 @@ test('S7. クラス5に親父のノートは無い。AI だけが内部の基準
   assert.deepEqual(out.events, ['note_ends']);
   assert.ok(out.note && out.note.length > 0, 'クラス5でもハルカの一行は書かれる');
   console.log(`  クラス5昇格：note_ends。ハルカの一行は残る「${out.note}」`);
+});
+
+test('S8. 場面：台本どおりの台詞が scenes.json にあり、一度見たら二度出ない', async () => {
+  const S = await import('./save.js');
+  const SCENES = load('scenes.json').scenes;
+  const byId = Object.fromEntries(SCENES.map((s) => [s.id, s]));
+  for (const id of ['promote5', 'win', 'ending', 'blank']) assert.ok(byId[id], `場面 ${id} が無い`);
+
+  // 第5場。台本の最初と最後の台詞（一字でも変わったら落ちる）
+  const s5 = byId.promote5;
+  const says = s5.steps.filter((x) => x.say);
+  assert.deepEqual(says[0], { say: 'ハルカ', text: 'かざはや。' });
+  assert.deepEqual(says.at(-1), { say: 'ハルカ', text: 'うるさい。' });
+  assert.ok(s5.steps.some((x) => x.do === 'cue' && x.cue === 'note.turn'), 'ページをめくる音（cue: note.turn）');
+  assert.ok(s5.steps.some((x) => x.note === 'かざはや　クラス5'), 'ノートに書かれる見出し');
+  // 【 】は画面に出さない。出す手は say と note だけ
+  for (const step of s5.steps) assert.ok(step.say || step.note || step.stage, '知らない手がある');
+
+  // **場面は一度だけ。** 見た記録は ending.seen
+  let g = S.newGame(ECONOMY);
+  assert.deepEqual(g.ending, { seen: [], line: '', done: false });
+  assert.equal(S.sawScene(g, 'promote5'), false);
+  g = S.markScene(g, 'promote5');
+  assert.equal(S.sawScene(g, 'promote5'), true);
+  assert.deepEqual(S.markScene(g, 'promote5').ending.seen, ['promote5'], '二度目は増えない');
+  assert.equal(S.markScene(g, 'promote5'), g, '二度目は同じものを返す');
+  // 形式を通っても消えない
+  assert.deepEqual(decode(encode(g)).ending, g.ending);
+  console.log(`  場面 ${SCENES.length} 本：${SCENES.map((s) => `${s.id}(台詞${s.steps.filter((x) => x.say).length})`).join(' ')}`);
 });

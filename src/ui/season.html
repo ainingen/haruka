@@ -137,6 +137,14 @@ h3.cap {
 
   <div class="controls" id="controls"></div>
 
+  <!-- 場面（台本）。紙の層いっぱいに開く。src/ui/scene.js -->
+  <div class="scene-back" id="sceneBack" hidden>
+    <div class="scene-frame">
+      <div class="scene-title" id="sceneTitle"></div>
+      <div class="scene-host" id="sceneHost"></div>
+    </div>
+  </div>
+
   <div class="box save"><h3 class="cap">SAVE</h3>
     <div class="savebody">
       <div class="jp sub">この文字列がいまの進行。控えておけば、タイトルの「つづきから」で再開できる</div>
@@ -148,7 +156,8 @@ h3.cap {
 </div></div>
 
 <script type="module">
-import { loadState, save, newGame, searchWithState, encode } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState, encode, playerName, prologueLine, sawScene, markScene } from '../engine/save.js';
+import { playScene } from './scene.js';
 import {
   newSeason, currentRound, seasonOver, standings, verdictFor, endSeason, myRank,
 } from '../engine/season.js';
@@ -261,14 +270,16 @@ function render() {
     b.type = 'button';
     b.className = 'primary';
     b.textContent = '次のシーズンへ';
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       const rng = createRng(Date.now() % 100000);
       const { state, events } = endSeason(G, ids, D.courses, D.economy, D.sponsors, rng, D.radio.season_note);
       G = state;
       // シーズンの節目（いまは note_ends ＝ クラス5昇格でノートが尽きる）。
       // 台詞は radio.json の season_event。まだ空なので、入るまでは何も出ない
-      for (const ev of events ?? []) showSeasonEvent(ev);
       history.replaceState(null, '', searchWithState(G, {}));
+      render();
+      // 場面は描き直したあとに開く（終わると G が進むので、もう一度描く）
+      for (const ev of events ?? []) { await showSeasonEvent(ev); }
       render();
     });
     controls.appendChild(b);
@@ -278,17 +289,39 @@ function render() {
 /**
  * シーズンの節目の演出（`src/engine/season.js` の SEASON_EVENTS）。
  * いまは `note_ends`（クラス5へ昇格＝親父のノートが尽きる）だけ。
- * 台詞は `data/radio.json` の `season_event` に入れる。**空のあいだは何も出さない。**
+ *
+ * 台詞は台本（`docs/シナリオ/クラス5台本.md` → `data/scenes.json`）。
+ * **場面は一度だけ。** 見たら `ending.seen` に残す。
  */
-function showSeasonEvent(name) {
-  const lines = D.radio.season_event?.[name]?.lines ?? [];
-  if (!lines.length) return;
-  const rows = lines.map((e) => {
-    const text = typeof e === 'string' ? e : e.text;
-    const who = typeof e === 'string' ? '' : (D.radio.speakers?.[e.speaker] ?? e.speaker ?? '');
-    return `<div class="sub">${who ? `<b>${esc(who)}</b>　` : ''}${esc(text)}</div>`;
-  }).join('');
-  el('verdict').insertAdjacentHTML('beforeend', rows);
+const EVENT_SCENE = { note_ends: 'promote5' };
+
+async function showSeasonEvent(name) {
+  const id = EVENT_SCENE[name];
+  if (!id || sawScene(G, id)) return;
+  await showScene(id);
+  G = markScene(G, id);
+  save(G);
+}
+
+/** 場面を1つ流す。終わるまで待つ。 */
+async function showScene(id) {
+  const scene = D.scenes.scenes.find((s) => s.id === id);
+  if (!scene) return;
+  el('sceneTitle').textContent = scene.title;
+  el('sceneBack').hidden = false;
+  await playScene(scene, el('sceneHost'), {
+    vars: { 名前: playerName(G), 一行: prologueLine(G) },
+    // 主人公はプレイヤーの名前で呼ぶ。**ハルカの台詞には名前を出さない**（台本の備考）
+    speakerLabel: (who) => (who === '主人公' ? playerName(G) : who),
+    cue,
+  });
+  el('sceneBack').hidden = true;
+  el('sceneHost').textContent = '';
+}
+
+/** 演出のイベント（docs/設計/画面設計.md）。音はまだ無い。 */
+function cue(name, detail = {}) {
+  document.dispatchEvent(new CustomEvent('cue', { detail: { name, ...detail } }));
 }
 
 el('copyBtn').addEventListener('click', async () => {
@@ -297,11 +330,12 @@ el('copyBtn').addEventListener('click', async () => {
 });
 
 try {
-  const [economy, courses, rivals, sponsors, radio] = await Promise.all([
+  const [economy, courses, rivals, sponsors, radio, scenes] = await Promise.all([
     json('../../data/economy.json'), json('../../data/courses.json'), json('../../data/rivals.json'),
     json('../../data/sponsors.json').catch(() => []), json('../../data/radio.json'),
+    json('../../data/scenes.json'),
   ]);
-  D = { economy, courses, rivals, sponsors, radio };
+  D = { economy, courses, rivals, sponsors, radio, scenes };
   G = loadState(location.search);
   if (!G) {
     // 新しいゲーム。所持金の初期値、クラス1、6戦を組む
