@@ -1,78 +1,23 @@
 <!doctype html>
-<html lang="ja">
+<html lang="ja" class="paper-ground">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="theme.css">
 <title>セッティング — ハルカのセッティングノート</title>
 <style>
 /* ===========================================================================
    図面様式のセッティング画面（docs/設計/画面設計.md）
-   色はすべて CSS 変数。テーマ差し替えはここだけを書き換える。
+   地は紙の層。部品表のスロットを押すと、その上に画面の層（モニター）が開く。
+   **色は theme.css の変数でしか書かない。** 直書きの色は禁止。
    =========================================================================== */
-:root {
-  --paper:      #f2efe6;  /* 図面紙 */
-  --paper-2:    #e9e5d9;  /* 枠内の淡い地 */
-  --ink:        #23211c;  /* 主線・本文 */
-  --ink-2:      #6b665c;  /* 補助線・注記 */
-  --ink-3:      #9a9488;  /* 未装着・無効 */
-  --rule:       #3a372f;  /* 図面枠 */
-  --car:        #c0392b;  /* 自車＝赤 */
-  --ai:         #1b4f9c;  /* AI車＝青（凡例のみ） */
-  --dim:        #7a7468;  /* 寸法線 */
-  --accent:     #8a6d1f;  /* 見出しの下線・強調 */
-  --good:       #2f6b3a;  /* 効果 */
-  --bad:        #9c3b2e;  /* 副作用 */
-  --lock-bg:    #e2ded1;
-  --field:      #fbf9f3;
-  --shadow:     rgba(0,0,0,.08);
-  --jp-font:    "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
-  --hand-font:  "Yu Mincho", "Hiragino Mincho ProN", "MS Mincho", serif;
-
-  /* --- 画面の層（モニター）。ライト／ダークに関わらず黒地（docs/設計/画面設計.md） --- */
-  --mon-bg:     #0a0d11;
-  --mon-bg-2:   #151b23;
-  --mon-line:   #2a333d;
-  --mon-text:   #e8edf2;
-  --mon-dim:    #7d8894;
-  --mon-green:  #3ddc84;
-  --mon-amber:  #ffb347;
-  --mon-red:    #ff4d4d;
-  --mon-purple: #c77dff;
-  --mon-car:    #ff5a4a;
-  --mon-ai:     #4da3ff;
-  --mon-font:   ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
-
-  /* セクター種別（ラップ計算の棒）。名前は race.js の SECTOR_TYPES に対応 */
-  --straight:    #7d8894;
-  --fast-corner: #3ddc84;
-  --slow-corner: #ffb347;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper:   #14171c;  /* 青焼き風 */
-    --paper-2: #1a1e25;
-    --ink:     #d6dde6;
-    --ink-2:   #8b96a4;
-    --ink-3:   #5d6673;
-    --rule:    #7f8b9a;
-    --car:     #e8604f;
-    --ai:      #6aa6ff;
-    --dim:     #7f8b9a;
-    --accent:  #d2b357;
-    --good:    #74c98a;
-    --bad:     #e08878;
-    --lock-bg: #1f242c;
-    --field:   #11141a;
-    --shadow:  rgba(0,0,0,.4);
-  }
-}
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--paper);
   color: var(--ink);
-  font: 13px/1.6 "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  font: 13px/1.6 var(--jp-font);
   -webkit-text-size-adjust: 100%;
   padding: 8px;
   padding-bottom: 104px;           /* 固定フッターぶん（ボタン3つが2段に折り返しても隠れない） */

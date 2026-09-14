@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="theme.css">
 <title>レース — ハルカのセッティングノート</title>
 <style>
 /* ===========================================================================
@@ -10,40 +11,12 @@
    ベースは「画面の層」＝チームのPC。黒地・等幅・緑／白／琥珀。
    紙はハルカと主人公の無線だけ。実況と解説はモニターの文字。
    380px 幅を基準に、上から ログ → 車両情報 → コース図 → タイミングモニター → 操作。
+   800px 以上では左右2カラム。**色は theme.css の変数でしか書かない。**
    =========================================================================== */
-:root {
-  /* --- 画面の層。ライト／ダークに関わらず黒地（PC の画面は自分で光っている） --- */
-  --mon-bg:     #0a0d11;
-  --mon-bg-2:   #151b23;
-  --mon-line:   #2a333d;
-  --mon-text:   #e8edf2;
-  --mon-dim:    #7d8894;
-  --mon-green:  #3ddc84;
-  --mon-amber:  #ffb347;
-  --mon-red:    #ff4d4d;
-  --mon-purple: #c77dff;
-  --mon-car:    #ff5a4a;   /* 自車＝赤 */
-  --mon-ai:     #4da3ff;   /* 他車＝青 */
-  --mon-font:   ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
 
-  /* 点の色は JS からも参照する（makeCar / makeRival の color） */
-  --car: var(--mon-car);
-  --ai:  var(--mon-ai);
-
-  /* --- 紙の層。この画面では無線の吹き出しだけ。
-         黒い画面に貼られた紙なので、配色はライト／ダークで変えない --- */
-  --paper:     #f2efe6;
-  --paper-dim: #d7d2c4;   /* 古くなった吹き出し。opacity で薄めると読めなくなるので地の色を落とす */
-  --ink:       #23211c;
-  --ink-2:     #6b665c;
-  --accent:    #8a6d1f;
-  --jp-font: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", system-ui, sans-serif;
-
-  /* --- セクター種別（コース図と凡例）。名前は race.js の SECTOR_TYPES に対応 --- */
-  --straight:    #7d8894;
-  --fast-corner: #3ddc84;
-  --slow-corner: #ffb347;
-}
+/* 地が画面の層なので、点の色は紙の赤／青ではなく発光風のほうを指す。
+   JS からも参照する（makeCar / makeRival の color、凡例） */
+:root { --car: var(--mon-car); --ai: var(--mon-ai); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
