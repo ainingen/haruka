@@ -1,41 +1,20 @@
 [
   {
-    "_comment": "AI 専用の基準構成。**親父のノートではない。** プレイヤーには見せない（data/README.md）。クラス4のノートを、クラス5で解禁されるワークス部品に置き換えたもの。",
-    "course": "hibaridaira",
-    "class": 5,
-    "parts": [
-      "engine_works_01",
-      "drivetrain_works_01",
-      "suspension_works_01",
-      "brake_works_01",
-      "tire_works_01",
-      "aero_weight_works_01",
-      "aero_weight_light_03",
-      "aero_weight_light_02"
-    ],
-    "settings": {
-      "tire_pressure": 2.1,
-      "ride_height": 75
-    },
-    "quali": {
-      "settings": {
-        "tire_pressure": 2.35
-      }
-    }
-  },
-  {
-    "_comment": "ながさわは空気が重い。翼は載せない（クラス4のノートと同じ判断）。軽量化で通す。",
+    "_comment": "AI 専用のクラス5基準構成。**親父のノートではない。** プレイヤーには見せない（data/README.md）。部品は「速さの利得 ÷ 信頼性の代償」の良い順に選び、並が16周で15%、速いが25%を超えない範囲で止めてある。ワークス部品はタイヤだけ——残り5点は積むと壊れる罠として売り場に残す（docs/設計/経済とシーズン.md）。",
     "course": "nagasawa",
     "class": 5,
     "parts": [
-      "engine_works_01",
-      "drivetrain_works_01",
-      "suspension_works_01",
-      "brake_works_01",
+      "engine_ecu_01",
+      "engine_cam_01",
+      "engine_exhaust_02",
+      "drivetrain_final_02",
+      "drivetrain_lsd_01",
+      "suspension_coilover_02",
+      "suspension_stabi_01",
+      "suspension_stabi_02",
+      "brake_caliper_01",
       "tire_works_01",
-      "aero_weight_light_04",
-      "aero_weight_light_01",
-      "aero_weight_light_02"
+      "aero_weight_light_01"
     ],
     "settings": {
       "tire_pressure": 2.2,
@@ -48,16 +27,43 @@
     }
   },
   {
-    "_comment": "かざはやはクラス4のノートが無いので、クラス3のノートをワークス部品に置き換えた。",
+    "_comment": "ひばり平。ストップ＆ゴーが混ざるのでブレーキを先に取る。過給は載せない（信頼性の代償に見合わない）。",
+    "course": "hibaridaira",
+    "class": 5,
+    "parts": [
+      "engine_ecu_01",
+      "engine_exhaust_02",
+      "drivetrain_lsd_01",
+      "suspension_coilover_02",
+      "suspension_stabi_02",
+      "brake_caliper_01",
+      "tire_works_01",
+      "aero_weight_light_01"
+    ],
+    "settings": {
+      "tire_pressure": 2.1,
+      "ride_height": 75
+    },
+    "quali": {
+      "settings": {
+        "tire_pressure": 2.35
+      }
+    }
+  },
+  {
+    "_comment": "かざはや。高速コーナー主体なので、まずタイヤ。クラス4のノートが無いので連続値はクラス3から借りた。",
     "course": "kazahaya",
     "class": 5,
     "parts": [
-      "engine_works_01",
-      "drivetrain_works_01",
-      "suspension_works_01",
-      "brake_works_01",
+      "engine_ecu_01",
+      "engine_cam_01",
+      "engine_exhaust_02",
+      "drivetrain_final_02",
+      "suspension_coilover_02",
+      "suspension_stabi_01",
+      "suspension_stabi_02",
+      "brake_caliper_01",
       "tire_works_01",
-      "aero_weight_works_01",
       "aero_weight_light_01"
     ],
     "settings": {

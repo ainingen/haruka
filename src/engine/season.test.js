@@ -14,7 +14,7 @@ import {
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
 import { newGame } from './save.js';
-import { buildPerformance, createRng } from './race.js';
+import { buildPerformance, createRng, simulateRace, WEIGHTS } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (name) => JSON.parse(readFileSync(join(ROOT, 'data', name), 'utf8'));
@@ -258,6 +258,32 @@ test('S7. クラス5に親父のノートは無い。AI だけが内部の基準
     }
   }
   assert.ok(seen.fast && seen.normal && seen.slow, '3段階とも出走する');
+
+  // --- クラス5は「全部積むと壊れる」クラス。基準はワークスを全部は積まない ----------
+  // 並は16周で 15% 以下、速い（基準＋性格のパーツ）は 25% 以下（docs/設計/経済とシーズン.md）
+  const LAPS5 = ECONOMY.laps[5];
+  const dnf = (parts) => {
+    const rel = buildPerformance(parts, haruka, CHASSIS.formula, {}).stats.reliability;
+    return (1 - (1 - WEIGHTS.reliability.retirePerPointPerLap * Math.max(0, -rel)) ** LAPS5) * 100;
+  };
+  for (const c of COURSES.filter((x) => x.classes.includes(5))) {
+    const b = baselineFor(all, PARTS, c, 5);
+    const works = b.parts.filter((p) => p.class_required === 5);
+    assert.ok(works.length >= 1, `${c.id}: クラス5のパーツが1点も無い`);
+    assert.ok(works.length < 6, `${c.id}: ワークス部品を全部積んでいる（罠が残らない）`);
+    const norm = dnf(notePortion(b.parts, AI_STRENGTH.normal));
+    assert.ok(norm <= 15, `${c.id}: 並のリタイア率 ${norm.toFixed(0)}% が 15% を超えている`);
+    const es = fieldEntries(RIVALS, c, 5);
+    const pl = seasonRivalPlan(es, PARTS, 5, createRng(11));
+    for (const [i, e] of es.entries()) {
+      if (e.strength !== 'fast') continue;
+      const f = dnf(rivalLoadout(e, i, pl, PARTS, all, c, 5).parts);
+      assert.ok(f <= 25, `${c.id}: 速い（${e.name}）のリタイア率 ${f.toFixed(0)}% が 25% を超えている`);
+    }
+    // 基準全点は並より速い。着順が逆転しないための前提
+    const t = (parts) => simulateRace(buildPerformance(parts, haruka, CHASSIS.formula, b.settings), c, LAPS5, haruka, { noise: false, retire: false }).total;
+    assert.ok(t(b.parts) < t(notePortion(b.parts, AI_STRENGTH.normal)), `${c.id}: 基準全点が並より遅い`);
+  }
 
   // --- クラス5へ昇格した瞬間に note_ends -----------------------------------------
   assert.deepEqual(seasonEvents({ verdict: 'promote', to: 5, from: 4 }), ['note_ends']);
