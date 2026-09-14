@@ -24,6 +24,13 @@ export const TITLE = {
   top: 'ハルカの',
   bottom: 'セッティングノート',
   topScale: 0.5,
+  /**
+   * 題の上に置く小さなラテン。**同梱している等幅（画面の層の書体）で組む。**
+   * 字間を大きく開け、両側に細い罫を伸ばす。
+   */
+  kicker: { text: 'SETTING NOTE', scale: 0.2, tracking: 0.42, rule: 0.42 },
+  /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
+  stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
   /** 題の下端を、絵の下からどれだけ上に置くか（高さに対する割合）。**下三分の一**。 */
   baseline: 0.1,
   /**
@@ -44,6 +51,7 @@ function readColors(root = document.documentElement) {
   return {
     ground: pick('--ink', '#23211c'),      // 画像が無いときの地
     text: pick('--paper', '#f2efe6'),      // 題の色（紙の白）
+    accent: pick('--car', '#c62828'),      // 自車の赤。題の下の帯に一本だけ
     shade: pick('--ink-2', '#6b665c'),
   };
 }
@@ -59,12 +67,21 @@ function fitFont(ctx, text, maxWidth, start) {
   return size;
 }
 
-/** 既定のゴシック。書体は同梱しない（PLiCy に上げるものを軽くしておく）。 */
+/** 日本語は既定のゴシック。書体は同梱しない（PLiCy に上げるものを軽くしておく）。 */
 const FONT = 'system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
+/** ラテンだけは同梱の等幅（画面の層の書体）。assets/fonts/jetbrains-mono-latin.woff2 */
+const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
 
 /**
  * 題を描く。画像があってもなくても、同じ位置に同じ大きさで出る。
- * **絵の下三分の一に横組み二段、左右中央揃え。** 白い字に薄い影と細い縁。
+ * **絵の下三分の一に横組み、左右中央揃え。** 上から順に：
+ *
+ *   ── SETTING NOTE ──   同梱の等幅。字間を開けて、両側に細い罫
+ *      ハルカの           小さい段
+ *   セッティングノート      大きい段（白から淡い紙色への縦のグラデーション）
+ *        ▬▬               白と赤の帯（スーツの配色）
+ *
+ * 白い字に黒の細い縁と影を付けるので、下が明るくても読める。
  */
 function drawText(ctx, colors) {
   const inner = TITLE.w * TITLE.band - TITLE.pad * 2;
@@ -72,30 +89,83 @@ function drawText(ctx, colors) {
 
   const bottomSize = fitFont(ctx, TITLE.bottom, inner, Math.round(TITLE.h * 0.1));
   const topSize = Math.round(bottomSize * TITLE.topScale);
-  const gap = Math.round(bottomSize * 0.24);
-  const blockH = topSize + gap + bottomSize;
+  const kickSize = Math.round(bottomSize * TITLE.kicker.scale);
+  const gap = Math.round(bottomSize * 0.2);
+  const kickGap = Math.round(bottomSize * 0.34);
+  const stripeH = TITLE.stripe.red + TITLE.stripe.gap + TITLE.stripe.white;
+  const blockH = kickSize + kickGap + topSize + gap + bottomSize
+    + Math.round(bottomSize * 0.34) + stripeH;
   const y = Math.round(TITLE.h * (1 - TITLE.baseline) - blockH);
 
   ctx.save();
   ctx.textBaseline = 'top';
   ctx.textAlign = 'center';
-  ctx.shadowColor = 'rgba(0, 0, 0, .75)';
-  ctx.shadowBlur = Math.round(bottomSize * 0.22);
-  ctx.shadowOffsetY = Math.round(bottomSize * 0.04);
   ctx.lineJoin = 'round';
-
-  const line = (text, size, ly) => {
-    ctx.font = `700 ${size}px ${FONT}`;
-    ctx.lineWidth = Math.max(2, size * 0.045);
-    ctx.strokeStyle = 'rgba(0, 0, 0, .55)';
-    ctx.strokeText(text, x, ly);
-    ctx.fillStyle = colors.text;
-    ctx.fillText(text, x, ly);
+  const shadow = (size) => {
+    ctx.shadowColor = 'rgba(0, 0, 0, .8)';
+    ctx.shadowBlur = Math.round(size * 0.28);
+    ctx.shadowOffsetY = Math.round(size * 0.05);
   };
-  ctx.letterSpacing = `${Math.round(topSize * 0.14)}px`;
-  line(TITLE.top, topSize, y);
-  ctx.letterSpacing = `${Math.round(bottomSize * 0.05)}px`;
-  line(TITLE.bottom, bottomSize, y + topSize + gap);
+
+  /**
+   * 1行引く。**字間を開けると canvas は右端にも同じ幅を足す**ので、
+   * 中央揃えのときは半分だけ左に戻して、見た目の中心を合わせる。
+   */
+  const line = (text, size, ly, { font = FONT, weight = 700, track = 0, fill = null } = {}) => {
+    const spacing = Math.round(size * track);
+    ctx.letterSpacing = `${spacing}px`;
+    ctx.font = `${weight} ${size}px ${font}`;
+    const cx = x - spacing / 2;
+    shadow(size);
+    ctx.lineWidth = Math.max(2, size * 0.05);
+    ctx.strokeStyle = 'rgba(0, 0, 0, .6)';
+    ctx.strokeText(text, cx, ly);
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = fill ?? colors.text;
+    ctx.fillText(text, cx, ly);
+    return ctx.measureText(text).width - spacing;
+  };
+
+  // ── SETTING NOTE ──
+  const kickW = line(TITLE.kicker.text, kickSize, y,
+    { font: MONO, weight: 400, track: TITLE.kicker.tracking });
+  const ruleY = Math.round(y + kickSize * 0.55);
+  const ruleLen = Math.round(kickW * TITLE.kicker.rule);
+  const ruleGap = Math.round(kickSize * 1.2);
+  ctx.save();
+  shadow(kickSize);
+  ctx.strokeStyle = 'rgba(255, 255, 255, .7)';
+  ctx.lineWidth = 2;
+  for (const dir of [-1, 1]) {
+    const from = x + dir * (kickW / 2 + ruleGap);
+    ctx.beginPath();
+    ctx.moveTo(from, ruleY);
+    ctx.lineTo(from + dir * ruleLen, ruleY);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ハルカの ／ セッティングノート
+  const topY = y + kickSize + kickGap;
+  line(TITLE.top, topSize, topY, { track: 0.18 });
+  const bottomY = topY + topSize + gap;
+  const grad = ctx.createLinearGradient(0, bottomY, 0, bottomY + bottomSize);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(1, colors.text);
+  line(TITLE.bottom, bottomSize, bottomY, { track: 0.05, fill: grad });
+
+  // 白と赤の帯
+  const stripeY = Math.round(bottomY + bottomSize + bottomSize * 0.34);
+  const stripeW = Math.round(inner * TITLE.stripe.width);
+  ctx.save();
+  shadow(kickSize);
+  ctx.fillStyle = colors.accent;
+  ctx.fillRect(x - stripeW / 2, stripeY, stripeW, TITLE.stripe.red);
+  ctx.shadowColor = 'transparent';
+  ctx.fillStyle = colors.text;
+  ctx.fillRect(x - stripeW / 2, stripeY + TITLE.stripe.red + TITLE.stripe.gap,
+    stripeW, TITLE.stripe.white);
+  ctx.restore();
   ctx.restore();
 }
 
@@ -141,18 +211,26 @@ export async function mountTitle(canvas, opts = {}) {
     drawText(ctx, colors);
   };
 
-  paint(null);   // 画像を待たずに、まず題まで描く
+  paint(null);   // 画像も書体も待たずに、まず題まで描く
+
+  // 同梱の等幅は、canvas からは読み込みが始まらない。**先に呼んでおく**
+  // （間に合わなければ既定の等幅で出る。位置も大きさも変わらない）
+  const font = document.fonts?.load(`400 ${Math.round(TITLE.h * 0.02)}px "JetBrains Mono"`)
+    ?.catch(() => null) ?? Promise.resolve(null);
 
   const src = opts.src ?? TITLE.image;
-  if (!src) return false;
+  let img = null;
   try {
-    const img = new Image();
-    img.src = src;
-    await img.decode();
-    paint(img);
-    return true;
+    if (src) {
+      img = new Image();
+      img.src = src;
+      await img.decode();
+    }
   } catch {
-    // 画像が無い・壊れている。**地色と題だけで成立する**ので、そのままにする
-    return false;
+    // 画像が無い・壊れている。**地色と題だけで成立する**ので、絵なしで描き直す
+    img = null;
   }
+  await font;
+  paint(img);
+  return !!img;
 }
