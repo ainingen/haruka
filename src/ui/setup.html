@@ -41,6 +41,11 @@
   --mon-car:    #ff5a4a;
   --mon-ai:     #4da3ff;
   --mon-font:   ui-monospace, "SF Mono", Consolas, "Courier New", monospace;
+
+  /* セクター種別（ラップ計算の棒）。名前は race.js の SECTOR_TYPES に対応 */
+  --straight:    #7d8894;
+  --fast-corner: #3ddc84;
+  --slow-corner: #ffb347;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -296,6 +301,13 @@ h2 {
 .status .u { font-size: 10px; font-weight: 400; color: var(--ink-2); }
 .status .sub { font-size: 10px; color: var(--ink-2); }
 .status .rolling { color: var(--good); }
+/* 値が変わった瞬間に一瞬光らせる（cue: status.blink）。
+   数字が回るのは「いくつになったか」、点滅は「いま変わった」を伝える */
+.status .blink { animation: statusblink .42s ease-out 2; }
+@keyframes statusblink {
+  0%   { background: var(--accent); color: var(--paper); }
+  100% { background: transparent; }
+}
 .warn {
   margin-top: 8px; border: 1px solid var(--bad); color: var(--bad);
   padding: 5px 8px; font-size: 11px;
@@ -342,16 +354,28 @@ h2 {
 .notes .hand.blank { color: var(--ink-3); font-family: inherit; font-size: 11px; }
 .notes button { font: inherit; font-size: 12px; padding: 6px 12px; cursor: pointer; background: var(--paper); color: var(--ink); border: 1px solid var(--rule); }
 .notes button:disabled { color: var(--ink-3); cursor: default; }
-.laps { margin-top: 10px; border: 1px solid var(--rule); }
-.laps .lap {
-  display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline;
-  padding: 6px 8px; border-bottom: 1px solid var(--ink-3); font-size: 12px;
+/* --- ラップ計算（画面の層）。セクター種別ごとの所要時間を棒で出す ------------- */
+.lapmon {
+  margin-top: 10px; border: 1px solid var(--mon-line);
+  background: var(--mon-bg); color: var(--mon-text);
+  font-family: var(--mon-font); font-size: 12px; font-variant-numeric: tabular-nums;
 }
-.laps .lap:last-child { border-bottom: 0; }
-.laps .cname { min-width: 0; }
-.laps .cprof { font-size: 10px; color: var(--ink-2); }
-.laps .t { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; }
-.laps .d { font-size: 10px; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+.lapmon .lrow { padding: 6px 9px; border-bottom: 1px solid var(--mon-line); }
+.lapmon .lrow:last-child { border-bottom: 0; }
+.lapmon .lhead { display: flex; align-items: baseline; gap: 8px; }
+.lapmon .lname { font-family: var(--jp-font); font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+.lapmon .lprof { font-family: var(--jp-font); font-size: 10px; color: var(--mon-dim); }
+.lapmon .ltime { margin-left: auto; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.lapmon .ld { font-size: 10.5px; color: var(--mon-dim); white-space: nowrap; min-width: 66px; text-align: right; }
+.lapmon .ld.up { color: var(--mon-green); }     /* 縮んだ */
+.lapmon .ld.down { color: var(--mon-amber); }   /* 伸びた */
+.lapmon .sbar { display: flex; height: 10px; margin-top: 5px; background: var(--mon-bg-2); }
+.lapmon .sbar i { display: block; height: 100%; }
+.lapmon .slegend { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 10px; color: var(--mon-dim); margin-top: 3px; }
+.lapmon .slegend b { font-weight: 400; color: var(--mon-text); }
+.lapmon .slegend i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; vertical-align: middle; }
+.lapmon .note { font-family: var(--jp-font); font-size: 10.5px; color: var(--mon-dim); padding: 7px 9px; }
+.lapmon .note.bad { color: var(--mon-red); }
 
 .legend { font-size: 10px; color: var(--ink-2); margin-top: 8px; display: flex; gap: 12px; }
 .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
@@ -1401,6 +1425,25 @@ function drawStatus() {
   rollNumber(el('stKg'), from?.kg, v.kg, (x) => String(Math.round(x)));
   rollNumber(el('stPs'), from?.ps, v.ps, (x) => String(Math.round(x)));
   rollNumber(el('stBal'), from?.bal, v.bal, fmt);
+
+  // 変わった値だけ一瞬光らせる。装着でもスライダーでも同じように光る
+  const prev = lastStatus;
+  lastStatus = v;
+  blinkIf('stKg', prev && prev.kg !== v.kg, 'weight');
+  blinkIf('stPs', prev && prev.ps !== v.ps, 'power');
+  blinkIf('stBal', prev && Math.abs(prev.bal - v.bal) > 0.05, 'balance');
+}
+
+/** 前回描いたときの下段ステータス。変わったかどうかを見るためだけに持つ。 */
+let lastStatus = null;
+
+function blinkIf(id, changed, key) {
+  if (!changed) return;
+  const node = el(id);
+  node.classList.remove('blink');
+  void node.offsetWidth;          // 連続で変えたときにアニメーションを再生し直す
+  node.classList.add('blink');
+  cue('status.blink', { key });
 }
 
 // ---------------------------------------------------------------------------
@@ -1477,8 +1520,39 @@ let lapBaseline = null;
 function clearLaps(resetBaseline = false) {
   if (resetBaseline) lapBaseline = null;
   if (!el('lapsWrap').innerHTML) return;
-  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="laps"><div class="lap">
-    <span class="cprof">セッティングを変更しました。${lapBaseline ? '前回との差を見るには' : ''}もう一度ラップ計算してください</span></div></div>`;
+  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="lapmon"><div class="note">
+    セッティングを変更しました。${lapBaseline ? '前回との差を見るには' : ''}もう一度ラップ計算してください</div></div>`;
+}
+
+/** セクター種別ごとの1周あたり所要時間（秒）。棒グラフの中身。 */
+const SECTOR_BAR = [
+  { type: 'straight', label: '直線' },
+  { type: 'fast_corner', label: '高速' },
+  { type: 'slow_corner', label: '低速' },
+];
+function sectorTotals(result, course) {
+  const out = { straight: 0, fast_corner: 0, slow_corner: 0 };
+  for (const lap of result.laps) {
+    lap.sectors.forEach((t, i) => { out[course.sectors[i].type] += t; });
+  }
+  const n = result.laps.length || 1;
+  for (const k of Object.keys(out)) out[k] /= n;
+  return out;
+}
+
+/**
+ * 1コースぶんの棒。長さはコース間で比べられるように、いちばん遅いコースを 100% とする。
+ * 中の色分けが「このコースの時間を何が食っているか」。
+ */
+function lapBar(totals, total, max) {
+  const seg = SECTOR_BAR
+    .map(({ type }) => `<i style="width:${((totals[type] / total) * 100).toFixed(2)}%;background:var(--${type.replace('_', '-')})"></i>`)
+    .join('');
+  const legend = SECTOR_BAR
+    .map(({ type, label }) => `<span><i style="background:var(--${type.replace('_', '-')})"></i>${label} <b>${totals[type].toFixed(1)}s</b></span>`)
+    .join('');
+  return `<div class="sbar" style="width:${((total / max) * 100).toFixed(1)}%">${seg}</div>
+    <div class="slegend">${legend}</div>`;
 }
 
 /** 選びたいコース。クラスを変えて走れなくなったら、走れるものへ寄せる。 */
@@ -1508,20 +1582,28 @@ function calcLaps() {
   if (state.session === 'quali') return calcQuali(p);
   const rows = usableCourses().map((c) => {
     const r = simulateRace(p, c, 10, DATA.driver, { noise: false, retire: false });
-    return { course: c, avg: r.average, best: r.best, last: r.laps.at(-1), retired: r.retired, retiredLap: r.retiredLap };
+    return {
+      course: c, avg: r.average, best: r.best, last: r.laps.at(-1),
+      retired: r.retired, retiredLap: r.retiredLap, totals: sectorTotals(r, c),
+    };
   });
   const prev = lapBaseline;
   lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.avg]));
+  const max = Math.max(...rows.map((r) => r.avg));
 
-  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="laps">${rows.map((r) => {
+  el('lapsWrap').innerHTML = `<h2>ラップ計算 / 10周平均</h2><div class="lapmon">${rows.map((r) => {
     const d = prev?.[r.course.id] != null ? r.avg - prev[r.course.id] : null;
-    const dTxt = d == null ? ''
-      : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒/周</div>`;
-    return `<div class="lap">
-      <div class="cname">${r.course.name}<div class="cprof">${PROFILE_LABEL[r.course.profile] ?? ''}
-        ・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${r.last.brakeFade > 0 ? `（フェード −${r.last.brakeFade.toFixed(1)}）` : ''}${
-        r.retired ? `<br><b style="color:var(--bad)">${r.retiredLap}周目に燃料切れ</b>` : ''}</div></div>
-      <div><div class="t">${formatTime(r.avg)}</div>${dTxt}</div>
+    const dTxt = d == null ? '<span class="ld"></span>'
+      : `<span class="ld ${d < -0.0005 ? 'up' : d > 0.0005 ? 'down' : ''}">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒/周</span>`;
+    const fade = r.last.brakeFade > 0 ? `・フェード −${r.last.brakeFade.toFixed(1)}` : '';
+    return `<div class="lrow">
+      <div class="lhead">
+        <span class="lname">${esc(r.course.name)}</span>
+        <span class="ltime">${formatTime(r.avg)}</span>${dTxt}
+      </div>
+      <div class="lprof">${PROFILE_LABEL[r.course.profile] ?? ''}・最終周 ブレーキ温度 ${Math.round(r.last.brakeTemp)}${fade}${
+        r.retired ? ` <b style="color:var(--mon-red)">${r.retiredLap}周目に燃料切れ</b>` : ''}</div>
+      ${lapBar(r.totals, r.avg, max)}
     </div>`;
   }).join('')}</div>`;
 }
@@ -1534,13 +1616,17 @@ function calcQuali(p) {
   });
   const prev = lapBaseline;
   lapBaseline = Object.fromEntries(rows.map((r) => [r.course.id, r.best]));
-  el('lapsWrap').innerHTML = `<h2>予選計算 / アタック1周</h2><div class="laps">${rows.map((r) => {
+  // 予選は計測3周ぶんの計算なので、セクター別の内訳は出さない（棒は決勝のタブだけ）
+  el('lapsWrap').innerHTML = `<h2>予選計算 / アタック1周</h2><div class="lapmon">${rows.map((r) => {
     const d = prev?.[r.course.id] != null ? r.best - prev[r.course.id] : null;
-    const dTxt = d == null ? '' : `<div class="d">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒</div>`;
-    return `<div class="lap">
-      <div class="cname">${r.course.name}<div class="cprof">${PROFILE_LABEL[r.course.profile] ?? ''}
-        ・アタック時の冷間ロス −${r.attack.gripLoss.toFixed(1)} pt</div></div>
-      <div><div class="t">${formatTime(r.best)}</div>${dTxt}</div>
+    const dTxt = d == null ? '<span class="ld"></span>'
+      : `<span class="ld ${d < -0.0005 ? 'up' : d > 0.0005 ? 'down' : ''}">${d > 0 ? '+' : ''}${d.toFixed(3)} 秒</span>`;
+    return `<div class="lrow">
+      <div class="lhead">
+        <span class="lname">${esc(r.course.name)}</span>
+        <span class="ltime">${formatTime(r.best)}</span>${dTxt}
+      </div>
+      <div class="lprof">${PROFILE_LABEL[r.course.profile] ?? ''}・アタック時の冷間ロス −${r.attack.gripLoss.toFixed(1)} pt</div>
     </div>`;
   }).join('')}</div>`;
 }
