@@ -323,8 +323,8 @@ import {
 } from '../engine/race.js';
 import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
-import { rivalSpec, fieldEntries } from '../engine/rivals.js';
-import { currentRound, recordResult } from '../engine/season.js';
+import { rivalSpec, fieldEntries, rivalLoadout } from '../engine/rivals.js';
+import { currentRound, recordResult, rivalPlanFor } from '../engine/season.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const el = (id) => document.getElementById(id);
@@ -1171,11 +1171,11 @@ const S = {
 };
 
 async function boot() {
-  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy, sponsors] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radioData, commentaryData, rivals, economy, sponsors, notes] = await Promise.all([
     json('../../data/parts.json'), json('../../data/chassis.json'),
     json('../../data/courses.json'), json('../../data/drivers.json'),
     json('../../data/radio.json'), json('../../data/commentary.json'), json('../../data/rivals.json'),
-    json('../../data/economy.json'), json('../../data/sponsors.json'),
+    json('../../data/economy.json'), json('../../data/sponsors.json'), json('../../data/notes.json'),
   ]);
   S.economy = economy;
   S.sponsors = sponsors;
@@ -1209,9 +1209,13 @@ async function boot() {
 
   const baseSeed = Number(Q.get('seed') ?? 20260912);
   const aiRng = createRng(baseSeed);
-  // 出走台数はコース × クラスで決まる（courses.json の grid）。名簿の先頭から自車ぶんを除いて使う
-  const ai = fieldEntries(rivals, course, cls)
-    .map((entry, i) => makeRival(entry, i, { mine, driver, chassis, settings, rng: aiRng, baseSeed }));
+  // 出走台数はコース × クラスで決まる（courses.json の grid）。名簿の先頭から自車ぶんを除いて使う。
+  // AI の構成は自車と無関係。シーズンの種（無ければこのレースの種）から固定で決まる（rivals.js）
+  const entries = fieldEntries(rivals, course, cls);
+  const plan = rivalPlanFor({ rivalSeed: G.season?.rivalSeed ?? baseSeed }, entries, parts, cls);
+  const ai = entries.map((entry, i) => makeRival(entry, i, {
+    loadout: rivalLoadout(entry, i, plan, parts, notes, course, cls), driver, chassis, rng: aiRng, baseSeed,
+  }));
 
   S.cars = [
     makeCar({ id: 'me', name: '神谷ハルカ', short: '神谷', color: 'var(--car)', perf: myPerf, driver, seed: baseSeed + 7, isPlayer: true }),

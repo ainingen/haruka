@@ -11,7 +11,7 @@ import {
   newSeason, currentRound, seasonOver, pointsFor, recordResult, standings, myRank,
   verdictFor, topSymptom, sponsorTierAfter, endSeason, pickNote, simulateField, coursesFor,
 } from './season.js';
-import { rivalSpec, fieldEntries, AI_PROFILES } from './rivals.js';
+import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout } from './rivals.js';
 import { newGame } from './save.js';
 import { buildPerformance, createRng } from './race.js';
 
@@ -23,6 +23,7 @@ const PARTS = load('parts.json');
 const CHASSIS = load('chassis.json');
 const RIVALS = load('rivals.json');
 const RADIO = load('radio.json');
+const NOTES = load('notes.json');
 const haruka = load('drivers.json')[0];
 const part = (id) => PARTS.find((p) => p.id === id);
 
@@ -127,25 +128,61 @@ test('S4. スポンサー段階は成績とクラスで上がり、下がらな�
   console.log(`  昇格後のノート：「${note}」`);
 });
 
-test('S5. AI 車と通し走行：性格ごとに得意が違い、着順が出る', () => {
-  const rng = createRng(3);
-  const mine = [part('tire_compound_02')];
-  const sedan = CHASSIS.sedan;
-  const spec = rivalSpec(RIVALS[0], 0, { mine, driver: haruka, chassis: sedan, settings: {}, rng });
-  assert.equal(spec.id, 'ai0');
-  assert.ok(spec.perf.stats.power !== undefined && spec.driver.skill >= 30);
-  assert.ok(Object.keys(AI_PROFILES).includes(RIVALS[0].profile));
+test('S5. AI の構成は自車と無関係：遅いは安物、並はノート、速いはノート＋性格のパーツ。すべて規定内', () => {
   const course = COURSES.find((c) => c.id === 'hibaridaira');
-  assert.equal(fieldEntries(RIVALS, course, 1).length, course.grid[1] - 1);
+  const cls = 2;
+  const entries = fieldEntries(RIVALS, course, cls);
+  assert.equal(entries.length, course.grid[cls] - 1);
+  const plan = seasonRivalPlan(entries, PARTS, cls, createRng(11));
+  const note = NOTES.find((n) => n.course === course.id && n.class === cls);
+  const seen = { slow: 0, normal: 0, fast: 0 };
+  entries.forEach((entry, i) => {
+    const lo = rivalLoadout(entry, i, plan, PARTS, NOTES, course, cls);
+    for (const p of lo.parts) assert.ok(aiLegal(p, cls), `${entry.name} の ${p.id} は規定外`);
+    const ids = lo.parts.map((p) => p.id);
+    seen[entry.strength] += 1;
+    if (entry.strength === 'normal') assert.deepEqual([...ids].sort(), [...note.parts].sort(), '並はノート通り');
+    if (entry.strength === 'slow') {
+      assert.ok(ids.length >= 1 && ids.length <= 2, '遅いは安物1〜2点');
+      const cheapest = PARTS.filter((p) => aiLegal(p, cls)).sort((a, b) => a.price - b.price)[0];
+      assert.ok(ids.includes(cheapest.id), '最安のパーツを持つ');
+    }
+    if (entry.strength === 'fast') {
+      const extras = plan[`ai${i}`];
+      assert.ok(extras.length >= 2 && extras.length <= 3, '速いは2〜3点足す');
+      const keys = AI_PROFILES[entry.profile].keys;
+      for (const id of extras) {
+        const p = PARTS.find((x) => x.id === id);
+        assert.ok(keys.some((k) => (p.effects?.[k] ?? 0) > 0), `${p.id} は ${entry.profile} の性格に合わない`);
+      }
+      assert.ok(ids.length >= note.parts.length, '並より多い');
+    }
+  });
+  assert.ok(seen.fast && seen.normal && seen.slow, '3段階とも名簿にいる');
+  assert.deepEqual(seasonRivalPlan(entries, PARTS, cls, createRng(11)), plan, '種が同じなら同じ構成');
+  const kaza = COURSES.find((c) => c.id === 'kazahaya');
+  assert.equal(baselineFor(NOTES, PARTS, kaza, 5).note.class, 3, 'かざはやのクラス5は、クラス3のノートを借りる');
 
-  const myPerf = buildPerformance(mine, haruka, sedan);
-  const runs = simulateField({ myPerf, driver: haruka, mine, chassis: sedan, settings: {}, course, laps: 5, rivals: RIVALS, cls: 1, seed: 5 });
-  assert.equal(runs.length, course.grid[1]);
-  assert.deepEqual(runs.map((r) => r.pos), runs.map((_, i) => i + 1));
-  assert.ok(runs.some((r) => r.id === 'me'));
-  const finished = runs.filter((r) => !r.retired);
+  // 走らせると着順が出る。自車の構成を変えても AI の速さは変わらない
+  const sedan = CHASSIS.sedan;
+  const spec = rivalSpec(RIVALS[0], 0, { loadout: { parts: [part('tire_compound_02')], settings: {} }, driver: haruka, chassis: sedan, rng: createRng(3) });
+  assert.equal(spec.id, 'ai0');
+  assert.ok(Object.keys(AI_PROFILES).includes(RIVALS[0].profile) && AI_STRENGTH[RIVALS[0].strength]);
+  const bare = buildPerformance([], haruka, sedan);
+  const rich = buildPerformance(note.parts.map(part), haruka, sedan, note.settings);
+  const args = { driver: haruka, chassis: sedan, course, laps: 5, rivals: RIVALS, parts: PARTS, notes: NOTES, cls, seed: 5, rivalSeed: 11 };
+  const runsBare = simulateField({ ...args, myPerf: bare });
+  const runsRich = simulateField({ ...args, myPerf: rich });
+  const aiTotals = (runs) => runs.filter((r) => r.id !== 'me').map((r) => [r.id, Math.round(r.total * 1000)]).sort();
+  assert.deepEqual(aiTotals(runsBare), aiTotals(runsRich), '自車の構成を変えても AI のタイムは同じ');
+  const posBare = runsBare.find((r) => r.id === 'me').pos;
+  const posRich = runsRich.find((r) => r.id === 'me').pos;
+  assert.ok(posRich < posBare, `ノート通りに揃えれば順位が上がる（純正 ${posBare} 位 → ノート ${posRich} 位）`);
+  assert.equal(runsRich.length, course.grid[cls]);
+  assert.deepEqual(runsRich.map((r) => r.pos), runsRich.map((_, i) => i + 1));
+  const finished = runsRich.filter((r) => !r.retired);
   for (let i = 1; i < finished.length; i++) assert.ok(finished[i].total >= finished[i - 1].total, '総時間の順');
-  console.log(`  ひばり平 5周（クラス1、8台）：自車 ${runs.find((r) => r.id === 'me').pos} 位`);
+  console.log(`  クラス2 ひばり平 ${entries.length + 1}台：純正 ${posBare} 位 → ノート通り ${posRich} 位`);
 });
 
 test('S6. スポンサー：段階1〜4に3社ずつ、架空名。実況の紹介は {sponsor} を埋める', () => {

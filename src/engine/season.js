@@ -5,7 +5,7 @@
  * state を受け取る関数は新しい state を返し、元は変えない。数値は data/economy.json。
  */
 import { simulateRace, createRng } from './race.js';
-import { rivalSpec, fieldEntries } from './rivals.js';
+import { rivalSpec, fieldEntries, seasonRivalPlan, rivalLoadout } from './rivals.js';
 
 /** そのクラスで走れるコース。classes が無いデータは全クラス可とみなす。 */
 export const coursesFor = (courses, cls) => courses.filter((c) => !c.classes || c.classes.includes(cls));
@@ -25,7 +25,14 @@ export function newSeason(cls, courses, economy, rng = Math.random, year = 1, no
     if (rounds.length && pool.length > 1 && c.id === rounds.at(-1).course) c = pool[(pool.indexOf(c) + 1) % pool.length];
     rounds.push({ course: c.id, laps: economy.laps[cls], result: null });
   }
-  return { year, rounds, next: 0, points: {}, symptoms: {}, note };
+  // AI の構成（速いが足すパーツ、遅いの安物）はこの種から決まり、シーズン中は固定（rivals.js）
+  const rivalSeed = Math.floor(rng() * 1e9);
+  return { year, rounds, next: 0, points: {}, symptoms: {}, note, rivalSeed };
+}
+
+/** そのシーズンの AI の構成。種から決定的に作るので state には種だけを持つ。 */
+export function rivalPlanFor(season, entries, parts, cls) {
+  return seasonRivalPlan(entries, parts, cls, createRng(season?.rivalSeed ?? 1));
 }
 
 /** いま走る戦。全部終わっていれば null。 */
@@ -147,19 +154,22 @@ export function pickNote(noteLines, symptom, rng = Math.random) {
  * 各車を simulateRace で独立に走らせ、リタイアを後ろに回して総時間で並べる。
  * スタート直後の混雑や交通は入らないので、画面のレースとは少し違う。
  *
- * @param {object} args { myPerf, driver, mine, chassis, settings, course, laps, rivals, cls, seed }
- * @returns {Array<{ id, name, pos, retired, total, best }>}
+ * @param {object} args { myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed, rivalSeed }
+ * @returns {Array<{ id, name, pos, retired, total, best, partIds }>}
  */
-export function simulateField({ myPerf, driver, mine, chassis, settings, course, laps, rivals, cls, seed = 1 }) {
+export function simulateField({ myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed = 1, rivalSeed = 1 }) {
   const rng = createRng(seed);
-  const field = [{ id: 'me', name: '神谷ハルカ', perf: myPerf, driver }];
-  for (const [i, entry] of fieldEntries(rivals, course, cls).entries()) {
-    const spec = rivalSpec(entry, i, { mine, driver, chassis, settings, rng });
-    field.push({ id: spec.id, name: spec.name, perf: spec.perf, driver: spec.driver });
+  const field = [{ id: 'me', name: '神谷ハルカ', perf: myPerf, driver, partIds: myPerf.partIds }];
+  const entries = fieldEntries(rivals, course, cls);
+  const plan = seasonRivalPlan(entries, parts, cls, createRng(rivalSeed));
+  for (const [i, entry] of entries.entries()) {
+    const loadout = rivalLoadout(entry, i, plan, parts, notes, course, cls);
+    const spec = rivalSpec(entry, i, { loadout, driver, chassis, rng });
+    field.push({ id: spec.id, name: spec.name, perf: spec.perf, driver: spec.driver, partIds: spec.partIds });
   }
   const runs = field.map((car, i) => {
     const r = simulateRace(car.perf, course, laps, car.driver, { seed: seed + i * 977 });
-    return { id: car.id, name: car.name, retired: r.retired, total: r.total, best: r.best, laps: r.laps.length };
+    return { id: car.id, name: car.name, retired: r.retired, total: r.total, best: r.best, laps: r.laps.length, partIds: car.partIds };
   });
   runs.sort((a, b) => {
     if (a.retired !== b.retired) return a.retired ? 1 : -1;

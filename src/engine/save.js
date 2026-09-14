@@ -18,7 +18,7 @@ const KEYS = {
   // setup
   race: 'r', quali: 'q', parts: 'P', settings: 'S',
   // season
-  year: 'y', rounds: 'R', next: 'n', points: 'K', symptoms: 'Y', note: 'N',
+  year: 'y', rounds: 'R', next: 'n', points: 'K', symptoms: 'Y', note: 'N', rivalSeed: 'V',
   course: 'C', laps: 'L', result: 'E',
   // result
   pos: 'a', prize: 'b', fee: 'f', sponsorFee: 'g', repair: 'h', retired: 'i', best: 'j',
