@@ -1,12 +1,21 @@
 /**
- * ゲームの進行（state）のシリアライズ。docs/設計/経済とシーズン.md「セーブ」。
+ * ゲームの進行（state）のシリアライズと保存先。docs/設計/経済とシーズン.md「セーブ」。
  *
- * ブラウザストレージは使えない前提なので、画面間は URL の `s=` パラメータ1つで持ち回る。
- * **形式を触るのはこのファイルだけ。** 将来 PLiCy のセーブ機能に置き換えるときも、
- * encode / decode の中身を差し替えるだけで画面側は変わらない。
+ * **入出口はこのファイルだけ。** 形式も保存先もここにしかない。画面は `loadState()` で読み、
+ * `save()` で書き、`searchWithState()` で次の画面へ渡す。将来 PLiCy のセーブ機能に
+ * 置き換えるときも、ここだけを差し替える。
+ *
+ * 保存先は2つあり、**この中で切り替える**。
+ *
+ *   localStorage  使えればこちら。画面をまたいでも、URL を捨てても残る
+ *   URL の `s=`   使えなければこちら。これまで通り、画面間は `s=` 1つで持ち回る
+ *
+ * どちらの場合も **URL の文字列は出せる**（`encode` / `searchWithState`）。
+ * index.html の貼り付けと season.html の保存の箱は、保存先に関係なく動く。
+ * 読むときは **URL の `s=` が優先**：貼り付けた文字列と画面間の受け渡しが、保存より強い。
  *
  * 中身は短いキーの JSON を base64url にしたもの。長くなるようなら圧縮はここだけ変えればいい。
- * I/O は持たない（URL を読むのは画面側）。
+ * encode / decode は純粋。I/O を持つのは保存先の層（`save` / `loadSaved` / `saveLocal` …）だけ。
  */
 
 export const SAVE_VERSION = 1;
@@ -105,4 +114,94 @@ export function searchWithState(state, extra = {}) {
   for (const [k, v] of Object.entries(extra)) if (v !== null && v !== undefined) q.set(k, String(v));
   q.set('s', encode(state));
   return `?${q}`;
+}
+
+// ---------------------------------------------------------------------------
+// 保存先（この層だけが I/O を持つ）
+// ---------------------------------------------------------------------------
+
+/** 進行の保存先。バージョンを名前に入れて、形式が変わっても古い鍵を踏まないようにする。 */
+export const SAVE_KEY = `haruka.save.v${SAVE_VERSION}`;
+/**
+ * **localStorage 専用の区画。** 進行とは別に持ち、**URL には乗せない**。
+ * いまは空。あとでタイムアタックの構成がここに入る（持ち回る必要が無く、量が読めないもの）。
+ */
+export const LOCAL_KEY = `haruka.local.v${SAVE_VERSION}`;
+
+/**
+ * localStorage が使えるか。**必ず try で確かめる。**
+ * プライベートウィンドウ、設定でサイトデータを止めている環境、file:// では投げる。
+ * PLiCy でも使えるとは限らないので、使えない前提の道（URL の `s=`）は残したまま。
+ */
+export function canStore() {
+  try {
+    const probe = '__haruka_probe__';
+    localStorage.setItem(probe, '1');
+    localStorage.removeItem(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 進行を保存する。使えなければ何もしない（そのときは URL が保存先）。
+ * @returns {boolean} 書けたか
+ */
+export function save(state) {
+  if (!state) return false;
+  try {
+    localStorage.setItem(SAVE_KEY, encode(state));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 保存された進行。無ければ null。 */
+export function loadSaved() {
+  try {
+    return decode(localStorage.getItem(SAVE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+/** 保存を消す（「はじめから」）。 */
+export function clearSaved() {
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch { /* 使えない環境では何もしない */ }
+}
+
+/**
+ * 進行を読む。**URL の `s=` が優先**、無ければ保存先。
+ * 貼り付けた文字列と画面間の受け渡しが、前に保存したものより強い。
+ * @param {string} search location.search
+ */
+export function loadState(search) {
+  return stateFromSearch(search) ?? loadSaved();
+}
+
+/**
+ * localStorage 専用の区画を読む。URL には乗らないので、ここにあるものは
+ * 「その端末にだけある」。使えない環境では常に null。
+ */
+export function loadLocal() {
+  try {
+    const raw = localStorage.getItem(LOCAL_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** localStorage 専用の区画に書く。**進行はここに入れない**（保存先が二重になる）。 */
+export function saveLocal(data) {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+    return true;
+  } catch {
+    return false;
+  }
 }

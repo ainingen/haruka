@@ -321,7 +321,7 @@ import {
   createRunner, createClock, planLap, stepField, rankRunners, progress,
   paceSpeed as paceSpeedOf, gapSeconds as gapSecondsOf,
 } from '../engine/race.js';
-import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState } from '../engine/save.js';
 import { prizeFor, entryFee, sponsorFee, applyWear, condition, applyRaceWear, repairCost } from '../engine/economy.js';
 import { rivalSpec, fieldEntries, rivalLoadout, aiNotes } from '../engine/rivals.js';
 import { currentRound, recordResult, rivalPlanFor } from '../engine/season.js';
@@ -1084,7 +1084,7 @@ async function boot() {
   ]);
   S.economy = economy;
   S.sponsors = sponsors;
-  G = stateFromSearch(location.search) ?? legacyState(economy);
+  G = loadState(location.search) ?? legacyState(economy);
 
   const course = courses.find((c) => c.id === Q.get('course')) ?? courses[0];
   const cls = clamp(Number(G.cls ?? 1), 1, 5);
@@ -1489,6 +1489,7 @@ function finish() {
       symptoms: S.symptoms,
     }, E);
   }
+  save(G);   // 収支と消耗を反映し終えた。ここが1戦の区切り
   const nextHref = inSeason
     ? `season.html${searchWithState(G, {})}`
     : `setup.html${searchWithState(G, { course: S.course.id, laps: S.totalLaps })}`;

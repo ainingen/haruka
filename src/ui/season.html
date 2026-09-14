@@ -148,7 +148,7 @@ h3.cap {
 </div></div>
 
 <script type="module">
-import { stateFromSearch, newGame, searchWithState, encode } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState, encode } from '../engine/save.js';
 import {
   newSeason, currentRound, seasonOver, standings, verdictFor, endSeason, myRank,
 } from '../engine/season.js';
@@ -237,6 +237,8 @@ function render() {
 
   // 保存文字列（表示するたびに最新に）
   el('saveText').value = encode(G);
+  // 保存先が使えれば書く。使えなければ、この文字列（URL）が保存先のまま
+  save(G);
 
   // 操作
   const controls = el('controls');
@@ -300,7 +302,7 @@ try {
     json('../../data/sponsors.json').catch(() => []), json('../../data/radio.json'),
   ]);
   D = { economy, courses, rivals, sponsors, radio };
-  G = stateFromSearch(location.search);
+  G = loadState(location.search);
   if (!G) {
     // 新しいゲーム。所持金の初期値、クラス1、6戦を組む
     G = newGame(economy);

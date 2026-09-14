@@ -37,6 +37,8 @@ h1 {
 .menu a.primary { background: var(--car); color: var(--paper); border-color: var(--car); font-weight: 700; }
 .menu small { display: block; font-size: var(--fs-sub); color: var(--ink-2); font-weight: 400; }
 .menu a.primary small { color: var(--paper); opacity: .85; }
+.menu button.paste { font-size: var(--fs-sub); color: var(--ink-2); padding: 7px 14px; box-shadow: none; }
+.menu button.paste[hidden] { display: none; }
 .load { margin-top: 12px; border: 1px dashed var(--ink-3); padding: 10px 12px; background: var(--field); }
 .load[hidden] { display: none; }
 .load label { display: block; font-size: var(--fs-sub); color: var(--ink-2); margin-bottom: 4px; }
@@ -63,6 +65,7 @@ h1 {
   <div class="menu">
     <a class="primary" id="newGame" href="src/ui/season.html">はじめから<small>クラス1、走行会から。所持金は中古パーツ2〜3点ぶん</small></a>
     <button type="button" id="continueBtn">つづきから<small>保存文字列を貼り付ける</small></button>
+    <button type="button" class="paste" id="pasteLink" hidden>別の保存文字列を貼り付ける</button>
   </div>
 
   <div class="load" id="loadBox" hidden>
@@ -78,12 +81,39 @@ h1 {
 </div></div>
 
 <script type="module">
-import { decode, encode } from './src/engine/save.js';
+import { decode, encode, loadSaved, clearSaved } from './src/engine/save.js';
 
 const el = (id) => document.getElementById(id);
+
+/**
+ * この端末に保存があるか（localStorage）。無ければこれまで通り、保存文字列の貼り付け。
+ * 保存先の切り替えは save.js の中。ここは「あるか無いか」しか見ない。
+ */
+const saved = loadSaved();
+if (saved) {
+  el('continueBtn').innerHTML = 'つづきから<small>この端末の保存から再開'
+    + `（${saved.season?.year ?? 1}年目・クラス${saved.cls ?? 1}）</small>`;
+  el('pasteLink').hidden = false;
+  el('newGame').querySelector('small').textContent = 'クラス1、走行会から。いまの保存は消えます';
+}
+
 el('continueBtn').addEventListener('click', () => {
+  // 保存があればそのまま再開。無ければ貼り付けの箱を開く
+  if (saved) { location.href = 'src/ui/season.html'; return; }
   el('loadBox').hidden = !el('loadBox').hidden;
   if (!el('loadBox').hidden) el('saveText').focus();
+});
+el('pasteLink').addEventListener('click', () => {
+  el('loadBox').hidden = !el('loadBox').hidden;
+  if (!el('loadBox').hidden) el('saveText').focus();
+});
+// 「はじめから」は保存を消してから始める。消える前に一度だけ止める
+el('newGame').addEventListener('click', (ev) => {
+  if (!saved) return;
+  ev.preventDefault();
+  if (!confirm('この端末の保存を消して、最初から始めます。よろしいですか。\n（保存文字列を控えてあれば、あとで貼り付けて戻せます）')) return;
+  clearSaved();
+  location.href = ev.currentTarget.getAttribute('href');
 });
 
 /** 貼り付けられたものから保存文字列を取り出す。URL 全体なら s= を抜く。 */

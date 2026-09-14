@@ -165,3 +165,57 @@ test('E7. セーブの長さ：終盤の大きな state でも URL に収まる'
   assert.ok(str.length < 4000, `s= が ${str.length} 文字。長すぎる`);
   console.log(`  終盤の state：JSON ${JSON.stringify(s).length} 文字 → s= ${str.length} 文字`);
 });
+
+test('E8. 保存先：localStorage があればそちら、無ければ URL の s=。URL 文字列はどちらでも出せる', async () => {
+  const S = await import('./save.js');
+  const state = { ...newGame(ECONOMY), money: 12345, cls: 3 };
+
+  // --- 使えない環境（Node にも file:// にも localStorage は無い） ----------------
+  assert.equal(globalThis.localStorage, undefined, '前提：ここに localStorage は無い');
+  assert.equal(S.canStore(), false);
+  assert.equal(S.save(state), false, '書けなくても投げない');
+  assert.equal(S.loadSaved(), null);
+  assert.equal(S.loadLocal(), null);
+  assert.equal(S.saveLocal({ a: 1 }), false);
+  S.clearSaved();   // 投げない
+  // それでも URL からは読める＝これまで通りの道が残っている
+  assert.deepEqual(S.loadState(`?s=${S.encode(state)}`), state);
+  assert.equal(S.loadState('?course=misaki'), null, 's= が無ければ null');
+
+  // --- 使える環境 ---------------------------------------------------------------
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+  };
+  try {
+    assert.equal(S.canStore(), true);
+    assert.equal(store.size, 0, '確かめたあとに鍵を残さない');
+
+    assert.equal(S.save(state), true);
+    assert.deepEqual(S.loadSaved(), state);
+    // **URL の s= が優先。** 貼り付けた文字列と画面間の受け渡しが、保存より強い
+    const other = { ...state, money: 999 };
+    assert.deepEqual(S.loadState(`?s=${S.encode(other)}`), other);
+    assert.deepEqual(S.loadState(''), state, 's= が無ければ保存から');
+
+    // 保存先が使えても、URL 文字列は出せる（index.html の貼り付け、season.html の保存の箱）
+    assert.deepEqual(S.decode(S.encode(state)), state);
+    assert.ok(S.searchWithState(state, {}).startsWith('?s='));
+
+    // localStorage 専用の区画。進行とは別の鍵で、**URL には乗らない**
+    assert.equal(S.saveLocal({ timeAttack: [] }), true);
+    assert.deepEqual(S.loadLocal(), { timeAttack: [] });
+    assert.notEqual(S.SAVE_KEY, S.LOCAL_KEY);
+    assert.ok(!S.encode(state).includes('timeAttack'));
+    assert.deepEqual(S.loadSaved(), state, '専用区画に書いても進行は変わらない');
+
+    S.clearSaved();
+    assert.equal(S.loadSaved(), null);
+    assert.deepEqual(S.loadLocal(), { timeAttack: [] }, '「はじめから」で専用区画は消えない');
+    console.log(`  保存先：${S.SAVE_KEY}（進行 ${S.encode(state).length} 文字）/ ${S.LOCAL_KEY}（URL に乗らない区画）`);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});

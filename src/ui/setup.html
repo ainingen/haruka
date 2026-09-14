@@ -498,7 +498,7 @@ import {
   buildPerformance, simulateRace, formatTime,
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
 } from '../engine/race.js';
-import { stateFromSearch, newGame, searchWithState } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
 import { currentRound } from '../engine/season.js';
 
@@ -700,6 +700,7 @@ function syncG() {
   const race = state.session === 'race' ? cur : state.stash.race;
   const quali = state.session === 'quali' ? cur : state.stash.quali;
   G = { ...G, cls: state.cls, tier: state.tier, setup: { race: pack(race) ?? { parts: [], settings: {} }, quali: pack(quali) } };
+  save(G);   // 買い物もセッティングもここで畳まれる。保存先が使えれば書く
   return G;
 }
 
@@ -1781,7 +1782,7 @@ function renderAll() {
 try {
   DATA = await loadAll();
   // 進行。URL に無ければ新しいゲーム（所持金の初期値、所有なし）
-  G = stateFromSearch(location.search) ?? newGame(DATA.economy);
+  G = loadState(location.search) ?? newGame(DATA.economy);
   state.cls = Math.min(5, Math.max(1, G.cls));
   state.tier = Math.min(4, Math.max(0, G.tier));
   el('selClass').value = String(state.cls);
