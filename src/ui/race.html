@@ -1447,7 +1447,8 @@ function renderPanel() {
   // 前との差が縮めば緑、開けば琥珀に一瞬光る
   const flash = gapFlash(liveA);
   const gapA = liveA == null ? '—' : `<b>+${liveA.toFixed(1)}s</b> ${esc(ahead.short)}`;
-  const gapB = liveB == null ? '—' : `<b>−${liveB.toFixed(1)}s</b> ${esc(behind.short)}`;
+  // 後ろとの差は符号を付けない。「前／後」の並びで向きは分かる
+  const gapB = liveB == null ? '—' : `<b>${liveB.toFixed(1)}s</b> ${esc(behind.short)}`;
 
   el('panel').innerHTML = `
     <div class="cell">
