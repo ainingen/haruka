@@ -20,15 +20,11 @@ export const TITLE = {
   band: 0.82,
   /** 左右の余白（論理 px）。 */
   pad: 44,
-  /** 上段と下段。下段は上段の約2倍の字。 */
-  top: 'ハルカの',
-  bottom: 'セッティングノート',
-  topScale: 0.6,
   /**
-   * 題の上に置く小さなラテン。**同梱している等幅（画面の層の書体）で組む。**
-   * 字間を大きく開け、両側に細い罫を伸ばす。
+   * 板の下に置く**正式な題名**。ドットにしない、普通の字。
+   * 読めることが第一なので、板の英語より小さくても字面を優先する。
    */
-  kicker: { text: 'SETTING NOTE', scale: 0.2, tracking: 0.42, rule: 0.42 },
+  jp: { text: 'ハルカのセッティングノート', size: 0.037, tracking: 0.06, gap: 0.26 },
   /** 題の下の帯（レーシングスーツの白赤）。幅は題に対する割合。 */
   stripe: { width: 0.3, red: 7, white: 3, gap: 5 },
   /**
@@ -42,8 +38,12 @@ export const TITLE = {
    *   padX/padY  板の内側の余白、radius 角の丸み、glow 滲みの強さ
    */
   board: {
-    pitch: 7, lit: 0.34, off: 0.14, threshold: 0.42,
-    padX: 28, padY: 22, radius: 18, glow: 1.1, gap: 0.24,
+    /** 板の中は**英数字だけ**。1行で入らなければ、最後の空白で2行に割る。 */
+    text: "HARUKA'S SETTING NOTE",
+    /** 字の大きさの上限（絵の高さに対する割合）と、ドットの行数の下限。 */
+    maxSize: 0.062, minRows: 7.5,
+    pitch: 9, lit: 0.34, off: 0.14, threshold: 0.55, tracking: 0.1,
+    padX: 30, padY: 24, radius: 18, glow: 0.8, gap: 0.22,
   },
   /**
    * 作り手の名前。**チェッカーフラッグ柄の帯に載せて、右下に貼ったように置く。**
@@ -94,25 +94,16 @@ function readColors(root = document.documentElement) {
   };
 }
 
-/** 帯に収まる字の大きさを探す。**はみ出させない。** */
-function fitFont(ctx, text, maxWidth, start) {
-  let size = start;
-  for (let i = 0; i < 40 && size > 8; i += 1) {
-    ctx.font = `400 ${size}px ${TITLE_FONT}`;
-    if (ctx.measureText(text).width <= maxWidth) break;
-    size -= Math.max(1, Math.round(size * 0.04));
-  }
-  return size;
-}
-
-/**
- * 題字は同梱のサブセット（assets/fonts/dela-gothic-one-title.woff2）。
- * **使う字だけ入れてある**ので、無い字は既定のゴシックへ落ちる。
- * 単一ウェイトの見出し用なので、**太らせない（weight 400）**。
- */
-const TITLE_FONT = '"Dela Gothic One", system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif';
-/** 落ちる先の既定ゴシック。 */
+/** 既定のゴシック。 */
 const FONT = 'system-ui, "Yu Gothic UI", "Hiragino Sans", "Noto Sans JP", sans-serif';
+/**
+ * 板の下の日本語の題名。**いまは既定のゴシック。**
+ * 同梱のサブセット（assets/fonts/dela-gothic-one-title.woff2、太くて角のある見出し用）に
+ * 替えるなら、ここを `TITLE_FONT` にして weight を 400 にするだけ。
+ */
+const JP_FONT = FONT;
+/** 同梱の見出し書体（いまは使っていない。theme.css に @font-face がある）。 */
+const TITLE_FONT = '"Dela Gothic One", system-ui, "Yu Gothic UI", "Hiragino Sans", sans-serif';
 /** ラテンだけは同梱の等幅（画面の層の書体）。assets/fonts/jetbrains-mono-latin.woff2 */
 const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
 
@@ -120,11 +111,11 @@ const MONO = '"JetBrains Mono", ui-monospace, Consolas, monospace';
  * 題を描く。画像があってもなくても、同じ位置に同じ大きさで出る。
  * **絵の下三分の一。** 上から順に：
  *
- *   ── SETTING NOTE ──   同梱の等幅。字間を開けて、両側に細い罫
- *   ┌────────────┐      電光掲示板（タイミングボード）
- *   │ ハルカの        │      ドットで光らせる。作り方は drawBoard
- *   │ セッティングノート │
+ *   ┌────────────┐      電光掲示板（タイミングボード）。中は英数字だけ
+ *   │  HARUKA'S      │      ドットで光らせる。作り方は drawBoard
+ *   │  SETTING NOTE  │
  *   └────────────┘
+ *   ハルカのセッティングノート   **正式な題名。** ドットにしない普通の字
  *        ▬▬               白と赤の帯（スーツの配色）
  *
  * 作り手の名前は別（drawSticker）。チェッカー柄の貼り紙にして右下に貼る。
@@ -134,15 +125,17 @@ function drawText(ctx, colors, scale) {
   const x = Math.round(TITLE.w / 2);
   const b = TITLE.board;
 
-  // 板の内側に収まる大きさを決める
-  const bottomSize = fitFont(ctx, TITLE.bottom, inner - b.padX * 2, Math.round(TITLE.h * 0.1));
-  const topSize = Math.round(bottomSize * TITLE.topScale);
-  const kickSize = Math.round(bottomSize * TITLE.kicker.scale);
-  const gap = Math.round(bottomSize * b.gap);
-  const kickGap = Math.round(bottomSize * 0.3);
+  // 板の中身（英数字）。1行で入って、ドットの行数も足りるならそのまま
+  const board = boardLines(ctx, inner - b.padX * 2);
+  const boardGap = Math.round(board.size * b.gap);
+  const boardH = board.lines.length * board.size
+    + (board.lines.length - 1) * boardGap + b.padY * 2;
+
+  // 板の下の日本語。板より小さく
+  const jpSize = Math.round(TITLE.h * TITLE.jp.size);
+  const jpGap = Math.round(jpSize * TITLE.jp.gap * 2);
   const stripeH = TITLE.stripe.red + TITLE.stripe.gap + TITLE.stripe.white;
-  const boardH = topSize + gap + bottomSize + b.padY * 2;
-  const blockH = kickSize + kickGap + boardH + Math.round(bottomSize * 0.3) + stripeH;
+  const blockH = boardH + jpGap + jpSize + Math.round(jpSize * 0.55) + stripeH;
   const y = Math.round(TITLE.h * (1 - TITLE.baseline) - blockH);
 
   ctx.save();
@@ -176,37 +169,21 @@ function drawText(ctx, colors, scale) {
     return ctx.measureText(text).width - spacing;
   };
 
-  // ── SETTING NOTE ──
-  const kickW = line(TITLE.kicker.text, kickSize, y,
-    { font: MONO, weight: 400, track: TITLE.kicker.tracking });
-  const ruleY = Math.round(y + kickSize * 0.55);
-  const ruleLen = Math.round(kickW * TITLE.kicker.rule);
-  const ruleGap = Math.round(kickSize * 1.2);
-  ctx.save();
-  shadow(kickSize);
-  ctx.strokeStyle = 'rgba(255, 255, 255, .7)';
-  ctx.lineWidth = 2;
-  for (const dir of [-1, 1]) {
-    const from = x + dir * (kickW / 2 + ruleGap);
-    ctx.beginPath();
-    ctx.moveTo(from, ruleY);
-    ctx.lineTo(from + dir * ruleLen, ruleY);
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  // 電光掲示板。題の2段はこの中でドットになる
-  const boardY = y + kickSize + kickGap;
+  // 電光掲示板
   drawBoard(ctx, colors, {
-    x: Math.round(x - inner / 2), y: boardY, w: Math.round(inner), h: boardH,
-    topSize, bottomSize, gap, scale,
+    x: Math.round(x - inner / 2), y, w: Math.round(inner), h: boardH,
+    lines: board.lines, size: board.size, gap: boardGap,
   });
 
+  // 正式な題名。白、中央、ドットにしない
+  const jpY = y + boardH + jpGap;
+  line(TITLE.jp.text, jpSize, jpY, { font: JP_FONT, weight: 700, track: TITLE.jp.tracking, stroke: 0.045 });
+
   // 白と赤の帯
-  const stripeY = Math.round(boardY + boardH + bottomSize * 0.3);
+  const stripeY = Math.round(jpY + jpSize + jpSize * 0.55);
   const stripeW = Math.round(inner * TITLE.stripe.width);
   ctx.save();
-  shadow(kickSize);
+  shadow(jpSize * 0.4);
   ctx.fillStyle = colors.accent;
   ctx.fillRect(x - stripeW / 2, stripeY, stripeW, TITLE.stripe.red);
   ctx.shadowColor = 'transparent';
@@ -216,6 +193,32 @@ function drawText(ctx, colors, scale) {
   ctx.restore();
 
   ctx.restore();
+}
+
+/**
+ * 板に入れる行を決める。**1行に入るならそのまま、入らなければ最後の空白で2行**。
+ * ドットの行数（字の高さ ÷ 格子）が足りない大きさなら、1行をあきらめて2行にする。
+ */
+function boardLines(ctx, maxWidth) {
+  const b = TITLE.board;
+  const max = Math.round(TITLE.h * b.maxSize);
+  const fit = (text) => {
+    let size = max;
+    for (let i = 0; i < 60 && size > 8; i += 1) {
+      ctx.letterSpacing = `${Math.round(size * b.tracking)}px`;
+      ctx.font = `700 ${size}px ${MONO}`;
+      if (ctx.measureText(text).width <= maxWidth) break;
+      size -= Math.max(1, Math.round(size * 0.04));
+    }
+    return size;
+  };
+  const one = fit(b.text);
+  ctx.letterSpacing = '0px';
+  if (one >= b.minRows * b.pitch) return { lines: [b.text], size: one };
+  // 割るのは**最初の空白**（「HARUKA'S」／「SETTING NOTE」）
+  const at = b.text.indexOf(' ');
+  const parts = at > 0 ? [b.text.slice(0, at), b.text.slice(at + 1)] : [b.text];
+  return { lines: parts, size: Math.min(...parts.map(fit)) };
 }
 
 /** 角の丸い矩形の道。古い canvas に roundRect が無くても通る。 */
@@ -241,7 +244,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
  */
 function drawBoard(ctx, colors, geo) {
   const b = TITLE.board;
-  const { x, y, w, h, topSize, bottomSize, gap } = geo;
+  const { x, y, w, h, lines, size, gap } = geo;
 
   // --- 筐体 -----------------------------------------------------------------
   ctx.save();
@@ -275,35 +278,35 @@ function drawBoard(ctx, colors, geo) {
   o.textAlign = 'center';
   o.textBaseline = 'top';
   o.fillStyle = '#ffffff';
-  const put = (text, size, ty, track) => {
-    const sp = Math.round(size * track);
-    o.letterSpacing = `${sp}px`;
-    o.font = `400 ${size}px ${TITLE_FONT}`;
-    o.fillText(text, off.width / 2 - sp / 2, ty);
-  };
-  put(TITLE.top, topSize, b.padY, 0.2);
-  put(TITLE.bottom, bottomSize, b.padY + topSize + gap, 0.04);
+  // 字間を少し開ける。詰めると隣の升と滲みが繋がって、字が塊になる
+  const sp = Math.round(size * b.tracking);
+  o.letterSpacing = `${sp}px`;
+  o.font = `700 ${size}px ${MONO}`;
+  lines.forEach((text, i) => {
+    o.fillText(text, off.width / 2 - sp / 2, b.padY + i * (size + gap));
+  });
   const px = o.getImageData(0, 0, off.width, off.height).data;
-  /** 升の濃さ（0〜1）。升の中を少し散らして拾い、縁のギザギザを均す。 */
+  /**
+   * 升の濃さ（0〜1）。升の中を散らして拾い、**いちばん濃いところ**を採る。
+   * 平均にすると、E の横棒のような細い画がまるごと消える。
+   */
   const cover = (cx, cy) => {
-    let sum = 0;
-    let n = 0;
+    let max = 0;
     for (let dy = -1; dy <= 1; dy += 1) {
       for (let dx = -1; dx <= 1; dx += 1) {
-        const sx = Math.round(cx + (dx * b.pitch) / 3.2);
-        const sy = Math.round(cy + (dy * b.pitch) / 3.2);
+        const sx = Math.round(cx + (dx * b.pitch) / 3);
+        const sy = Math.round(cy + (dy * b.pitch) / 3);
         if (sx < 0 || sy < 0 || sx >= off.width || sy >= off.height) continue;
-        sum += px[(sy * off.width + sx) * 4 + 3] / 255;
-        n += 1;
+        max = Math.max(max, px[(sy * off.width + sx) * 4 + 3] / 255);
       }
     }
-    return n ? sum / n : 0;
+    return max;
   };
 
   // --- ドットを打つ -----------------------------------------------------------
   const rLit = b.pitch * b.lit;
   const rOff = b.pitch * b.off;
-  const splitY = b.padY + topSize + gap / 2;
+  // 英数字だけなので色は1つ（琥珀）。上段だけ白にする分けはもう無い
   ctx.save();
   roundRectPath(ctx, x, y, w, h, b.radius);
   ctx.clip();
@@ -312,7 +315,7 @@ function drawBoard(ctx, colors, geo) {
   for (let gy = b.pitch / 2; gy < h - 1; gy += b.pitch) {
     for (let gx = b.pitch / 2; gx < w - 1; gx += b.pitch) {
       const v = cover(gx, gy);
-      if (v >= b.threshold) { lit.push([gx, gy, gy < splitY]); continue; }
+      if (v >= b.threshold) { lit.push([gx, gy]); continue; }
       // 消えている升もかすかに見える（実物の LED 板と同じ）
       ctx.beginPath();
       ctx.arc(x + gx, y + gy, rOff, 0, Math.PI * 2);
@@ -320,14 +323,14 @@ function drawBoard(ctx, colors, geo) {
     }
   }
   // 光る升。滲みを先に置いてから芯を打つ
-  for (const [gx, gy, isTop] of lit) {
-    ctx.fillStyle = isTop ? colors.monTextGlow : colors.monLitGlow;
+  ctx.fillStyle = colors.monLitGlow;
+  for (const [gx, gy] of lit) {
     ctx.beginPath();
     ctx.arc(x + gx, y + gy, rLit * (1 + b.glow), 0, Math.PI * 2);
     ctx.fill();
   }
-  for (const [gx, gy, isTop] of lit) {
-    ctx.fillStyle = isTop ? colors.monText : colors.monLit;
+  ctx.fillStyle = colors.monLit;
+  for (const [gx, gy] of lit) {
     ctx.beginPath();
     ctx.arc(x + gx, y + gy, rLit, 0, Math.PI * 2);
     ctx.fill();
@@ -491,7 +494,7 @@ export async function mountTitle(canvas, opts = {}) {
   // （間に合わなければ既定の等幅で出る。位置も大きさも変わらない）
   const font = Promise.all([
     document.fonts?.load(`400 ${Math.round(TITLE.h * 0.02)}px "JetBrains Mono"`, TITLE.credit.text),
-    document.fonts?.load(`400 ${Math.round(TITLE.h * 0.1)}px "Dela Gothic One"`, TITLE.top + TITLE.bottom),
+    document.fonts?.load(`700 ${Math.round(TITLE.h * 0.06)}px "JetBrains Mono"`, TITLE.board.text),
   ].filter(Boolean)).catch(() => null);
 
   const src = opts.src ?? TITLE.image;
