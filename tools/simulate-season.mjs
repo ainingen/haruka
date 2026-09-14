@@ -14,6 +14,7 @@
  *               同じ「3点」がクラス1では8割、クラス4では2割になってしまう
  *   --money N ：初期資金の上書き。上のクラスは newGame の資金では1点も買えないので、
  *               そのクラスに上がってきたときの手持ちを外から与える（既定は CLASS_MONEY）。
+ *   --economy path ：経済の表の差し替え（賞金を変える前後を同じ条件で比べるとき）。
  *   --quiet   ：戦ごとの行を出さず、最後に1行の要約（TSV）だけを出す。掃き出し用。
  *
  * docs/設計/経済とシーズン.md「数値の確かめ方」。目安（台数に按分）：
@@ -44,7 +45,8 @@ const capFor = (note) => (PARTS_FRAC === null ? PARTS_CAP : Math.round(note.leng
 const QUIET = !!args.quiet;
 const say = (...a) => { if (!QUIET) console.log(...a); };
 
-const E = load('economy.json');
+// --economy で経済の表を差し替えられる（変更の前後を同じ条件で比べるとき）
+const E = args.economy ? JSON.parse(readFileSync(String(args.economy), 'utf8')) : load('economy.json');
 const PARTS = load('parts.json');
 const CHASSIS = load('chassis.json');
 const COURSES = load('courses.json');
@@ -58,11 +60,15 @@ const yen = (n) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleStr
 const conflicts = (a, b) => [a.slot, ...(a.replaces ?? [])].some((s) => [b.slot, ...(b.replaces ?? [])].includes(s));
 
 /**
- * そのクラスに上がってきたときの手持ち。クラス1は新規開始の資金。
- * 2以上は「そのクラスの1位賞金 × 2」— 下のクラスを勝ち上がってきた人が、
- * 最初の買い物で2〜3点は選べる額。上のクラスを newGame の資金で測ると1点も買えない。
+ * そのクラスに上がってきたときの手持ち。クラス1は新規開始の資金（`initial_money`）。
+ *
+ * **2以上は「参加費6戦ぶん」＝ そのシーズンを走り切るだけの金。**
+ * 下のクラスを勝ち上がってきた人は、そこでパーツに使い切って上がってくる、という想定。
+ * パーツは上がってから稼いで買う（賞金はそれを前提に決めてある。generate-economy.mjs の BOOST）。
+ * ここを「1位賞金×2」のように賞金に連動させると、賞金を上げたぶん手持ちも増えてしまい、
+ * 「1シーズンかけて揃える」が測れなくなる。
  */
-const CLASS_MONEY = (cls) => (cls <= 1 ? E.initial_money : E.prize[cls][0] * 2);
+const CLASS_MONEY = (cls) => (cls <= 1 ? E.initial_money : E.entry_fee[cls] * E.rounds_per_season);
 
 const rng = createRng(SEED);
 let G = { ...newGame(E), cls: CLS, tier: Math.max(0, CLS - 1) };

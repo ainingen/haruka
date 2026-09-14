@@ -27,12 +27,27 @@ const PRIZE = {
   5: { first: 4700000, decay: 0.88, floor: 350000 },
 };
 
+/**
+ * 賞金の倍率（2026-09-14）。**表の形（減衰）は変えず、全体を持ち上げる。**
+ *
+ * 中位で6戦走ったときの手残りが、そのクラスで**新たに買う額**の7割前後になるように決めた。
+ * 「新たに買う額」は、そのクラスのノートの総額から、下のクラスのノートと重なるぶんを引いた額
+ * （docs/設計/経済とシーズン.md「ノートの重なり」）。1シーズンで「並」＝ノートの7割に届き、
+ * 2シーズン目で全点＋余裕、という意図。
+ *
+ * クラス1は触らない。ノートが短く（134k）、初期資金 60k と合わせれば1シーズンで揃う。
+ * クラス5は親父のノートが無いので、この基準では測らない（`docs/設計/経済とシーズン.md`）。
+ */
+const BOOST = { 1: 1, 2: 2.0, 3: 1.3, 4: 2.3, 5: 1 };
+
 const round = (v, unit) => Math.round(v / unit) * unit;
 
 const prize = {};
 for (const [cls, { first, decay, floor }] of Object.entries(PRIZE)) {
-  const unit = first >= 1000000 ? 50000 : first >= 100000 ? 5000 : 1000;
-  prize[cls] = Array.from({ length: GRID[cls] }, (_, i) => Math.max(floor, round(first * decay ** i, unit)));
+  const boost = BOOST[cls] ?? 1;
+  const top = first * boost;
+  const unit = top >= 1000000 ? 50000 : top >= 100000 ? 5000 : 1000;
+  prize[cls] = Array.from({ length: GRID[cls] }, (_, i) => Math.max(floor * boost, round(top * decay ** i, unit)));
 }
 
 const economy = {
