@@ -4,7 +4,7 @@
   "slots": {
     "intake":           { "no": "1",  "x": 0.360, "y": 0.480, "dir": "u", "len": 1.4, "group": "parts", "label": "吸気" },
     "exhaust":          { "no": "2",  "x": 0.470, "y": 0.740, "dir": "d", "len": 1.2, "group": "parts", "label": "排気" },
-    "ecu":              { "no": "3",  "x": 0.505, "y": 0.470, "dir": "r", "len": 1.0, "group": "parts", "label": "ECU" },
+    "ecu":              { "no": "3",  "x": 0.505, "y": 0.470, "dir": "r", "len": 1.8, "group": "parts", "label": "ECU" },
     "cam":              { "no": "4",  "x": 0.400, "y": 0.520, "dir": "r", "len": 1.7, "group": "parts", "label": "カム" },
     "forced_induction": { "no": "5",  "x": 0.275, "y": 0.565, "dir": "l", "len": 1.2, "group": "parts", "label": "過給" },
     "clutch":           { "no": "6",  "x": 0.495, "y": 0.605, "dir": "u", "len": 0.9, "group": "parts", "label": "クラッチ" },
@@ -23,7 +23,7 @@
     "compound":         { "no": "19", "x": 0.185, "y": 0.800, "dir": "d", "len": 1.8, "group": "parts", "label": "タイヤ" },
     "aero":             { "no": "20", "x": 0.950, "y": 0.350, "dir": "u", "len": 1.0, "group": "parts", "label": "空力" },
     "body":             { "no": "21", "x": 0.630, "y": 0.420, "dir": "r", "len": 1.0, "group": "parts", "label": "ボディ" },
-    "interior":         { "no": "22", "x": 0.600, "y": 0.285, "dir": "r", "len": 1.0, "group": "parts", "label": "内装" },
+    "interior":         { "no": "22", "x": 0.600, "y": 0.285, "dir": "u", "len": 1.0, "group": "parts", "label": "内装" },
     "wheel":            { "no": "23", "x": 0.740, "y": 0.700, "dir": "u", "len": 2.4, "group": "parts", "label": "ホイール" },
 
     "reinforce_block":  { "no": "R1", "x": 0.330, "y": 0.545, "dir": "d", "len": 1.5, "group": "reinforce", "label": "強化ブロック" },

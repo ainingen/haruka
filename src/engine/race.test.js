@@ -876,9 +876,9 @@ test('27. 側面図の位置指示：ユニット部品が同時に光らせる�
       }
     }
   }
-  // いまは2組ある（ECU↔カム、内装↔ボディ）。増やさないための歯止め。
-  // 直すのは slot-coords.json の dir / len で、コードではない
-  for (const o of overlaps) console.log(`  ← 丸が重なる: ${o}`);
-  assert.ok(overlaps.length <= 2, `丸の重なりが ${overlaps.length} 組。slot-coords.json の dir / len を見直す`);
-  console.log(`  ユニット部品 ${PARTS.filter((x) => x.replaces?.length).length} 点：重なり ${overlaps.length} 組`);
+  // **重なりは1組も許さない。** 直すのは slot-coords.json の dir / len で、コードではない
+  assert.deepEqual(overlaps, [], `丸が重なる。slot-coords.json の dir / len を見直す`);
+  const pairs = PARTS.filter((x) => x.replaces?.length);
+  const most = Math.max(...pairs.map((p) => occupiedSlots(p).length));
+  console.log(`  ユニット部品 ${pairs.length} 点（最大 ${most} スロット同時）：丸の重なりなし`);
 });
