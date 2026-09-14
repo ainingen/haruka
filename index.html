@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ja" class="paper-ground">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="src/ui/theme.css">
+<title>ハルカのセッティングノート</title>
+<style>
+/* ===========================================================================
+   タイトル画面。紙の層。ノートの表紙のつもりで、図面枠は使わない。
+   「はじめから」→ season.html（新しい進行）、「つづきから」→ 保存文字列の貼り付け。
+   色は theme.css の変数でしか書かない。
+   =========================================================================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--jp-font); font-size: var(--fs-body); line-height: 1.7;
+  min-height: 100vh; display: grid; place-items: center; padding: 24px 12px;
+}
+.cover {
+  width: min(480px, 100%); border: 2px solid var(--rule); padding: 5px; background: var(--paper);
+}
+.cover-inner { border: 1px solid var(--rule); background: var(--paper-2); padding: 28px 22px 22px; }
+.k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
+h1 {
+  margin: 6px 0 2px; font-family: var(--hand-font); font-weight: 600; font-size: var(--fs-num-lg); line-height: 1.35; letter-spacing: .06em;
+}
+.by { font-family: var(--hand-font); color: var(--ink-2); font-size: var(--fs-small); letter-spacing: .04em; }
+.rule { border: 0; border-top: 1px solid var(--ink-3); margin: 18px 0; }
+.lead { font-family: var(--hand-font); font-size: var(--fs-body); color: var(--ink); margin: 0 0 18px; }
+.menu { display: grid; gap: 10px; }
+.menu a, .menu button {
+  font: inherit; font-size: var(--fs-body); text-align: left; padding: 11px 14px; cursor: pointer; text-decoration: none;
+  background: var(--field); color: var(--ink); border: 1px solid var(--rule); box-shadow: 0 2px 6px var(--shadow);
+}
+.menu a.primary { background: var(--car); color: var(--paper); border-color: var(--car); font-weight: 700; }
+.menu small { display: block; font-size: var(--fs-sub); color: var(--ink-2); font-weight: 400; }
+.menu a.primary small { color: var(--paper); opacity: .85; }
+.load { margin-top: 12px; border: 1px dashed var(--ink-3); padding: 10px 12px; background: var(--field); }
+.load[hidden] { display: none; }
+.load label { display: block; font-size: var(--fs-sub); color: var(--ink-2); margin-bottom: 4px; }
+.load textarea {
+  width: 100%; height: 88px; font-family: var(--mon-font); font-size: var(--fs-sub); line-height: 1.4;
+  background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3); padding: 6px; resize: vertical;
+}
+.load .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.load button { font: inherit; font-size: var(--fs-small); padding: 7px 14px; cursor: pointer; background: var(--paper); color: var(--ink); border: 1px solid var(--rule); }
+.load button.go { background: var(--car); color: var(--paper); border-color: var(--car); font-weight: 700; }
+.load .msg { font-size: var(--fs-sub); color: var(--bad); }
+.foot { margin-top: 18px; font-size: var(--fs-sub); color: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<div class="cover"><div class="cover-inner">
+  <div class="k">SETTING NOTE</div>
+  <h1>ハルカの<br>セッティングノート</h1>
+  <div class="by">神谷大河 — 神谷ハルカ</div>
+  <hr class="rule">
+  <p class="lead">セッティングは、車の文句に返事をすること。</p>
+
+  <div class="menu">
+    <a class="primary" id="newGame" href="src/ui/season.html">はじめから<small>クラス1、走行会から。所持金は中古パーツ2〜3点ぶん</small></a>
+    <button type="button" id="continueBtn">つづきから<small>保存文字列を貼り付ける</small></button>
+  </div>
+
+  <div class="load" id="loadBox" hidden>
+    <label for="saveText">保存文字列（シーズン画面の「保存」に出るもの。URL 全体でも可）</label>
+    <textarea id="saveText" spellcheck="false" placeholder="eyJ2IjoxLCJ…"></textarea>
+    <div class="row">
+      <button type="button" class="go" id="loadBtn">再開する</button>
+      <span class="msg" id="loadMsg"></span>
+    </div>
+  </div>
+
+  <div class="foot">絵で戦わない。車は線、コースは線。タイムは理解でしか縮まない。</div>
+</div></div>
+
+<script type="module">
+import { decode, encode } from './src/engine/save.js';
+
+const el = (id) => document.getElementById(id);
+el('continueBtn').addEventListener('click', () => {
+  el('loadBox').hidden = !el('loadBox').hidden;
+  if (!el('loadBox').hidden) el('saveText').focus();
+});
+
+/** 貼り付けられたものから保存文字列を取り出す。URL 全体なら s= を抜く。 */
+function extract(raw) {
+  const text = raw.trim();
+  if (!text) return null;
+  const m = text.match(/[?&]s=([A-Za-z0-9_-]+)/);
+  return m ? m[1] : text.replace(/\s+/g, '');
+}
+el('loadBtn').addEventListener('click', () => {
+  const s = extract(el('saveText').value);
+  const state = decode(s);
+  if (!state) { el('loadMsg').textContent = '読めない。保存文字列をそのまま貼り付けてください'; return; }
+  el('loadMsg').textContent = '';
+  location.href = `src/ui/season.html?s=${encode(state)}`;
+});
+</script>
+</body>
+</html>
