@@ -112,15 +112,20 @@ export function applyWear(economy, part, durability) {
   return { ...part, effects, worn: k };
 }
 
-/** 修理費。減った割合に比例。満タンなら 0。 */
-export function repairCost(economy, part, durability) {
+/**
+ * 修理費。減った割合に比例し、**そのクラスの5位の賞金を上限**とする（cls を渡したとき）。
+ * 高価なパーツでも、中位の賞金1回ぶんで必ず直せる。満タンなら 0。
+ */
+export function repairCost(economy, part, durability, cls = null) {
   const missing = Math.max(0, part.durability - durability) / part.durability;
-  return Math.round(part.price * economy.wear.repair_rate * missing);
+  const raw = Math.round(part.price * economy.wear.repair_rate * missing);
+  const cap = cls ? (economy.prize[cls]?.[4] ?? Infinity) : Infinity;
+  return Math.min(raw, cap);
 }
 
 /** 修理。耐久を上限に戻し、費用を引く。払えなければ例外。 */
 export function repair(state, part, economy) {
-  const cost = repairCost(economy, part, condition(state, part));
+  const cost = repairCost(economy, part, condition(state, part), state.cls);
   if (cost > state.money) throw new Error(`修理費が払えない: ${part.id}`);
   return { ...state, money: state.money - cost, cond: { ...state.cond, [part.id]: part.durability } };
 }
@@ -147,5 +152,5 @@ export function applyRaceWear(state, equippedParts, reliability, retired, econom
 
 /** 装着中のパーツの修理費の合計（収支の見積もりに使う）。 */
 export function repairEstimate(state, parts, economy) {
-  return parts.reduce((sum, p) => sum + repairCost(economy, p, condition(state, p)), 0);
+  return parts.reduce((sum, p) => sum + repairCost(economy, p, condition(state, p), state.cls), 0);
 }

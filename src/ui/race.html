@@ -1583,7 +1583,7 @@ function finish() {
   balance.worn = wearResult.worn;
   balance.repair = wearResult.worn.reduce((sum, w) => {
     const p = S.mine.find((x) => x.id === w.id);
-    return sum + repairCost(E, p, w.after);
+    return sum + repairCost(E, p, w.after, S.cls);
   }, 0);
   G = { ...wearResult.state, money: G.money + balance.net };
   S.balance = balance;

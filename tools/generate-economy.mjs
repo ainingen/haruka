@@ -20,11 +20,11 @@ const GRID = { 1: 8, 2: 12, 3: 16, 4: 20, 5: 20 };
  * 追随させる。「6戦で中位なら2〜3点、上位なら5点」を狙う。
  */
 const PRIZE = {
-  1: { first: 24000, decay: 0.80, floor: 4000 },
-  2: { first: 70000, decay: 0.85, floor: 8000 },
-  3: { first: 130000, decay: 0.87, floor: 12000 },
-  4: { first: 700000, decay: 0.88, floor: 50000 },
-  5: { first: 3500000, decay: 0.88, floor: 250000 },
+  1: { first: 32000, decay: 0.80, floor: 6000 },
+  2: { first: 95000, decay: 0.85, floor: 12000 },
+  3: { first: 175000, decay: 0.87, floor: 18000 },
+  4: { first: 950000, decay: 0.88, floor: 70000 },
+  5: { first: 4700000, decay: 0.88, floor: 350000 },
 };
 
 const round = (v, unit) => Math.round(v / unit) * unit;
@@ -41,7 +41,7 @@ const economy = {
   sell_ratio: 0.4,
   rounds_per_season: 6,
   laps: { 1: 8, 2: 10, 3: 12, 4: 14, 5: 16 },
-  entry_fee: { 1: 4000, 2: 15000, 3: 40000, 4: 120000, 5: 300000 },
+  entry_fee: { 1: 3000, 2: 11000, 3: 30000, 4: 90000, 5: 220000 },
   prize,
   sponsor_fee: [0, 6000, 30000, 100000, 300000],
   points: [10, 8, 6, 5, 4, 3, 2, 1],
@@ -52,7 +52,7 @@ const economy = {
     per_reliability: 0.06,
     retire_multiplier: 3,
     threshold: 30,
-    repair_rate: 0.3,
+    repair_rate: 0.15,   // 上限はそのクラスの5位の賞金（economy.js repairCost）
   },
 };
 

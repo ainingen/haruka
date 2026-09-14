@@ -28,11 +28,14 @@ export const AI_PROFILES = {
   balanced: { radio: 'aggressive', keys: ['stability', 'cornering_grip', 'power'] },
 };
 
-/** 強さ3段階。技量の差と、構成の決め方。 */
+/**
+ * 強さ3段階。差は主にパーツで付け、技量の差は小さく（遅いの技量を大きく下げると、
+ * 安物の差を打ち消して純正の自車が遅い車に勝ってしまう）。
+ */
 export const AI_STRENGTH = {
-  fast:   { skill: +5, extras: [2, 3] },   // 並に足す点数（この範囲から乱数で）
+  fast:   { skill: +3, extras: [2, 3] },   // 並に足す点数（この範囲から乱数で）
   normal: { skill: 0 },
-  slow:   { skill: -5, cheap: [1, 2] },    // 純正に足す安物の点数
+  slow:   { skill: -2, cheap: [1, 2] },    // 純正に足す安物の点数
 };
 
 /** AI が使える規定内のパーツ。スポンサー段階はクラス − 1 とみなす。 */

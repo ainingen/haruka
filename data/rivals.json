@@ -1,22 +1,122 @@
 [
-  { "number": 2,  "name": "早瀬",   "profile": "straight", "strength": "fast" },
-  { "number": 5,  "name": "御堂",   "profile": "corner",   "strength": "fast" },
-  { "number": 7,  "name": "九条",   "profile": "balanced", "strength": "fast" },
-  { "number": 11, "name": "篠宮",   "profile": "power",    "strength": "normal" },
-  { "number": 14, "name": "橘",     "profile": "stopgo",   "strength": "normal" },
-  { "number": 17, "name": "相良",   "profile": "straight", "strength": "normal" },
-  { "number": 21, "name": "綾瀬",   "profile": "corner",   "strength": "slow" },
-  { "number": 23, "name": "鷹村",   "profile": "balanced", "strength": "slow" },
-  { "number": 26, "name": "桐生",   "profile": "power",    "strength": "fast" },
-  { "number": 29, "name": "神楽",   "profile": "stopgo",   "strength": "slow" },
-  { "number": 33, "name": "天城",   "profile": "straight", "strength": "slow" },
-  { "number": 36, "name": "城ヶ崎", "profile": "corner",   "strength": "normal" },
-  { "number": 38, "name": "白石",   "profile": "balanced", "strength": "normal" },
-  { "number": 41, "name": "蓮見",   "profile": "power",    "strength": "slow" },
-  { "number": 44, "name": "三雲",   "profile": "stopgo",   "strength": "fast" },
-  { "number": 47, "name": "遠野",   "profile": "straight", "strength": "normal" },
-  { "number": 52, "name": "伊吹",   "profile": "corner",   "strength": "slow" },
-  { "number": 55, "name": "氷室",   "profile": "balanced", "strength": "fast" },
-  { "number": 61, "name": "瀬戸",   "profile": "power",    "strength": "normal" },
-  { "number": 68, "name": "真壁",   "profile": "stopgo",   "strength": "slow" }
+  {
+    "number": 2,
+    "name": "早瀬",
+    "profile": "straight",
+    "strength": "fast"
+  },
+  {
+    "number": 5,
+    "name": "御堂",
+    "profile": "corner",
+    "strength": "fast"
+  },
+  {
+    "number": 11,
+    "name": "篠宮",
+    "profile": "power",
+    "strength": "normal"
+  },
+  {
+    "number": 14,
+    "name": "橘",
+    "profile": "stopgo",
+    "strength": "normal"
+  },
+  {
+    "number": 21,
+    "name": "綾瀬",
+    "profile": "corner",
+    "strength": "slow"
+  },
+  {
+    "number": 23,
+    "name": "鷹村",
+    "profile": "balanced",
+    "strength": "slow"
+  },
+  {
+    "number": 29,
+    "name": "神楽",
+    "profile": "stopgo",
+    "strength": "slow"
+  },
+  {
+    "number": 7,
+    "name": "九条",
+    "profile": "balanced",
+    "strength": "fast"
+  },
+  {
+    "number": 26,
+    "name": "桐生",
+    "profile": "power",
+    "strength": "fast"
+  },
+  {
+    "number": 17,
+    "name": "相良",
+    "profile": "straight",
+    "strength": "normal"
+  },
+  {
+    "number": 33,
+    "name": "天城",
+    "profile": "straight",
+    "strength": "slow"
+  },
+  {
+    "number": 36,
+    "name": "城ヶ崎",
+    "profile": "corner",
+    "strength": "normal"
+  },
+  {
+    "number": 38,
+    "name": "白石",
+    "profile": "balanced",
+    "strength": "normal"
+  },
+  {
+    "number": 41,
+    "name": "蓮見",
+    "profile": "power",
+    "strength": "slow"
+  },
+  {
+    "number": 44,
+    "name": "三雲",
+    "profile": "stopgo",
+    "strength": "fast"
+  },
+  {
+    "number": 47,
+    "name": "遠野",
+    "profile": "straight",
+    "strength": "normal"
+  },
+  {
+    "number": 52,
+    "name": "伊吹",
+    "profile": "corner",
+    "strength": "slow"
+  },
+  {
+    "number": 55,
+    "name": "氷室",
+    "profile": "balanced",
+    "strength": "fast"
+  },
+  {
+    "number": 61,
+    "name": "瀬戸",
+    "profile": "power",
+    "strength": "normal"
+  },
+  {
+    "number": 68,
+    "name": "真壁",
+    "profile": "stopgo",
+    "strength": "slow"
+  }
 ]

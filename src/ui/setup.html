@@ -1352,7 +1352,7 @@ function drawModal() {
   }
   const d = durInfo(cand);
   if (d.pct < 100) {
-    const cost = repairCost(DATA.economy, cand, d.cur);
+    const cost = repairCost(DATA.economy, cand, d.cur, G.cls);
     // 修理は任意。閾値を切っていれば効果が落ちていることを先に言う
     if (d.state !== 'ok') {
       msg.classList.remove('ok');
@@ -1372,7 +1372,7 @@ function buyFromModal(part) {
   renderAll();
 }
 function repairFromModal(part) {
-  const cost = repairCost(DATA.economy, part, condition(G, part));
+  const cost = repairCost(DATA.economy, part, condition(G, part), G.cls);
   if (cost > G.money) return;
   pendingRoll = { axes: radarValues(perf()), status: statusValues() };
   G = repair(G, part, DATA.economy);
