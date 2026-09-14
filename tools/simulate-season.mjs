@@ -8,14 +8,17 @@
  *   notes ：親父のノート通りに、毎戦買える範囲で買う（コースごとに引き直す）
  *   smart ：6戦のコースを「時間」で見て効く効果を採点し、毎戦買える範囲で上から 5 点まで買う
  *
- *   --parts N ：買う点数の上限（notes / smart）。ノートの安い順に N 点でやめる。
- *               「ノート通り3点」「ノート通り5点」を測るためのもの。既定は上限なし。
+ *   --parts N ：買う点数の上限（notes / smart）。ノートの安い順に N 点でやめる。既定は上限なし
+ *   --frac F  ：上限をノートの割合で（--frac 0.6 ＝ そのコースのノートの6割まで）。--parts より優先。
+ *               **目安はこちらで見る。** クラスによってノートの長さが違うので、
+ *               同じ「3点」がクラス1では8割、クラス4では2割になってしまう
  *   --money N ：初期資金の上書き。上のクラスは newGame の資金では1点も買えないので、
  *               そのクラスに上がってきたときの手持ちを外から与える（既定は CLASS_MONEY）。
  *   --quiet   ：戦ごとの行を出さず、最後に1行の要約（TSV）だけを出す。掃き出し用。
  *
  * docs/設計/経済とシーズン.md「数値の確かめ方」。目安（台数に按分）：
- *   買わない → 下位1/4、ノート3点 → 5〜6位相当（台数比）、ノート5点 → 上位1/3。
+ *   買わない → 下位1/4、ノートの6割 → 台数×(5〜6)/8、ノート全点 → 並より上。
+ *   クラス1だけは例外（ノートが4〜5点しかないので、6割でもう並と同じ位置になる）。
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +37,10 @@ const SEED = Number(args.seed ?? 1);
 const STRATEGY = args.strategy ?? 'notes';
 const REPAIR = args.repair ?? 'always';
 const PARTS_CAP = args.parts === undefined ? Infinity : Number(args.parts);
+// 点数をノートの割合で止める（--frac 0.6 ＝ そのコースのノートの6割まで）。
+// クラスによってノートの長さが違うので、目安はこちらで見る
+const PARTS_FRAC = args.frac === undefined ? null : Number(args.frac);
+const capFor = (note) => (PARTS_FRAC === null ? PARTS_CAP : Math.round(note.length * PARTS_FRAC));
 const QUIET = !!args.quiet;
 const say = (...a) => { if (!QUIET) console.log(...a); };
 
@@ -63,7 +70,8 @@ G.money = args.money === undefined ? CLASS_MONEY(CLS) : Number(args.money);
 G.season = newSeason(CLS, COURSES, E, rng);
 const chassis = CHASSIS[CLASS_CHASSIS[CLS]];
 
-say(`クラス${CLS}、seed ${SEED}、方針: ${STRATEGY}${Number.isFinite(PARTS_CAP) ? `（${PARTS_CAP}点まで）` : ''}、修理: ${REPAIR}。初期資金 ${yen(G.money)}`);
+const capLabel = PARTS_FRAC !== null ? `（ノートの${PARTS_FRAC * 10}割まで）` : Number.isFinite(PARTS_CAP) ? `（${PARTS_CAP}点まで）` : '';
+say(`クラス${CLS}、seed ${SEED}、方針: ${STRATEGY}${capLabel}、修理: ${REPAIR}。初期資金 ${yen(G.money)}`);
 say(`6戦: ${G.season.rounds.map((r) => r.course).join(' → ')}\n`);
 
 /**
@@ -122,7 +130,7 @@ while (!seasonOver(G.season)) {
     const want = [...base.parts].sort((a, b) => a.price - b.price);
     // 安い順に買う。--parts があればその点数でやめる（「ノート通り3点」はこれ）
     for (const p of want) {
-      if (G.owned.length >= PARTS_CAP) break;
+      if (G.owned.length >= capFor(base.parts)) break;
       if (!buyBlocker(G, p)) { G = buy(G, p); spent += p.price; bought += 1; }
     }
     // 装着は**そのコースのノートを先に**。残りのスロットを他の所持パーツで埋める。
@@ -181,7 +189,9 @@ say(`着順 ${finishes.map((p) => p ?? 'DNF').join(' ')}（平均 ${avg.toFixed(
 say(`購入 ${bought} 点（${yen(spent)}）。所持金 ${yen(G.money)}。このクラスの未所有パーツを安い順にあと ${n} 点買える`);
 // --quiet のときの1行。掃き出して表にする（cls, seed, 方針, 台数, 着順…, 平均, DNF, 購入点数, 所持金）
 if (QUIET) {
-  const label = STRATEGY === 'none' ? 'none' : `${STRATEGY}${Number.isFinite(PARTS_CAP) ? PARTS_CAP : ''}`;
+  const label = STRATEGY === 'none' ? 'none'
+    : PARTS_FRAC !== null ? `${STRATEGY}-${PARTS_FRAC}`
+    : `${STRATEGY}${Number.isFinite(PARTS_CAP) ? PARTS_CAP : ''}`;
   console.log([CLS, SEED, label, v.total, finishes.map((p) => p ?? 'DNF').join('/'),
     avg.toFixed(2), finishes.length - scored.length, bought, Math.round(G.money)].join('\t'));
 }
