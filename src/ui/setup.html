@@ -215,7 +215,8 @@ h2 {
 }
 .mod-head .x:hover { border-color: var(--mon-text); }
 .mod-body { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 0; }
-.mod-list { overflow-y: auto; border-right: 1px solid var(--mon-line); min-height: 0; }
+.mod-left { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; border-right: 1px solid var(--mon-line); }
+.mod-list { overflow-y: auto; min-height: 0; }
 .cand {
   display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 2px 6px; align-items: baseline;
   width: 100%; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--mon-line);
@@ -243,7 +244,8 @@ h2 {
 .axes td { padding: 2px 4px; border-top: 1px dashed var(--mon-line); text-align: right; white-space: nowrap; }
 .axes td.lb { font-family: var(--jp-font); color: var(--mon-dim); text-align: left; }
 .axes td.arrow { color: var(--mon-dim); padding: 0; }
-.axes td.after { color: var(--mon-green); }
+/* 装着後の値は白。緑はレーダーの「装着後の面」だけに残す（緑＝良い と衝突させない） */
+.axes td.after { color: var(--mon-text); }
 .axes td.d.up { color: var(--mon-green); }
 .axes td.d.dn { color: var(--mon-amber); }
 .axes td.d.eq { color: var(--mon-dim); }
@@ -269,11 +271,18 @@ h2 {
 .mod-foot button.primary { border-color: var(--mon-green); color: var(--mon-green); font-weight: 700; }
 .mod-foot button.primary:hover { background: var(--mon-green); color: var(--mon-bg); }
 .mod-foot button[disabled] { color: var(--mon-dim); border-color: var(--mon-line); cursor: not-allowed; background: none; }
+/* スロットの解説（data/slots.json）。候補リストの下。書かれていないスロットでは枠ごと出ない */
+.mod-desc {
+  border-top: 1px solid var(--mon-line); padding: 6px 8px;
+  font-family: var(--jp-font); font-size: 10.5px; line-height: 1.65; color: var(--mon-dim);
+}
+.mod-desc .k { display: block; font-family: var(--mon-font); font-size: 8.5px; letter-spacing: .2em; margin-bottom: 2px; }
 @media (max-width: 560px) {
   .modal-back { padding: 6px; }
   .modal { max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px); }
   .mod-body { display: block; overflow-y: auto; }
-  .mod-list { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--mon-line); }
+  .mod-left { display: block; border-right: 0; }
+  .mod-list { max-height: 30vh; border-bottom: 1px solid var(--mon-line); }
 }
 
 /* --- 下段ステータス ------------------------------------------------------ */
@@ -480,7 +489,10 @@ h2 {
       <button type="button" class="x" id="modClose" aria-label="閉じる">✕</button>
     </div>
     <div class="mod-body">
-      <div class="mod-list" id="modList"></div>
+      <div class="mod-left">
+        <div class="mod-list" id="modList"></div>
+        <div class="mod-desc" id="modDesc" hidden></div>
+      </div>
       <div class="mod-cmp" id="modCmp"></div>
     </div>
     <div class="mod-note" id="modNote"></div>
@@ -753,17 +765,18 @@ async function loadCarSvg(id) {
 }
 
 async function loadAll() {
-  const [parts, chassisData, courses, drivers, radio, notes] = await Promise.all([
+  const [parts, chassisData, courses, drivers, radio, notes, slots] = await Promise.all([
     json('../../data/parts.json'),
     json('../../data/chassis.json'),
     json('../../data/courses.json'),
     json('../../data/drivers.json'),
     json('../../data/radio.json'),
     json('../../data/notes.json'),
+    json('../../data/slots.json'),
   ]);
   const cars = {};
   for (const id of ['hatchback', 'sedan', 'gt', 'formula']) cars[id] = await loadCarSvg(id);
-  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, cars };
+  return { parts, chassis: chassisData, courses, drivers, driver: drivers[0], radio, notes, slots, cars };
 }
 
 // ---------------------------------------------------------------------------
@@ -1222,6 +1235,12 @@ function drawModal() {
     });
     box.appendChild(btn);
   }
+
+  // --- 左の下：スロットの解説（data/slots.json。書かれていなければ枠ごと出さない） ---
+  const desc = DATA.slots[slot]?.slot_description;
+  const descBox = el('modDesc');
+  descBox.hidden = !desc;
+  if (desc) descBox.innerHTML = `<span class="k">SLOT</span>${esc(desc)}`;
 
   // --- 右：比較 ----------------------------------------------------------
   drawCompare();

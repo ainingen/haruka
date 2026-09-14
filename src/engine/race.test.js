@@ -519,3 +519,26 @@ test('20. 予選のデータ：ノートの予選欄、無線の予選台詞、�
   const texts = collectEntries(COMMENTARY).map((e) => e.text);
   assert.equal(new Set(texts).size, texts.length, '予選の台詞を足しても重複なし');
 });
+
+test('21. slots.json: キーが実在のスロットで、解説は2〜3文。パーツ名と数値を書かない', () => {
+  const SLOT_DESC = load('slots.json');
+  const all = Object.values(SLOTS).flat();
+  const names = PARTS.map((p) => p.name);
+  for (const [slot, def] of Object.entries(SLOT_DESC)) {
+    assert.ok(all.includes(slot), `slots.json の "${slot}" は SLOTS に無いスロット`);
+    const text = def.slot_description;
+    assert.ok(typeof text === 'string' && text.length > 0, `${slot}: slot_description が無い`);
+    // 「仕組み → 得るもの → 失うもの」を書くと2〜3文になる（data/README.md）
+    const sentences = text.split('。').filter(Boolean).length;
+    assert.ok(sentences >= 2 && sentences <= 3, `${slot}: ${sentences}文。2〜3文で書く`);
+    // 個別のパーツ名も解禁クラスも書かない（パーツが増減しても直さずに済むように）
+    for (const name of names) assert.ok(!text.includes(name), `${slot}: パーツ名「${name}」を書かない`);
+    assert.ok(!/クラス\d/.test(text), `${slot}: 解禁クラスは候補リストが出すので書かない`);
+    assert.ok(!text.includes('ハルノート'), `${slot}: 呼称ルール（docs/シナリオ/キャラクター.md）`);
+  }
+  // 現時点では engine の5スロットだけ。書けたところから足していく
+  for (const slot of SLOTS.engine) {
+    assert.ok(SLOT_DESC[slot], `engine の ${slot} の解説がない`);
+  }
+  console.log(`  解説 ${Object.keys(SLOT_DESC).length} / 全 ${all.length} スロット`);
+});
