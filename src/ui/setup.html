@@ -712,20 +712,23 @@ function activeSettingsOf(parts) {
   return out;
 }
 const activeSettings = () => activeSettingsOf(activeParts());
-/** 装着表 → race.js に渡すスロット → パーツ の対応表（重複は race.js が検査する）。規定外は落とす。 */
-function loadoutOf(equipped) {
+/**
+ * 装着表 → race.js に渡すスロット → パーツ の対応表（重複は race.js が検査する）。規定外は落とす。
+ * allowId を渡すと、そのパーツだけは規定外でも入れる（モニターで「付けたらどうなるか」を見せるため）。
+ */
+function loadoutOf(equipped, allowId = null) {
   const map = {};
   for (const [slot, id] of Object.entries(equipped)) {
     if (!id) continue;
     const p = partById(id);
-    if (isLegal(p) && p.slot === slot) map[slot] = p;   // ホームスロットの分だけ入れる
+    if ((isLegal(p) || p.id === allowId) && p.slot === slot) map[slot] = p;   // ホームスロットの分だけ入れる
   }
   return map;
 }
 const loadout = () => loadoutOf(state.equipped);
 /** 任意の装着表で性能を組む。モニターの「装着後」はこれで作る（state は変えない）。 */
-function perfOf(equipped) {
-  const lo = loadoutOf(equipped);
+function perfOf(equipped, allowId = null) {
+  const lo = loadoutOf(equipped, allowId);
   return buildPerformance(lo, DATA.driver, chassis(), activeSettingsOf(Object.values(lo)));
 }
 const perf = () => perfOf(state.equipped);
@@ -1268,7 +1271,8 @@ function drawCompare() {
   if (!cand) { box.innerHTML = '<div class="cmp-cap">候補が無い</div>'; return; }
   const on = state.equipped[state.openSlot] === cand.id;
   const now = perf();
-  const after = on ? now : perfOf(equippedWith(cand));
+  // 規定外の候補も「付けたらどうなるか」は見せる（装着はフッターで止める）
+  const after = on ? now : perfOf(equippedWith(cand), cand.id);
   const a0 = radarValues(now), a1 = radarValues(after);
   const from = pendingRoll?.axes ?? [];
   // 目盛：クラスごとの下限を持ちつつ、現在・装着後・回転の起点がすべて収まる幅
