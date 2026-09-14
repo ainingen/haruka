@@ -13,7 +13,11 @@ import {
   seasonEvents, SEASON_EVENTS, titleClinched, winSceneDue,
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
-import { newGame, encode, decode, markScene, trimTo, LINE_MAX, NAME_MAX } from './save.js';
+import {
+  newGame, encode, decode, markScene, trimTo,
+  LINE_MAX, NAME_MAX, DEFAULT_LINE, DEFAULT_NAME, PROLOGUE_CHOICES,
+} from './save.js';
+import { runPrologue } from './prologue.js';
 import { buildPerformance, createRng, simulateRace, WEIGHTS } from './race.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -426,4 +430,81 @@ test('S11. 台本の台詞が、そのまま scenes.json と radio.json に入�
   const says = scenes.flatMap((s) => s.steps.filter((x) => x.say)).length;
   const lines = Object.values(class5).filter((t) => t.lines).reduce((n, t) => n + t.lines.length, 0);
   console.log(`  台本と一致：場面 ${scenes.length} 本 / 台詞 ${says} 行、無線 ${lines} 本、シーズン末 ${seasonNote.length} 本`);
+});
+
+test('S12. プロローグの第2場：18通りの選択すべてで2位以上。空気圧を高くしたときだけ2位', () => {
+  const cfg = load('prologue.json');
+  const course = COURSES.find((c) => c.id === cfg.course);
+  const chassis = load('chassis.json')[cfg.chassis];
+  const driver = load('drivers.json')[0];
+  assert.ok(course, 'プロローグのコースが courses.json にある');
+  assert.ok(chassis?.base_speed, 'プロローグの車体が chassis.json にある');
+
+  const rows = [];
+  for (const pressure of PROLOGUE_CHOICES.pressure) {
+    for (const sprocket of PROLOGUE_CHOICES.sprocket) {
+      for (const sidebar of ['on', 'off']) {
+        const flags = { pressure, sprocket, sidebar };
+        const { cars, pos } = runPrologue(cfg, flags, { course, chassis, driver });
+        const me = cars[0];
+        assert.ok(pos <= 2, `${pressure}/${sprocket}/${sidebar} が ${pos} 位（2位以上のはず）`);
+        // **空気圧を高くしたときだけ2位。** 台本の「終盤タレたな」と「空気圧、俺のせいかも」に合わせる
+        assert.equal(pos, pressure === 'high' ? 2 : 1, `${pressure}/${sprocket}/${sidebar} の順位`);
+        assert.ok(!me.retired, 'プロローグではリタイアしない');
+        rows.push({ flags, pos, total: me.raceTime, first: me.lapTimes[0], last: me.lapTimes.at(-1) });
+      }
+    }
+  }
+  // 選択の差は「わずか」。18通りの総時間の開きが、1周のタイムより小さい
+  const totals = rows.map((r) => r.total);
+  const spread = Math.max(...totals) - Math.min(...totals);
+  assert.ok(spread < rows[0].first, `選択の差が大きすぎる：${spread.toFixed(2)}秒`);
+  // 空気圧・高は序盤が速くて終盤がタレる（同じスプロケ・サイドバーで比べる）
+  const at = (p) => rows.find((r) => r.flags.pressure === p && r.flags.sprocket === 'mid' && r.flags.sidebar === 'on');
+  assert.ok(at('high').first < at('mid').first, '高は序盤が速い');
+  assert.ok(at('high').last > at('mid').last, '高は終盤がタレる');
+  console.log(`  プロローグ18通り：総時間の開き ${spread.toFixed(2)}秒`
+    + `　高の1周目 ${at('high').first.toFixed(2)}s→最終周 ${at('high').last.toFixed(2)}s`
+    + `／標準 ${at('mid').first.toFixed(2)}s→${at('mid').last.toFixed(2)}s`);
+});
+
+test('S13. プロローグで決まる5つが進行に入り、飛ばしても既定で成立する', () => {
+  const SCENES = load('scenes.json').scenes;
+  const byId = Object.fromEntries(SCENES.map((s) => [s.id, s]));
+  for (const id of ['p1', 'p2', 'p3', 'p4']) assert.ok(byId[id], `場面 ${id} が無い`);
+
+  // 第1場の3つの選択は、state の枠（PROLOGUE_CHOICES）と同じ選択肢を持つ
+  const choices = byId.p1.steps.filter((s) => s.do === 'choose');
+  assert.equal(choices.length, 3, '第1場の操作は3つ');
+  assert.deepEqual(choices.map((c) => c.key), ['pressure', 'sprocket', 'sidebar']);
+  assert.deepEqual(choices[0].options.map((o) => o.id), PROLOGUE_CHOICES.pressure);
+  assert.deepEqual(choices[1].options.map((o) => o.id), PROLOGUE_CHOICES.sprocket);
+  assert.deepEqual(choices[2].options.map((o) => o.id), ['on', 'off']);
+  // 第2場の結果で台詞が分かれ、第4場は3択と名前の入力を持つ
+  assert.ok(byId.p2.steps.some((s) => s.when?.pos === 1) && byId.p2.steps.some((s) => s.when?.pos === 2), '順位で分岐する');
+  assert.ok(byId.p4.steps.some((s) => s.do === 'choose' && s.options.length === 3), '第4場の3択');
+  assert.ok(byId.p4.steps.some((s) => s.do === 'name'), '第4場で名前を入れる');
+  assert.equal(byId.p3.steps.find((s) => s.do === 'input')?.default, DEFAULT_LINE, '第3場の既定文は save.js と同じ');
+
+  // **飛ばしたとき**：何も選ばなくても既定のまま成立する
+  const skipped = newGame(ECONOMY);
+  assert.equal(skipped.player.name, DEFAULT_NAME);
+  assert.equal(skipped.prologue.line, DEFAULT_LINE);
+  assert.ok(PROLOGUE_CHOICES.pressure.includes(skipped.prologue.pressure));
+  assert.ok(PROLOGUE_CHOICES.sprocket.includes(skipped.prologue.sprocket));
+  assert.equal(typeof skipped.prologue.sidebar, 'boolean');
+  assert.ok([1, 2].includes(skipped.prologue.pos));
+  assert.deepEqual(decode(encode(skipped)).prologue, skipped.prologue, '形式を通しても消えない');
+
+  // 一番かさむ形でも 4,000 字に収まる（E7）
+  let g = {
+    ...skipped,
+    player: { name: 'あ'.repeat(NAME_MAX) },
+    prologue: { line: 'あ'.repeat(LINE_MAX), pressure: 'high', sprocket: 'top', sidebar: true, pos: 2 },
+  };
+  for (const id of ['p1', 'p2', 'p3', 'p4']) g = markScene(g, id);
+  const str = encode(g);
+  assert.ok(str.length <= 4000, `保存文字列が長い：${str.length} 字`);
+  assert.deepEqual(decode(str).prologue, g.prologue);
+  console.log(`  プロローグ直後の保存文字列：${str.length} / 4,000 字（選択3つ・順位・一行・名前）`);
 });

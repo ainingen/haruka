@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ja" class="paper-ground">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="theme.css">
+<title>プロローグ — ハルカのセッティングノート</title>
+<style>
+/* ===========================================================================
+   プロローグ（docs/シナリオ/プロローグ台本.md の第1場〜第4場）。
+   台詞は data/scenes.json、送りは src/ui/scene.js。ここは画面だけ。
+   地は紙。第2場のダイジェストだけ、紙の上に画面の層（黒地）が開く。
+   色は theme.css の変数でしか書かない。
+   =========================================================================== */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--jp-font); font-size: var(--fs-body); line-height: 1.7;
+}
+/* 場面の枠は theme.css（.scene-back / .scene-frame）。ここでは常に開いたまま。
+   **高さを決め打つ**（台詞が増えるたびに枠が伸び縮みすると読みにくい） */
+.scene-back { background: var(--paper); }
+.scene-frame { height: min(760px, calc(100dvh - 32px)); }
+/* 「飛ばす」が題に重ならないように、題の右を空けておく */
+.scene-title { padding-right: 128px; }
+
+/* --- 飛ばす ---------------------------------------------------------------- */
+.skipbar { position: fixed; right: 10px; top: 10px; z-index: 40; }
+.skipbar button {
+  font: inherit; font-size: var(--fs-sub); font-family: var(--jp-font); padding: 6px 12px; cursor: pointer;
+  background: var(--paper); color: var(--ink-2); border: 1px solid var(--ink-3);
+}
+.skipbar button:hover { color: var(--ink); border-color: var(--rule); }
+
+/* --- 第2場のダイジェスト：紙の上に開く画面の層 ------------------------------- */
+.digest {
+  margin: 12px 0; border: 1px solid var(--mon-line); background: var(--mon-bg); color: var(--mon-text);
+  font-family: var(--mon-font); font-variant-numeric: tabular-nums;
+  display: grid; grid-template-columns: minmax(0, 1fr) 92px;
+}
+.digest svg { display: block; width: 100%; height: auto; }
+.digest .table { border-left: 1px solid var(--mon-line); padding: 4px 0; }
+.digest .row {
+  display: grid; grid-template-columns: 16px 8px minmax(0, 1fr); gap: 4px; align-items: center;
+  padding: 1px 6px; font-size: var(--fs-label);
+}
+.digest .row.me { color: var(--mon-car); }
+.digest .row b { width: 6px; height: 6px; border-radius: 50%; font-size: 0; }
+.digest .cap {
+  grid-column: 1 / -1; border-top: 1px solid var(--mon-line); padding: 5px 8px;
+  font-family: var(--jp-font); font-size: var(--fs-small); color: var(--mon-green); min-height: 2.2em;
+}
+.digest .lap { position: absolute; }
+
+/* --- タイトルロゴ ---------------------------------------------------------- */
+.logo {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  background: var(--paper); animation: logo-in 1.2s ease-out;
+}
+.logo[hidden] { display: none; }
+.logo .inner { text-align: center; }
+.logo .k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
+.logo h1 {
+  margin: 8px 0 6px; font-family: var(--hand-font); font-weight: 600; font-size: var(--fs-num-lg);
+  line-height: 1.35; letter-spacing: .08em;
+}
+.logo .by { font-family: var(--hand-font); color: var(--ink-2); font-size: var(--fs-small); letter-spacing: .3em; }
+@keyframes logo-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .logo { animation: none; } }
+
+.err { margin: 16px; border: 1px solid var(--bad); color: var(--bad); padding: 10px; font-size: var(--fs-small); }
+</style>
+</head>
+<body>
+
+<div class="skipbar"><button type="button" id="skipBtn">プロローグを飛ばす</button></div>
+
+<div class="scene-back" id="sceneBack">
+  <div class="scene-frame">
+    <div class="scene-title" id="sceneTitle"></div>
+    <div class="scene-host" id="sceneHost"></div>
+  </div>
+</div>
+
+<div class="logo" id="logo" hidden><div class="inner">
+  <div class="k">SETTING NOTE</div>
+  <h1>ハルカの<br>セッティングノート</h1>
+  <div class="by">TAIGA</div>
+</div></div>
+
+<script type="module">
+import {
+  newGame, encode, searchWithState, save, saveLocal, loadLocal,
+  NAME_MAX, LINE_MAX, DEFAULT_NAME, DEFAULT_LINE, trimTo, markScene,
+} from '../engine/save.js';
+import { playScene, SCENE } from './scene.js';
+import { prologueCars, prologuePos } from '../engine/prologue.js';
+import { createClock, planLap, stepField, rankRunners, courseLoad } from '../engine/race.js';
+
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const json = (p) => fetch(new URL(p, import.meta.url)).then((r) => {
+  if (!r.ok) throw new Error(`${p}: ${r.status}`);
+  return r.json();
+});
+const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/** プロローグで流す場面。台本の第1場〜第4場。 */
+const ORDER = ['p1', 'p2', 'p3', 'p4'];
+
+let D = null;               // データ
+let G = null;               // 進行（新しいゲーム）
+const flags = {};           // 選んだ答え（pressure / sprocket / sidebar / greet / pos）
+// ｛ ｝ の差し込み。**入力で変わるので、場面をまたいで同じ入れ物を使い回す**
+const vars = { 名前: '', 一行: '' };
+
+/** 演出のイベント（docs/設計/画面設計.md）。音はまだ無い。 */
+function cue(name, detail = {}) {
+  document.dispatchEvent(new CustomEvent('cue', { detail: { name, ...detail } }));
+}
+
+// ---------------------------------------------------------------------------
+// 第3場のノート、第4場の名前
+// ---------------------------------------------------------------------------
+
+/** 文字を書かせる小さな箱。書かなければ既定文。 */
+function askText({ log, max, preset, hand, go, skip }) {
+  return new Promise((done) => {
+    const box = document.createElement('div');
+    box.className = 'scene-write';
+    box.innerHTML = `<textarea maxlength="${max}" spellcheck="false" placeholder="${esc(preset)}"
+      ${hand ? '' : 'style="font-family: var(--jp-font); letter-spacing: .02em"'}></textarea>
+      <div class="row"><button type="button" class="go">${esc(go)}</button>
+      <button type="button" class="pass">${esc(skip)}</button>
+      <span class="count">0 / ${max}</span></div>`;
+    log.appendChild(box);
+    box.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const ta = box.querySelector('textarea');
+    const count = box.querySelector('.count');
+    ta.addEventListener('input', () => { count.textContent = `${[...ta.value].length} / ${max}`; });
+    ta.addEventListener('keydown', (ev) => ev.stopPropagation());
+    box.addEventListener('click', (ev) => ev.stopPropagation());
+    ta.focus();
+    const finish = (text) => { box.remove(); done(trimTo(text, max, preset)); };
+    box.querySelector('.go').addEventListener('click', (ev) => { ev.stopPropagation(); finish(ta.value); });
+    box.querySelector('.pass').addEventListener('click', (ev) => { ev.stopPropagation(); finish(''); });
+  });
+}
+
+/** 第3場：ハルカがノートに書く一行（40字・スキップ可）。state の prologue.line。 */
+async function askNoteLine(step, { log, add }) {
+  const line = await askText({
+    log, max: LINE_MAX, preset: step.default ?? DEFAULT_LINE, hand: true, go: '書く', skip: '書かない',
+  });
+  G = { ...G, prologue: { ...G.prologue, line } };
+  vars.一行 = line;
+  cue('note.write', { scene: 'p3' });
+  add('scene-note', esc(line));
+}
+
+/** 第4場：プレイヤーの名前（20字・既定「主人公」）。state の player.name。 */
+async function askName(step, { log, add }) {
+  add('scene-section', 'あなたの名前');
+  const name = await askText({
+    log, max: NAME_MAX, preset: step.default ?? DEFAULT_NAME, hand: false, go: '決める', skip: 'このままでいい',
+  });
+  G = { ...G, player: { ...G.player, name } };
+  vars.名前 = name;
+  add('scene-picked', esc(name));
+}
+
+// ---------------------------------------------------------------------------
+// 第2場：ダイジェスト（本編と同じ点走行）
+// ---------------------------------------------------------------------------
+
+const VIEW = { w: 300, h: 150, margin: 12 };
+
+/**
+ * 8台を短い周回で流す。**走りは本編と同じ** `stepField`（src/engine/prologue.js が車を作る）。
+ * 実況は台本の【実況テキスト】（step.captions）を、周の節目に出す。
+ * 押すと残りを早送りして結果へ飛ぶ。
+ */
+function runDigest(step, { log }) {
+  return new Promise((done) => {
+    const cfg = D.prologue;
+    const course = D.courses.find((c) => c.id === cfg.course);
+    const cars = prologueCars(cfg, flags, { chassis: D.chassis[cfg.chassis], driver: D.drivers[0] });
+
+    const box = document.createElement('div');
+    box.className = 'digest';
+    box.innerHTML = `<svg viewBox="0 0 ${VIEW.w} ${VIEW.h}"></svg>
+      <div class="table"></div><div class="cap"></div>`;
+    log.appendChild(box);
+    box.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const svg = box.querySelector('svg');
+    const table = box.querySelector('.table');
+    const cap = box.querySelector('.cap');
+
+    // コースは線1本（docs/設計/画面設計.md）。座標はメートルなので、枠に合わせて畳む
+    const ns = 'http://www.w3.org/2000/svg';
+    const master = document.createElementNS(ns, 'path');
+    master.setAttribute('d', course.path);
+    master.setAttribute('fill', 'none');
+    master.setAttribute('stroke', 'none');
+    svg.appendChild(master);
+    const pathLen = master.getTotalLength();
+    const ratio = pathLen / course.length;
+    const bb = master.getBBox();
+    const iw = VIEW.w - VIEW.margin * 2, ih = VIEW.h - VIEW.margin * 2;
+    const k = Math.min(iw / bb.width, ih / bb.height);
+    const ox = VIEW.margin + (iw - bb.width * k) / 2 - bb.x * k;
+    const oy = VIEW.margin + (ih - bb.height * k) / 2 - bb.y * k;
+    const at = (dist) => {
+      const d = ((dist % course.length) + course.length) % course.length;
+      const p = master.getPointAtLength(d * ratio);
+      return { x: p.x * k + ox, y: p.y * k + oy };
+    };
+    const line = document.createElementNS(ns, 'path');
+    const pts = [];
+    for (let i = 0; i <= 200; i += 1) {
+      const q = at((course.length * i) / 200);
+      pts.push(`${i ? 'L' : 'M'}${q.x.toFixed(2)} ${q.y.toFixed(2)}`);
+    }
+    line.setAttribute('d', `${pts.join(' ')} Z`);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', 'var(--mon-line)');
+    line.setAttribute('stroke-width', '2');
+    svg.appendChild(line);
+
+    // 点。自車は赤、ほかは青（CLAUDE.md の決まり）
+    for (const car of [...cars].reverse()) {
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('r', car.id === 'me' ? 3.4 : 2.2);
+      dot.setAttribute('fill', car.id === 'me' ? 'var(--mon-car)' : 'var(--mon-ai)');
+      svg.appendChild(dot);
+      car.dot = dot;
+    }
+
+    const ctx = { course, load: courseLoad(course), totalLaps: cfg.laps, courseLen: course.length, grid: false, clock: createClock() };
+    // 最初の周の計画を立ててから進める（runField と同じ手順）
+    for (const car of cars) planLap(car, course);
+    const captions = step.captions ?? [];
+    let capIdx = -1;
+    const showCap = (i) => {
+      if (i <= capIdx || i >= captions.length) return;
+      capIdx = i;
+      cap.textContent = captions[i];
+      cue('race.commentary', { scene: 'p2', text: captions[i] });
+    };
+    showCap(0);   // 「予選：3番手」
+
+    const draw = () => {
+      const ranked = rankRunners(cars, course.length);
+      for (const car of cars) {
+        const p = at(car.lapDist);
+        car.dot.setAttribute('cx', p.x.toFixed(2));
+        car.dot.setAttribute('cy', p.y.toFixed(2));
+      }
+      table.innerHTML = ranked.map((car, i) => `<div class="row ${car.id === 'me' ? 'me' : ''}">
+        <span>${i + 1}</span><b style="background:${car.id === 'me' ? 'var(--mon-car)' : 'var(--mon-ai)'}"></b>
+        <span>${car.id === 'me' ? 'ハルカ' : `#${car.id.slice(2) * 1 + 2}`}</span></div>`).join('');
+    };
+
+    let last = performance.now();
+    let raf = 0;
+    const finish = () => {
+      cancelAnimationFrame(raf);
+      // 残りは一気に進める（押したとき）。結果は倍速で変わらない（FIELD.dt 固定）
+      let guard = 0;
+      while (!cars.every((c) => c.finished || c.retired) && guard++ < 100000) {
+        stepField(cars, 2, ctx);
+      }
+      draw();
+      showCap(captions.length - 1);
+      const pos = prologuePos(cars, course);
+      box.removeEventListener('click', finish);
+      setTimeout(() => done({ pos }), SCENE.beatMs);
+    };
+    box.addEventListener('click', (ev) => { ev.stopPropagation(); finish(); });
+
+    const tick = (now) => {
+      const dt = Math.min(0.25, (now - last) / 1000) * cfg.speed;
+      last = now;
+      stepField(cars, dt, ctx);
+      draw();
+      const me = cars[0];
+      // 実況は周の節目で。決勝スタート → 2周目 → 残り2周 → チェッカー
+      if (me.lap >= 1) showCap(1);
+      if (me.lap >= 2) showCap(2);
+      if (me.lap >= cfg.laps - 2) showCap(3);
+      if (cars.every((c) => c.finished || c.retired)) { finish(); return; }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 進行
+// ---------------------------------------------------------------------------
+
+/** タイトルロゴ。出したら本編へ。 */
+async function showTitle() {
+  el('logo').hidden = false;
+  cue('title.logo');
+  await wait(2600);
+}
+
+/** プロローグで決まったものを進行に書いて、シーズンへ。 */
+function toSeason() {
+  G = {
+    ...G,
+    prologue: {
+      ...G.prologue,
+      pressure: flags.pressure ?? G.prologue.pressure,
+      sprocket: flags.sprocket ?? G.prologue.sprocket,
+      sidebar: flags.sidebar === undefined ? G.prologue.sidebar : flags.sidebar === 'on',
+      pos: flags.pos ?? G.prologue.pos,
+    },
+  };
+  for (const id of ORDER) G = markScene(G, id);
+  save(G);
+  saveLocal({ ...(loadLocal() ?? {}), prologueSeen: true });
+  location.replace(`season.html${searchWithState(G, {})}`);
+}
+
+/** 飛ばす。初回だけ確認する（2回目からは確認なし）。 */
+function skip() {
+  const seen = loadLocal()?.prologueSeen;
+  if (!seen && !confirm('プロローグを飛ばします。3つの選択と名前は既定のまま始めます。よろしいですか。')) return;
+  toSeason();
+}
+el('skipBtn').addEventListener('click', skip);
+
+try {
+  const [economy, courses, chassis, drivers, scenes, prologue] = await Promise.all([
+    json('../../data/economy.json'), json('../../data/courses.json'), json('../../data/chassis.json'),
+    json('../../data/drivers.json'), json('../../data/scenes.json'), json('../../data/prologue.json'),
+  ]);
+  D = { economy, courses, chassis, drivers, scenes, prologue };
+  G = newGame(economy);
+  vars.名前 = G.player.name;
+  vars.一行 = G.prologue.line;
+  if (loadLocal()?.prologueSeen) el('skipBtn').textContent = 'プロローグを飛ばす（見たことがある）';
+
+  for (const id of ORDER) {
+    const scene = D.scenes.scenes.find((s) => s.id === id);
+    if (!scene) continue;
+    el('sceneTitle').textContent = scene.title;
+    await playScene(scene, el('sceneHost'), {
+      vars,
+      flags,
+      // 主人公はプレイヤーの名前で呼ぶ。まだ入れていない間は台本どおり「主人公」
+      speakerLabel: (who) => (who === '主人公' ? G.player.name : who),
+      cue,
+      onInput: askNoteLine,
+      onName: askName,
+      onRace: runDigest,
+      onTitle: showTitle,
+    });
+  }
+  toSeason();
+} catch (err) {
+  document.body.insertAdjacentHTML('afterbegin',
+    `<div class="err">読み込みに失敗しました：${esc(err.message)}<br>このページは JSON を読み込むため、HTTP 経由で開く必要があります。</div>`);
+  console.error(err);
+}
+</script>
+</body>
+</html>

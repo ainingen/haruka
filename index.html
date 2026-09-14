@@ -72,7 +72,7 @@ h1 {
   <p class="lead">セッティングは、車の文句に返事をすること。</p>
 
   <div class="menu">
-    <a class="primary" id="newGame" href="src/ui/season.html">はじめから<small>クラス1、走行会から。所持金は中古パーツ2〜3点ぶん</small></a>
+    <a class="primary" id="newGame" href="src/ui/prologue.html">はじめから<small>プロローグから。カートのセッティングを決めるところから始まる</small></a>
     <button type="button" id="continueBtn">つづきから<small>保存文字列を貼り付ける</small></button>
     <button type="button" id="blankPage" hidden>白紙のページ<small>ノートの余り。まだ誰も書いていない</small></button>
     <button type="button" class="paste" id="pasteLink" hidden>別の保存文字列を貼り付ける</button>
@@ -117,7 +117,7 @@ if (saved) {
   el('continueBtn').innerHTML = 'つづきから<small>この端末の保存から再開'
     + `（${saved.season?.year ?? 1}年目・クラス${saved.cls ?? 1}）</small>`;
   el('pasteLink').hidden = false;
-  el('newGame').querySelector('small').textContent = 'クラス1、走行会から。いまの保存は消えます';
+  el('newGame').querySelector('small').textContent = 'プロローグから。いまの保存は消えます';
 }
 
 el('continueBtn').addEventListener('click', () => {

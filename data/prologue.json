@@ -1,0 +1,20 @@
+{
+  "_comment": "プロローグ第2場のダイジェスト（docs/シナリオ/プロローグ台本.md）。台詞は scenes.json、ここは走らせ方だけ。第1場の3つの選択がわずかにタイムに動き、空気圧を高くしたときだけ終盤にタレて2位になる。テスト S12 が18通りぜんぶを見張る。",
+  "course": "asahina",
+  "chassis": "hatchback",
+  "laps": 12,
+  "seed": 7,
+  "speed": 70,
+  "pressure": { "low": 1.85, "mid": 2.1, "high": 2.6 },
+  "delta": 0.15,
+  "sprocket": {
+    "accel": { "acceleration": 1, "top_speed": -1 },
+    "mid": {},
+    "top": { "acceleration": -1, "top_speed": 1 }
+  },
+  "sidebar": {
+    "on": { "rigidity": 1, "cornering_grip": 0.5, "road_compliance": -0.5 },
+    "off": { "rigidity": -1, "road_compliance": 0.5, "turn_in": 0.5 }
+  },
+  "rivals": [-1.05, 2, 3, 4, 5, 6, 7]
+}

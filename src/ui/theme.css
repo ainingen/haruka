@@ -175,7 +175,7 @@
   line-height: 1.7; letter-spacing: .06em; padding: 7px 10px; resize: none;
   background: var(--paper-2); color: var(--ink); border: 1px solid var(--ink-3);
 }
-.scene-write .row { display: flex; gap: 8px; align-items: center; margin-top: 7px; }
+.scene-write .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 7px; }
 .scene-write button {
   font: inherit; font-size: var(--fs-small); font-family: var(--jp-font); padding: 6px 14px; cursor: pointer;
   background: var(--paper); color: var(--ink); border: 1px solid var(--rule);
@@ -209,6 +209,35 @@
   to   { opacity: 1; transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { .scene-credits .page { animation: none; } }
+
+/* --- プロローグの手（選択・見出し・画面いっぱいの文字） -------------------- */
+/* 選択。押すまで先へ進まない */
+.scene-choice { display: grid; gap: 7px; margin: 12px 0 12px 5.5em; }
+.scene-choice button {
+  font: inherit; font-size: var(--fs-body); font-family: var(--jp-font); text-align: left;
+  padding: 10px 14px; cursor: pointer; letter-spacing: .04em;
+  background: var(--field); color: var(--ink); border: 1px solid var(--rule); box-shadow: 0 2px 5px var(--shadow);
+}
+.scene-choice button:hover { border-color: var(--car); color: var(--car); }
+/* 選んだ操作の札（台詞ではないので、ノートとも台詞とも違う見た目） */
+.scene-picked {
+  margin: 8px 0 10px 5.5em; padding: 5px 12px; justify-self: start; display: inline-block;
+  font-family: var(--jp-font); font-size: var(--fs-small); color: var(--ink-2);
+  border: 1px solid var(--ink-3); background: var(--paper);
+}
+/* ［操作1］などの見出し */
+.scene-section {
+  margin: 16px 0 8px; padding: 5px 0 4px; border-top: 1px solid var(--ink-3); border-bottom: 1px solid var(--ink-3);
+  font-family: var(--jp-font); font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2);
+}
+/* 【テキスト：「7年後」】 */
+.scene-caption {
+  margin: 22px 0; padding: 18px 0; text-align: center;
+  font-family: var(--jp-font); font-size: var(--fs-title); letter-spacing: .4em; color: var(--ink);
+  animation: caption-in .8s ease-out;
+}
+@keyframes caption-in { from { opacity: 0; letter-spacing: .1em; } to { opacity: 1; letter-spacing: .4em; } }
+@media (prefers-reduced-motion: reduce) { .scene-caption { animation: none; } }
 
 /* 第8場のあと。自由設定の画面はまだ無い */
 .scene-soon {
