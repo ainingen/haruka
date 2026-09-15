@@ -335,6 +335,9 @@ h2 {
 
 /* --- 出走設定 ------------------------------------------------------------- */
 .entry { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: var(--fs-small); }
+/* **display: flex は [hidden] より強い。** 明示的に消さないと、隠したはずの行が出る
+   （シーズン外でも「SEASON —」が出ていた） */
+.entry[hidden] { display: none; }
 .entry label { display: flex; align-items: center; gap: 5px; }
 .entry select {
   font: inherit; font-size: var(--fs-small); padding: 3px 5px;
@@ -596,7 +599,7 @@ button.attack:disabled { background: var(--ink-3); cursor: default; }
     </select></label>
     <span class="note" id="courseNote"></span>
     <span class="note" id="courseHidden" style="color:var(--bad)"></span>
-    <span class="note">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
+    <span class="note" id="entryNote">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
   </div>
 
   <div class="notes hnote" id="hnote" hidden>
@@ -763,6 +766,10 @@ const MODE = {
   session: !FREE,
   /** 下の「ラップ計算／予選へ／決勝開始」を出すか（自由設定は「走る」だけ） */
   raceBar: !FREE,
+  /** コース・周回の行に添える一言 */
+  entryNote: FREE
+    ? 'コースと周回を選んで「走る」。1周はフライング計測（前に1周ころがす）。'
+    : 'いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。',
 };
 
 // ---------------------------------------------------------------------------
@@ -2242,6 +2249,7 @@ function applyMode() {
   el('sessionTabs').hidden = !MODE.session;
   // 本編の出走ボタンは出さない。自由設定で走るのはタイムアタックの「走る」だけ
   el('calcBar').hidden = !MODE.raceBar;
+  el('entryNote').textContent = MODE.entryNote;
   if (MODE.laps) {
     const sel = el('selLaps');
     sel.textContent = '';
