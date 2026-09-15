@@ -178,12 +178,18 @@ test('F5. ハルカのノート：ベストの一行と、プレイヤーの一�
   const bias = part('brake_bias_01');
 
   // **形式は「コース　タイム　主な部品」。数字を出してよい**（ノートの字。無線ではない）
-  const line = harukaLine('ながさわ高速周回路', 74.3628, [tyre, works, bias]);
-  assert.match(line, /^ながさわ高速周回路　1:14\.363　/);
+  const nagasawa = COURSES.find((c) => c.id === 'nagasawa');
+  const misaki = COURSES.find((c) => c.id === 'misaki');
+  const line = harukaLine(nagasawa, 74.3628, [tyre, works, bias]);
+  // **コースは短い呼び方。** 正式名（ながさわ高速周回路）では書かない
+  assert.match(line, /^ながさわ　1:14\.363　/);
+  assert.ok(!line.includes(nagasawa.name), `正式名で書いている：${line}`);
   assert.ok(line.includes(works.name), '効きの大きい部品が入っていない');
   assert.ok(/[0-9]/.test(line), 'ノートの一行に数字が無い');
   // 部品が無ければ「素のまま」
-  assert.equal(harukaLine('みさき山道コース', 60, []), 'みさき山道コース　1:00.000　素のまま');
+  assert.equal(harukaLine(misaki, 60, []), 'みさき　1:00.000　素のまま');
+  // 短い呼び方が無ければ正式名に落ちる（データが欠けても書ける）
+  assert.match(harukaLine({ name: 'どこか' }, 60, []), /^どこか　/);
   // 並べるのは多くても3点
   const many = PARTS.filter((p) => p.class_required <= 2).slice(0, 8);
   assert.ok(mainParts(many).length <= NOTE_PARTS);
@@ -217,6 +223,44 @@ test('F5. ハルカのノート：ベストの一行と、プレイヤーの一�
   assert.equal(encode(g).length, before);
   assert.ok(NOTE_LINE_MAX === 40, 'プレイヤーの一行は40字');
   console.log(`  ノート：「${line}」　${NOTE_MAX} 行で古い順に消える`);
+});
+
+test('F7. コースの短い呼び方：5コース全部にあり、正式名の頭と一致する', () => {
+  // ハルカも親父も、正式名では呼ばない（「あさひなは前を柔らかく」「みさきは好き。曲がってる」）。
+  // ノートに書く字と、無線の呼び方を、この1つの欄に揃える
+  const want = { nagasawa: 'ながさわ', misaki: 'みさき', hibaridaira: 'ひばり平', kazahaya: 'かざはや', asahina: 'あさひな' };
+  assert.equal(COURSES.length, Object.keys(want).length);
+  for (const c of COURSES) {
+    assert.equal(typeof c.short, 'string', `${c.id} に短い呼び方が無い`);
+    assert.equal(c.short, want[c.id], `${c.id} の短い呼び方`);
+    // **正式名の頭。** 別名を作ってしまわないための縛り
+    assert.ok(c.name.startsWith(c.short), `${c.id}：「${c.short}」が「${c.name}」の頭でない`);
+    assert.ok(c.short.length < c.name.length, `${c.id}：短くなっていない`);
+  }
+
+  // 親父のノートの書き込みは、正式名を書いていない（もともと短い呼び方で書いている）
+  const notes = JSON.parse(readFileSync(join(ROOT, 'data', 'notes.json'), 'utf8'));
+  for (const n of notes) {
+    for (const c of COURSES) {
+      assert.ok(!n.note.includes(c.name), `親父のノートが正式名で書いている：${n.note}`);
+      assert.ok(!(n.quali?.note ?? '').includes(c.name), `予選の書き込みが正式名：${n.quali?.note}`);
+    }
+  }
+  // 無線（ハルカとピット）も同じ。実況・解説は正式名でよい（そちらは場内アナウンス）
+  const radio = JSON.parse(readFileSync(join(ROOT, 'data', 'radio.json'), 'utf8'));
+  const texts = [];
+  const walk = (n) => {
+    if (Array.isArray(n)) n.forEach(walk);
+    else if (n && typeof n === 'object') {
+      if (typeof n.text === 'string') texts.push(n.text);
+      else Object.values(n).forEach(walk);
+    }
+  };
+  walk(radio);
+  for (const t of texts) {
+    for (const c of COURSES) assert.ok(!t.includes(c.name), `無線が正式名で呼んでいる：${t}`);
+  }
+  console.log(`  短い呼び方：${COURSES.map((c) => `${c.short}（${c.name}）`).join('／')}`);
 });
 
 test('F6. 自由設定の無線：5つの発火が条件どおりに出て、台本の6本に当たる', () => {

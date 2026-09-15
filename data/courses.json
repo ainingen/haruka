@@ -2,6 +2,7 @@
   {
     "id": "nagasawa",
     "name": "ながさわ高速周回路",
+    "short": "ながさわ",
     "profile": "straight",
     "description": "長い直線が一本。最高速と空気抵抗で決まり、ブレーキは休ませられる。",
     "classes": [
@@ -124,6 +125,7 @@
   {
     "id": "misaki",
     "name": "みさき山道コース",
+    "short": "みさき",
     "profile": "corner",
     "description": "切り返しの連続。立ち上がりと回頭性で決まる。休める直線はない。",
     "classes": [
@@ -304,6 +306,7 @@
   {
     "id": "hibaridaira",
     "name": "ひばり平サーキット",
+    "short": "ひばり平",
     "profile": "balanced",
     "description": "直線もコーナーも平均的。セッティングの基準にするコース。",
     "classes": [
@@ -428,6 +431,7 @@
   {
     "id": "kazahaya",
     "name": "かざはや高原サーキット",
+    "short": "かざはや",
     "profile": "fast",
     "description": "高低差の大きい高速コーナーが続く。ダウンフォースと剛性で曲げる。",
     "classes": [
@@ -558,6 +562,7 @@
   {
     "id": "asahina",
     "name": "あさひなミニサーキット",
+    "short": "あさひな",
     "profile": "stopgo",
     "description": "短い直線と低速コーナーの繰り返し。ブレーキが最後まで保つかで決まる。",
     "classes": [

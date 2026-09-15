@@ -2005,7 +2005,7 @@ function drawNotes() {
   const cur = DATA.courses.find((c) => c.id === el('selCourse').value);
   // **自由設定では親父のノートは白紙。** 書くのはここから先、ハルカ自身
   if (!MODE.fatherNote) {
-    el('notesWhere').textContent = `${cur?.name ?? '—'} / 自由設定`;
+    el('notesWhere').textContent = `${cur?.short ?? cur?.name ?? '—'} / 自由設定`;
     el('notesText').textContent = 'このページは白紙。ここから先は、親父は書いていない。';
     el('notesText').classList.add('blank');
     el('notesBtn').disabled = true;
@@ -2013,7 +2013,8 @@ function drawNotes() {
     return;
   }
   const n = noteFor();
-  el('notesWhere').textContent = `${cur?.name ?? '—'} / クラス${state.cls}`;
+  // 見出しも短い呼び方。**書き込みの文が「あさひなは前を柔らかく」と短い呼び方**なので揃える
+  el('notesWhere').textContent = `${cur?.short ?? cur?.name ?? '—'} / クラス${state.cls}`;
   const text = el('notesText');
   if (n) {
     text.textContent = state.session === 'quali' && n.quali ? n.quali.note : n.note;
@@ -2375,7 +2376,7 @@ function runTimeAttack() {
     updated = put.updated;
     if (updated) {
       // **ベストを更新したときだけ、ハルカが一行書く**（コース・タイム・主な部品）
-      addNote('haruka', harukaLine(course.name, r.best, activeParts()));
+      addNote('haruka', harukaLine(course, r.best, activeParts()));
       persistFree();
     }
   }

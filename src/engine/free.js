@@ -190,11 +190,19 @@ export function mainParts(parts, n = NOTE_PARTS) {
 
 /**
  * ハルカが書く一行。**形式は「コース　タイム　主な部品」。**
+ *
+ * コースは**短い呼び方**（courses.json の `short`）。無線の chat.course_start でも
+ * 親父のノートの書き込みでも、正式名では呼んでいない（「あさひなは前を柔らかく」）。
+ * ノートは人が書いた字なので、そちらに揃える。
+ *
  * 部品が1つも無ければ「素のまま」と書く（純正で出した記録も残る）。
+ *
+ * @param {object} course data/courses.json の1件（`short` が無ければ `name`）
  */
-export function harukaLine(courseName, time, parts) {
+export function harukaLine(course, time, parts) {
+  const label = typeof course === 'string' ? course : (course?.short ?? course?.name ?? '—');
   const names = mainParts(parts);
-  return `${courseName}　${formatTime(time)}　${names.length ? names.join('・') : '素のまま'}`;
+  return `${label}　${formatTime(time)}　${names.length ? names.join('・') : '素のまま'}`;
 }
 
 /**
