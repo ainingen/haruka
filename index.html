@@ -152,9 +152,9 @@ el('newGame').addEventListener('click', (ev) => {
 });
 
 /**
- * 白紙のページ（第8場）。会話のあと、自由設定の画面は**まだ無い**ので「準備中」で止める。
- * 台詞は台本（data/scenes.json の blank）。自由設定での無線6本は data/radio.json の
- * class5.free_setup に入れてある（画面ができたらそこから出す）。
+ * 白紙のページ（第8場）。会話のあと、自由設定（タイムアタック）へ渡す。
+ * 台詞は台本（data/scenes.json の blank）。自由設定での無線は data/radio.json の
+ * class5.free_setup（src/ui/setup.html の free モードが出す）。
  */
 el('blankPage').addEventListener('click', async () => {
   const data = await fetch('data/scenes.json').then((r) => r.json());
@@ -168,15 +168,14 @@ el('blankPage').addEventListener('click', async () => {
     speakerLabel: (who) => (who === '主人公' ? playerName(saved) : who),
     cue: (name) => document.dispatchEvent(new CustomEvent('cue', { detail: { name } })),
   });
-  // **準備中の1画面。** ここから先（自由設定のタイムアタック）はまだ無い
-  el('sceneHost').innerHTML = `<div class="scene-log"><div class="scene-note">ハルカのノート・自由ページ</div>
-    <div class="scene-soon">準備中。<br>全部のパラメータを触れる自由設定は、これから作る</div></div>
-    <div class="scene-hint">▸ クリックで表紙へ戻る</div>`;
-  await new Promise((done) => el('sceneHost').addEventListener('click', done, { once: true }));
-  el('sceneBack').hidden = true;
-  el('sceneHost').textContent = '';
   // 一度見たことは残す（保存先があるときだけ。無ければ次もそのまま出る）
-  if (saved && !sawScene(saved, 'blank')) save(markScene(saved, 'blank'));
+  const next = saved && !sawScene(saved, 'blank') ? markScene(saved, 'blank') : saved;
+  if (next !== saved) save(next);
+  // 自由設定へ。進行はそのまま持ち回る（free.html が ending.done を確かめる）
+  el('sceneHost').innerHTML = `<div class="scene-log"><div class="scene-note">ハルカのノート・自由ページ</div></div>
+    <div class="scene-hint">▸ クリックで自由設定へ</div>`;
+  await new Promise((done) => el('sceneHost').addEventListener('click', done, { once: true }));
+  location.href = `src/ui/free.html?s=${encode(next)}`;
 });
 
 /** 貼り付けられたものから保存文字列を取り出す。URL 全体なら s= を抜く。 */

@@ -910,3 +910,36 @@ test('S20. ピットで止まっている間も場は進む＝その場で順位
   assert.ok(cars[0].raceTime > cars[1].raceTime, `止まったぶんだけ遅い：${cars[0].raceTime.toFixed(1)} vs ${cars[1].raceTime.toFixed(1)}`);
   console.log(`  ピット ${stop.seconds.toFixed(1)}秒で ${(cars[0].raceTime - cars[1].raceTime).toFixed(1)}秒の損`);
 });
+
+test('S21. 自由設定はエンディングのあとだけ。free モードの違いは MODE の表に集まっている', async () => {
+  const S = await import('./save.js');
+  // **ending.done が立つまで入れない。** 白紙のページ（第8場）はその先
+  const fresh = newGame(ECONOMY);
+  assert.equal(S.canFreeSetup(fresh), false, '始めたばかりでは入れない');
+  assert.equal(S.canFreeSetup(markScene(fresh, 'blank')), false, '場面を見ただけでは入れない');
+  assert.equal(S.canFreeSetup({ ...fresh, ending: { ...fresh.ending, done: true } }), true);
+  assert.equal(S.canFreeSetup(null), false);
+  assert.equal(S.canFreeSetup({}), false);
+  // 形式を通しても消えない
+  const done = { ...fresh, ending: { ...fresh.ending, done: true } };
+  assert.equal(S.canFreeSetup(decode(encode(done))), true);
+
+  // 入口（free.html）も画面（setup.html）も、同じ関数で見張る
+  const free = readFileSync(join(ROOT, 'src', 'ui', 'free.html'), 'utf8');
+  const setup = readFileSync(join(ROOT, 'src', 'ui', 'setup.html'), 'utf8');
+  assert.match(free, /canFreeSetup/, 'free.html が入口で確かめていない');
+  assert.match(setup, /MODE\.free && !canFreeSetup\(G\)/, 'setup.html が free モードで確かめていない');
+  assert.match(free, /setup\.html\?/, 'free.html が setup.html に渡していない');
+
+  // **モードの違いは MODE の表にしかない。** 表に無い名前で分岐していたら落とす
+  const modeBlock = setup.slice(setup.indexOf('const MODE = {'), setup.indexOf('};', setup.indexOf('const MODE = {')));
+  const keys = [...modeBlock.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]);
+  assert.ok(keys.length >= 10, `MODE の項目が少ない（${keys.length}）`);
+  const used = new Set([...setup.matchAll(/MODE\.(\w+)/g)].map((m) => m[1]));
+  for (const k of used) assert.ok(keys.includes(k), `MODE.${k} が表に無い`);
+  // FREE を直に見ているのは MODE の表の中だけ（違いを散らさない）
+  const outside = setup.replace(modeBlock, '');
+  const stray = [...outside.matchAll(/\bFREE\b/g)].length;
+  assert.ok(stray <= 1, `MODE の表の外で FREE を見ている箇所が ${stray} ある（表に名前を足して、そちらを見る）`);
+  console.log(`  MODE ${keys.length} 項目：${keys.join(' ')}　使用 ${used.size} 種`);
+});

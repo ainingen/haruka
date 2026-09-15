@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>自由設定 — ハルカのセッティングノート</title>
+</head>
+<body>
+<!--
+  自由設定（タイムアタック）の入口。**画面は setup.html の free モードそのもの。**
+  ここは「エンディングを見たか」を確かめて渡すだけで、車の画面は1つしか持たない
+  （docs/設計/自由設定.md）。進行は URL の s= をそのまま持ち回る。
+-->
+<noscript>このページは JavaScript が要ります。</noscript>
+<script type="module">
+import { loadState, canFreeSetup, encode } from '../engine/save.js';
+
+const G = loadState(location.search);
+if (!canFreeSetup(G)) {
+  // まだ開かない。表紙へ戻す（白紙のページはエンディングのあとにだけ出る）
+  document.body.innerHTML = '<p style="font:14px system-ui;margin:24px">'
+    + 'このページはまだ開かない。<a href="../../index.html">表紙へ戻る</a></p>';
+} else {
+  const q = new URLSearchParams(location.search);
+  q.set('free', '1');
+  q.set('s', encode(G));
+  location.replace(`setup.html?${q}`);
+}
+</script>
+</body>
+</html>

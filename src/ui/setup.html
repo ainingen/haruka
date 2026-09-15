@@ -346,6 +346,18 @@ h2 {
 .entry.season span:last-child { font-weight: 700; }
 /* 燃料は耐久戦のときだけ出る。ふつうの戦では自動（走り切るぶん＋余裕） */
 .entry.fuel[hidden] { display: none; }
+/* 画面の題。自由設定では「自由設定 — タイムアタック」に変わる */
+.page-title {
+  margin: 0 0 8px; font-size: var(--fs-sub); font-weight: 400;
+  letter-spacing: var(--ls-label); color: var(--ink-2);
+}
+.free-lead {
+  margin: 0 0 10px; font-size: var(--fs-small); color: var(--ink-2);
+  border-left: 2px solid var(--rule); padding-left: 8px;
+}
+.free-lead[hidden] { display: none; }
+.free-lead b { color: var(--ink); }
+.tabs[hidden] { display: none; }
 .entry.fuel { margin-bottom: 6px; }
 .entry select:disabled { color: var(--ink); opacity: 1; border-color: transparent; background: transparent; appearance: none; padding-left: 0; }
 .notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
@@ -397,12 +409,14 @@ h2 {
 
 <div class="sheet"><div class="sheet-inner">
 
+  <h1 class="page-title" id="pageTitle">セッティング</h1>
+
   <div class="titleblock">
     <div class="projectbar">
       <div class="k">DRIVER</div>
       <div class="driver" id="driverName">—</div>
       <div class="cls" id="classLine">—</div>
-      <div class="money"><span class="k">所持金</span> <b id="moneyLine">—</b></div>
+      <div class="money" id="moneyRow"><span class="k">所持金</span> <b id="moneyLine">—</b></div>
     </div>
     <div class="sheetno">
       <span>SHEET</span>
@@ -433,11 +447,16 @@ h2 {
     </label>
   </div>
 
-  <div class="tabs">
+  <div class="tabs" id="sessionTabs">
     <button type="button" data-session="quali" id="tabQuali">予選</button>
     <button type="button" data-session="race" id="tabRace" class="on">決勝</button>
     <span class="hint" id="tabHint">予選と決勝で別のセッティングを持てます</span>
   </div>
+
+  <p class="free-lead" id="freeLead" hidden>
+    ノートの余りのページ。<b>全部の部品が付く。</b>価格も所持もクラスも見ない。
+    タイムだけが残る。<a href="../../index.html" id="backTop" hidden>表紙へ戻る</a>
+  </p>
 
   <h2>主ビュー / 側面</h2>
   <svg class="mainview" id="mainview" viewBox="0 0 412 188" role="img" aria-label="車体側面図と寸法"></svg>
@@ -555,7 +574,7 @@ import {
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
   ENDURANCE, enduranceFuel, fuelPerLap,
 } from '../engine/race.js';
-import { loadState, save, newGame, searchWithState, sawScene, markScene } from '../engine/save.js';
+import { loadState, save, newGame, searchWithState, sawScene, markScene, canFreeSetup, loadLocal, saveLocal, canStore } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
 import { currentRound } from '../engine/season.js';
 
@@ -595,7 +614,7 @@ const CATEGORIES = [
   { id: 'reinforce',   label: '補強', fromClass: 5 },
 ];
 /** いま見せる区分。解禁前のものは部品表にも図面の引き出し線にも出さない。 */
-const visibleCategories = () => CATEGORIES.filter((c) => !c.fromClass || state.cls >= c.fromClass);
+const visibleCategories = () => CATEGORIES.filter((c) => !MODE.gateCategories || !c.fromClass || state.cls >= c.fromClass);
 /** クラス → 車体。docs/設計/クラス構成.md の車両欄に対応（3 はセダンを使う）。 */
 const CLASS_CHASSIS = { 1: 'hatchback', 2: 'sedan', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const CLASS_LABEL = { 1: '走行会・草レース', 2: '地方選手権', 3: '全国耐久', 4: '上位GT', 5: 'トップカテゴリー' };
@@ -613,6 +632,43 @@ const RIDE_EXAGGERATION = 4;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const el = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ---------------------------------------------------------------------------
+// モード（docs/設計/自由設定.md）
+//
+// この画面は2つのモードで動く。**違いはこの表にしかない。**
+//   本編（既定）      シーズンのセッティング。価格・所持・クラス規定が効く
+//   自由設定（free）  エンディングのあとのタイムアタック。全部品が装着できる
+//
+// `?free=1` が無いときの挙動は本編そのままで、この表の既定値がそれを決める。
+// 新しい違いを足すときは**この表に名前を足してから**、その名前を見る側を書く。
+// ---------------------------------------------------------------------------
+const FREE = new URLSearchParams(location.search).has('free');
+const MODE = {
+  free: FREE,
+  /** 画面の題と、その下の一行 */
+  title: FREE ? '自由設定 — タイムアタック' : 'セッティング',
+  /** クラス規定・スポンサー段階を見るか（false＝全部品が装着できる） */
+  legal: !FREE,
+  /** 買う・売る・直す・所持金を出すか（false＝全部品を持っている扱い） */
+  shop: !FREE,
+  /** 区分を解禁段階で隠すか（false＝補強もワークスも最初から見える） */
+  gateCategories: !FREE,
+  /** 親父のノートの書き込みを出すか（false＝白紙。代わりにハルカのノート） */
+  fatherNote: !FREE,
+  /** ハルカのノートの欄を出すか（段階3） */
+  harukaNote: FREE,
+  /** 効果値の上書きスライダーを出すか（段階2） */
+  overrides: FREE,
+  /** 走れるコース（'class'＝そのクラスで走れるものだけ／'all'＝5コース全部） */
+  courses: FREE ? 'all' : 'class',
+  /** 周回の選択肢。null＝これまでどおり（5/10/20 とシーズンの戦） */
+  laps: FREE ? [{ v: 1, label: '1周（フライング計測）' }, { v: 3, label: '3周' }] : null,
+  /** 触った結果を進行（state）に書き戻すか。**自由設定は本編の構成を汚さない** */
+  persist: !FREE,
+  /** 予選タブ・シーズンの行・出走の並びを出すか */
+  session: !FREE,
+};
 
 // ---------------------------------------------------------------------------
 // 演出のイベント（docs/設計/画面設計.md「演出のイベント名」）
@@ -739,7 +795,7 @@ function loadSetupFromG() {
     const eq = Object.fromEntries(ALL_SLOTS.map((s) => [s, null]));
     for (const id of ids ?? []) {
       const p = partById(id);
-      if (p && owns(G, id)) for (const slot of occupiedSlots(p)) eq[slot] = p.id;
+      if (p && have(id)) for (const slot of occupiedSlots(p)) eq[slot] = p.id;
     }
     return eq;
   };
@@ -762,6 +818,8 @@ function syncG() {
   const packedRace = pack(race) ?? { parts: [], settings: {} };
   // 燃料は決勝だけ（予選は3周で足りる）。耐久戦のときしか意味を持たない
   packedRace.fuel = state.fuel;
+  // **自由設定は本編の構成を汚さない。** 画面の中だけで触り、進行には書き戻さない
+  if (!MODE.persist) return G;
   G = { ...G, cls: state.cls, tier: state.tier, setup: { race: packedRace, quali: pack(quali) } };
   save(G);   // 買い物もセッティングもここで畳まれる。保存先が使えれば書く
   return G;
@@ -776,6 +834,7 @@ function unequipEverywhere(id) {
 
 const yen = (n) => `¥${Math.round(n).toLocaleString('ja-JP')}`;
 function drawMoney() {
+  if (!MODE.shop) { el('moneyRow').hidden = true; return; }
   el('moneyLine').textContent = yen(G.money);
 }
 
@@ -785,7 +844,9 @@ const partById = (id) => DATA.parts.find((p) => p.id === id) ?? null;
 const equippedParts = () =>
   [...new Set(Object.values(state.equipped).filter(Boolean))].map(partById);
 /** 規定とスポンサー段階を満たしているか。 */
-const isLegal = (p) => p.class_required <= state.cls && p.sponsor_tier <= state.tier;
+const isLegal = (p) => !MODE.legal || (p.class_required <= state.cls && p.sponsor_tier <= state.tier);
+/** 持っているか。自由設定では**全部持っている扱い**（買い物が無い）。 */
+const have = (id) => !MODE.shop || owns(G, id);
 /** 性能計算に乗るのは「装着済み かつ 規定を満たす」パーツだけ。 */
 const activeParts = () => equippedParts().filter(isLegal);
 const illegalParts = () => equippedParts().filter((p) => !isLegal(p));
@@ -1333,7 +1394,7 @@ function closePicker() {
 
 /** 装着・取り外し。直前の値を控えてから描き直し、数字を回す。 */
 function equipFromModal(part) {
-  if (!owns(G, part.id)) return;   // 買っていないものは付かない
+  if (!have(part.id)) return;   // 買っていないものは付かない
   pendingRoll = { axes: radarValues(perf()), status: statusValues() };
   equipPart(part);
   cue('part.equip', { id: part.id, slot: state.openSlot });
@@ -1352,6 +1413,7 @@ function removeFromModal() {
 
 /** 規定・スポンサー段階で装着できない理由。空なら装着できる。 */
 function lockReasons(p) {
+  if (!MODE.legal) return [];
   const r = [];
   if (p.class_required > state.cls) r.push(`クラス${p.class_required}から`);
   if (p.sponsor_tier > state.tier) r.push(`スポンサー段階${p.sponsor_tier}から`);
@@ -1492,11 +1554,15 @@ function drawModal() {
     btn.type = 'button';
     btn.className = `cand${legal ? '' : ' locked'}${p.id === state.candidate ? ' sel' : ''}`;
     const why = lockReasons(p);
-    const owned = owns(G, p.id);
-    // 所有していれば緑の印と「所有」、未購入は価格。規定外は錠前と理由
+    const owned = have(p.id);
+    // 所有していれば緑の印と「所有」、未購入は価格。規定外は錠前と理由。
+    // 自由設定は値段も所有も見ないので、右の欄はクラスの目安だけにする
+    const right = MODE.shop
+      ? `<span class="pr${owned ? ' owned' : ''}">${owned ? `所有 ${durInfo(p).pct}%` : yen(p.price)}</span>`
+      : `<span class="pr">クラス${p.class_required}</span>`;
     btn.innerHTML = `<span class="mk">${on || owned ? '●' : legal ? '' : '🔒'}</span>
       <span class="nm">${esc(p.name)}</span>
-      <span class="pr${owned ? ' owned' : ''}">${owned ? `所有 ${durInfo(p).pct}%` : yen(p.price)}</span>
+      ${right}
       ${why.length ? `<span class="why">${esc(why.join(' / '))}</span>`
         : on ? '<span class="why owned">装着中</span>' : ''}`;
     btn.addEventListener('click', () => {
@@ -1540,7 +1606,7 @@ function drawModal() {
       .filter((c) => c.id !== cand.id && occupiedSlots(c).some((s) => occupiedSlots(cand).includes(s)))
       .map((c) => c.name)
     : [];
-  const owned = !!cand && owns(G, cand.id);
+  const owned = !!cand && have(cand.id);
   const blocker = cand ? buyBlocker(G, cand) : null;
   const msg = document.createElement('span');
   msg.className = 'msg';   // 紙の .warn（規定外の警告）と名前を分ける
@@ -1568,6 +1634,8 @@ function drawModal() {
   };
 
   if (!cand) return;
+  // 自由設定に買い物は無い（全部持っている扱い。消耗も見ない）
+  if (!MODE.shop) return;
   if (!owned) {
     // 購入と装着は別。買っただけでは付かない
     button(`購入 ${yen(cand.price)}`, () => buyFromModal(cand), { primary: true, disabled: !!blocker });
@@ -1819,8 +1887,17 @@ function drawPitLine() {
 const noteFor = () => DATA.notes.find((n) => n.course === el('selCourse').value && n.class === state.cls) ?? null;
 
 function drawNotes() {
-  const n = noteFor();
   const cur = DATA.courses.find((c) => c.id === el('selCourse').value);
+  // **自由設定では親父のノートは白紙。** 書くのはここから先、ハルカ自身
+  if (!MODE.fatherNote) {
+    el('notesWhere').textContent = `${cur?.name ?? '—'} / 自由設定`;
+    el('notesText').textContent = 'このページは白紙。ここから先は、親父は書いていない。';
+    el('notesText').classList.add('blank');
+    el('notesBtn').disabled = true;
+    el('notesBtn').hidden = true;
+    return;
+  }
+  const n = noteFor();
   el('notesWhere').textContent = `${cur?.name ?? '—'} / クラス${state.cls}`;
   const text = el('notesText');
   if (n) {
@@ -1843,7 +1920,7 @@ function applyNote() {
   for (const id of n.parts) {
     const p = partById(id);
     if (!p) continue;
-    if (owns(G, id)) equipPart(p);
+    if (have(id)) equipPart(p);
     else missing.push(p.name);
   }
   // 持っていないものは付かない。何が足りないかは見せる
@@ -1919,7 +1996,9 @@ function drawCourses() {
 }
 
 /** そのクラスで走れるコースだけ。classes が無いデータは全クラス可とみなす。 */
-const usableCourses = () => DATA.courses.filter((c) => !c.classes || c.classes.includes(state.cls));
+const usableCourses = () => (MODE.courses === 'all'
+  ? DATA.courses
+  : DATA.courses.filter((c) => !c.classes || c.classes.includes(state.cls)));
 
 function calcLaps() {
   const p = perf();
@@ -2042,6 +2121,25 @@ function renderAll() {
   clearLaps();
 }
 
+/**
+ * モードを画面に反映する（`MODE` の表どおり）。**起動時に一度だけ。**
+ * ここと `MODE` の表以外に、モードの分岐を書かない。
+ */
+function applyMode() {
+  document.title = `${MODE.title} — ハルカのセッティングノート`;
+  el('pageTitle').textContent = MODE.title;
+  el('freeLead').hidden = !MODE.free;
+  // 予選／決勝のタブとシーズンへの導線は本編だけ
+  el('sessionTabs').hidden = !MODE.session;
+  if (MODE.laps) {
+    const sel = el('selLaps');
+    sel.textContent = '';
+    for (const o of MODE.laps) sel.add(new Option(o.label, String(o.v)));
+    sel.value = String(MODE.laps[0].v);
+  }
+  if (MODE.free) el('backTop').hidden = false;
+}
+
 // ---------------------------------------------------------------------------
 // 起動
 // ---------------------------------------------------------------------------
@@ -2049,6 +2147,13 @@ try {
   DATA = await loadAll();
   // 進行。URL に無ければ新しいゲーム（所持金の初期値、所有なし）
   G = loadState(location.search) ?? newGame(DATA.economy);
+  // **自由設定はエンディングのあとだけ。** 直接 URL を叩かれてもここで止める
+  if (MODE.free && !canFreeSetup(G)) {
+    document.body.innerHTML = '<p style="font:14px var(--jp-font);margin:24px">'
+      + 'このページはまだ開かない。<a href="../../index.html">表紙へ戻る</a></p>';
+    throw new Error('free: ending.done がない');
+  }
+  applyMode();
   state.cls = Math.min(5, Math.max(1, G.cls));
   state.tier = Math.min(4, Math.max(0, G.tier));
   el('selClass').value = String(state.cls);

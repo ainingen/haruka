@@ -149,6 +149,13 @@ export function newGame(economy) {
 /** 場面を見たか（`ending.seen`）。場面は一度だけ出す。 */
 export const sawScene = (state, id) => !!state?.ending?.seen?.includes(id);
 
+/**
+ * 自由設定（タイムアタック）に入れるか。**エンディングを見たあとだけ。**
+ * 白紙のページ（第8場）はここから先で、本編を終える前には開かない。
+ * 画面（index.html / setup.html の free モード）はどちらもこれを見る。
+ */
+export const canFreeSetup = (state) => !!state?.ending?.done;
+
 /** 場面を見た記録を足した state。**元は変えない。** 二度目は同じものを返す。 */
 export function markScene(state, id) {
   if (sawScene(state, id)) return state;
