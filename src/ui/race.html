@@ -314,7 +314,7 @@ h3.cap {
 <script type="module">
 import {
   buildPerformance, courseLoad, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
-  RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor,
+  RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor, analystExtra,
   brakeThreshold, tireWearSplit, fuelLevel, fuelLapsLeft, brakeFadeLoss,
   QUALI, START,
   // 走行そのものは engine の「場の走行」。ツール（tools/simulate-season.mjs）と同じ経路を通る
@@ -936,9 +936,22 @@ function lapCommentary(ev, traffic) {
 
 /** 解説の周ごとの一言。他車の性格か、神谷の車の症状（無線と重ならない周だけ）。 */
 function analystOnLap(lap) {
-  if (lap % 2 === 0) return;   // 毎周は喋らない
   const me = S.cars[0];
   const C = S.commentary;
+  // コースの解説とクラス5の解説は1レースに1本ずつ。**出した周は他の解説を出さない**（重ならない）
+  const extra = analystExtra(
+    { lap, totalLaps: S.totalLaps, cls: S.cls, courseId: S.course.id, parts: S.mine },
+    S.saidAnalyst,
+  );
+  if (extra) {
+    const pool = (extra.kind === 'course' ? C.analyst_course : C.analyst_class5)?.[extra.key];
+    if (pool?.length) {
+      say('analyst', textOf(pickUnique(`analyst_${extra.kind}/${extra.key}`, pool)));
+      S.saidAnalyst[extra.kind] = true;
+      return;
+    }
+  }
+  if (lap % 2 === 0) return;   // 毎周は喋らない
   const canTalkPlayer = S.lastInfoLap !== lap && S.lastInfoLap !== lap - 1;
   if (canTalkPlayer && S.lineRng() < 0.5 && S.lastSnapshot) {
     const symptoms = radioSymptoms(me.perf, S.lastSnapshot);
@@ -1093,6 +1106,7 @@ const S = {
   // ゲージの警戒段階と、前との差の増減。どちらも「変わった瞬間」を拾うために前回値を持つ
   gaugeState: { tire: '', brake: '', fuel: '' }, gapShown: null, gapCue: null,
   symptoms: {},   // この戦で自車に出た情報系トリガー → 回数（シーズンのノート用）
+  saidAnalyst: {},   // コースの解説・クラス5の解説を出したか（1レースに1本ずつ）
   checkeredClass: '',
 };
 

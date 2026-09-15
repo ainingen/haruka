@@ -232,6 +232,56 @@ export const RADIO = {
 };
 
 /**
+ * 解説の差し込み（data/commentary.json の analyst_course / analyst_class5）。
+ * **台詞は持たない。** どのキーを引くかと、どの周に出すかだけを決める。
+ *
+ * どちらも1レースに1本きり。返した周は他の解説を出さないので、既存の解説と重ならない。
+ */
+export const ANALYST = {
+  /** コースの解説を出す周（先頭がこの周を終えたとき）。序盤。2つあるのは1つ目を逃したときの控え */
+  courseLaps: [1, 3],
+  /** クラス5の解説を出す周＝全周のこのあたり（中盤） */
+  class5At: 0.5,
+  /** クラス5の解説が出るクラス */
+  class5From: 5,
+};
+
+/** クラス5の解説を出す周。**コースの解説と同じ周にはしない。** */
+export function analystClass5Lap(totalLaps) {
+  let lap = Math.max(2, Math.round(totalLaps * ANALYST.class5At));
+  while (ANALYST.courseLaps.includes(lap)) lap += 1;
+  return lap;
+}
+
+/**
+ * クラス5の解説のキー。補強を積んでいれば braced、ワークスだけなら works、どちらも無ければ general。
+ * クラス4以下では出さない（null）。
+ * @param {number} cls クラス
+ * @param {object[]} parts 自車に装着しているパーツ
+ */
+export function analystClass5Key(cls, parts = []) {
+  if (cls < ANALYST.class5From) return null;
+  if (parts.some((p) => p?.category === REINFORCE)) return 'braced';
+  if (parts.some((p) => p?.class_required === ANALYST.class5From && p.category !== REINFORCE)) return 'works';
+  return 'general';
+}
+
+/**
+ * その周に差し込む解説。無ければ null。
+ * @param {object} at { lap, totalLaps, cls, courseId, parts }
+ * @param {object} said すでに出したもの（{ course: true, class5: true }）
+ * @returns {{kind: 'course'|'class5', key: string}|null}
+ */
+export function analystExtra({ lap, totalLaps, cls, courseId, parts = [] }, said = {}) {
+  if (!said.course && ANALYST.courseLaps.includes(lap)) return { kind: 'course', key: courseId };
+  if (!said.class5 && lap === analystClass5Lap(totalLaps)) {
+    const key = analystClass5Key(cls, parts);
+    if (key) return { kind: 'class5', key };
+  }
+  return null;
+}
+
+/**
  * 予選（docs/設計/レース方式.md）。計測3周：アウトラップ → アタック → インラップ。ベストラップで並ぶ。
  * アウト／インは流すので係数で遅くする。アタックは決勝と同じ計算（冷間のグリップ低下もそのまま効く）。
  */

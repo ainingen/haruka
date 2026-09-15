@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import {
   buildPerformance, simulateRace, formatTime, SLOTS, occupiedSlots, resolveLoadout,
   RADIO, pitComment, reactionFor, brakeThreshold, tireWearSplit, fuelLevel,
+  ANALYST, analystExtra, analystClass5Key, analystClass5Lap,
   QUALI, START, gridBlockFactor, simulateQualifying,
   WEIGHTS, lapTime, createTireState, createBrakeState, radioSymptoms, radioForLap, createRadioState,
   createFuelState, fuelPerLap, fuelForLaps, advanceFuel, fuelLapsLeft, canRunLap, refuel,
@@ -925,4 +926,114 @@ test('27. 側面図の位置指示：ユニット部品が同時に出す丸と�
   assert.deepEqual(all, [], '位置指示が当たっている。slot-coords.json の dir / len を見直す');
   const most = Math.max(...units.map((p) => occupiedSlots(p).length));
   console.log(`  ユニット部品 ${units.length} 点（最大 ${most} スロット同時）：丸もラベルも当たりなし`);
+});
+
+// ---------------------------------------------------------------------------
+// 台詞データの見張りと、解説の差し込み（analyst_course / analyst_class5）。
+// ---------------------------------------------------------------------------
+
+test('28. 台詞データ：同じキーに同じ文が無く、{ } は vars にあるものだけ', () => {
+  // 読めること。壊れた JSON なら load でここに来る前に落ちる
+  for (const [name, data] of [['radio.json', RADIO_DATA], ['commentary.json', COMMENTARY]]) {
+    assert.ok(data && typeof data === 'object', `${name} が読めない`);
+    assert.ok(data.vars && typeof data.vars === 'object', `${name} に vars の表が無い`);
+  }
+
+  /** 台詞の配列を、キーの名前つきで拾う。返事（replies）の中の文も見る。 */
+  const pools = (node, path, out = []) => {
+    if (Array.isArray(node)) {
+      const texts = node.filter((e) => typeof e?.text === 'string');
+      if (texts.length) out.push([path, texts]);
+      node.forEach((e) => {
+        for (const r of e?.replies ?? []) out.push([`${path}.replies`, [{ text: r.answer }]]);
+        for (const r of e?.reactions ?? []) out.push([`${path}.reactions`, [r]]);
+      });
+    } else if (node && typeof node === 'object' && typeof node.text !== 'string') {
+      for (const [k, v] of Object.entries(node)) pools(v, path ? `${path}.${k}` : k, out);
+    }
+    return out;
+  };
+
+  let checked = 0;
+  for (const [name, data] of [['radio.json', RADIO_DATA], ['commentary.json', COMMENTARY]]) {
+    const known = new Set(Object.keys(data.vars).filter((k) => k !== '_comment'));
+    for (const [path, texts] of pools(data, '')) {
+      if (path.startsWith('class5')) continue;   // 台本から作る（build-scenes.mjs）
+      // 同じキーの中に同じ文が2つ無い
+      const list = texts.map((e) => e.text);
+      const dup = list.find((t, i) => list.indexOf(t) !== i);
+      assert.equal(dup, undefined, `${name} ${path} に同じ文が2つある：「${dup}」`);
+      // {…} は vars にあるものだけ
+      for (const t of list) {
+        for (const [, v] of t.matchAll(/\{(\w+)\}/g)) {
+          assert.ok(known.has(v), `${name} ${path} の {${v}} が vars に無い：「${t}」`);
+        }
+      }
+      checked += list.length;
+    }
+  }
+  console.log(`  台詞 ${checked} 本：同じキーの重複なし、{ } は vars の中だけ`);
+});
+
+test('29. 解説の差し込み：コースは5つ全部、クラス5はクラス5でだけ、1レースに1本ずつ', () => {
+  const C = COMMENTARY;
+  // コースの解説は courses.json の id で引く。**5コース全部にあり、余計なキーは無い**
+  const ids = COURSES.map((c) => c.id);
+  assert.deepEqual(Object.keys(C.analyst_course).filter((k) => k !== '_comment').sort(), [...ids].sort());
+  for (const id of ids) assert.ok(C.analyst_course[id].length >= 1, `${id} の解説が無い`);
+  for (const key of ['general', 'works', 'braced']) {
+    assert.ok(C.analyst_class5[key]?.length >= 2, `analyst_class5.${key} は2本以上`);
+  }
+
+  const works = PARTS.find((p) => p.id === 'engine_works_01');
+  const braced = PARTS.find((p) => p.id === 'reinforce_block_01');
+  const plain = PARTS.find((p) => p.class_required <= 2 && p.category !== 'reinforce');
+
+  // 出し分け。補強を積んでいれば braced、ワークスだけなら works、どちらも無ければ general
+  assert.equal(analystClass5Key(5, []), 'general');
+  assert.equal(analystClass5Key(5, [plain]), 'general');
+  assert.equal(analystClass5Key(5, [works]), 'works');
+  assert.equal(analystClass5Key(5, [braced]), 'braced');
+  assert.equal(analystClass5Key(5, [works, braced]), 'braced', '両方ならノートに無い方を話す');
+  // **クラス4以下では出ない**
+  for (const cls of [1, 2, 3, 4]) assert.equal(analystClass5Key(cls, [works, braced]), null, `クラス${cls}`);
+
+  /** 1レースぶん回して、出た解説を並べる。 */
+  const run = (opt) => {
+    const said = {};
+    const out = [];
+    for (let lap = 1; lap <= opt.totalLaps; lap += 1) {
+      const e = analystExtra({ ...opt, lap }, said);
+      if (!e) continue;
+      said[e.kind] = true;
+      out.push({ lap, ...e });
+    }
+    return out;
+  };
+
+  // コースの解説は5コースとも1本ずつ、序盤に出る
+  for (const id of ids) {
+    const got = run({ totalLaps: 10, cls: 1, courseId: id, parts: [] });
+    const c = got.filter((e) => e.kind === 'course');
+    assert.equal(c.length, 1, `${id} のコース解説が1本でない（${c.length}本）`);
+    assert.equal(c[0].key, id);
+    assert.ok(ANALYST.courseLaps.includes(c[0].lap), `${id} の解説が序盤でない（${c[0].lap}周目）`);
+    assert.ok(C.analyst_course[c[0].key], `${id} の解説を引けない`);
+  }
+
+  // クラス5では中盤にもう1本。**同じ周には重ならない**
+  for (const totalLaps of [4, 5, 6, 8, 10, 14, 20]) {
+    const got = run({ totalLaps, cls: 5, courseId: 'kazahaya', parts: [braced] });
+    const kinds = got.map((e) => e.kind);
+    assert.deepEqual(kinds, ['course', 'class5'], `${totalLaps}周：コース→クラス5の順に1本ずつ`);
+    assert.notEqual(got[0].lap, got[1].lap, `${totalLaps}周：同じ周に2本出ている`);
+    assert.equal(got[1].key, 'braced');
+    assert.equal(got[1].lap, analystClass5Lap(totalLaps));
+  }
+  // クラス4以下はコースの解説だけ
+  const low = run({ totalLaps: 10, cls: 4, courseId: 'misaki', parts: [works, braced] });
+  assert.deepEqual(low.map((e) => e.kind), ['course'], 'クラス4でクラス5の解説が出ている');
+
+  const n = (o) => Object.entries(o).filter(([k]) => k !== '_comment').map(([, v]) => v.length).reduce((a, b) => a + b, 0);
+  console.log(`  コースの解説 ${n(C.analyst_course)} 本 / 5コース、クラス5の解説 ${n(C.analyst_class5)} 本（general・works・braced）`);
 });
