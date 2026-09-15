@@ -667,6 +667,7 @@ import { currentRound } from '../engine/season.js';
 import {
   OVERRIDE, clampFactor, applyOverrides, packOverrides, runAttack,
   readFree, writeFree, putBest, emptyFree, harukaLine, pushNote, NOTE_LINE_MAX,
+  FREE_RADIO, freeRadioFor,
 } from '../engine/free.js';
 
 // ---------------------------------------------------------------------------
@@ -2252,8 +2253,38 @@ function applyMode() {
 // 当てるのは loadoutOf の1箇所（buildPerformance の手前）。race.js は触らない。
 // ---------------------------------------------------------------------------
 
-/** 走り終えたときの無線（段階4で中身を入れる）。 */
-function onAttackDone() {}
+/**
+ * 自由設定での無線（data/radio.json の class5.free_setup）。
+ * **どの行を出すかは free.js。** ここは出し方（ピットの吹き出しに流す）だけ。
+ * 既存の症状系（info）はこれまでどおり drawPitLine が出す。
+ */
+function sayFreeRadio(ids) {
+  const def = DATA.radio.class5?.free_setup;
+  const rows = ids.filter(Boolean).flatMap((id) => (FREE_RADIO[id] ?? []).map((i) => def?.lines?.[i])).filter(Boolean);
+  if (!rows.length) { el('class5Line').hidden = true; return; }
+  const who = DATA.radio.speakers?.haruka?.label ?? 'ハルカ';
+  el('class5Lines').innerHTML = rows
+    .map((l) => `<div class="say"><span class="who">${esc(who)}</span><span class="line">${esc(l.text)}</span></div>`)
+    .join('');
+  el('class5Line').hidden = false;
+  for (const id of ids.filter(Boolean)) cue('free.radio', { id });
+}
+
+/**
+ * 1本ぶんの無線。**走り出す前と走り終えたあとを、1つの吹き出しに順に並べる。**
+ * 走行が一瞬で終わるので、先に出した一行を上書きせず、下に続ける
+ * （「それ壊れるよ。」→「壊れるって言った。」が並んで見える）。
+ */
+function onAttackDone(r, course, prevBest, updated, startId) {
+  if (!MODE.free) return;
+  const doneId = freeRadioFor({
+    phase: 'done',
+    reliability: perf().stats.reliability,
+    retired: r.retired,
+    updated,
+  });
+  sayFreeRadio([startId, doneId]);
+}
 
 /** いまの倍率（未設定は 1）。 */
 const overOf = (id, table, key) => clampFactor(state.over[id]?.[table]?.[key]);
@@ -2314,6 +2345,8 @@ function runTimeAttack() {
   const laps = Number(el('selLaps').value) || 1;
   if (!course) return;
   attackSeed += 1;
+  // 走り出す前の一行（信頼性が負の構成なら「それ壊れるよ。」）
+  const startId = freeRadioFor({ phase: 'start', reliability: perf().stats.reliability });
   const r = runAttack(perf(), course, DATA.driver, { laps, seed: attackSeed });
   const prevBest = state.free.best[course.id] ?? null;
   let updated = false;
@@ -2334,7 +2367,7 @@ function runTimeAttack() {
     }
   }
   drawAttack(r, course, prevBest, updated);
-  onAttackDone(r, course, prevBest, updated);   // 無線（段階4）
+  onAttackDone(r, course, prevBest, updated, startId);
 }
 
 /** 走行の結果。セクター別タイムとラップ、ベストとの差。 */

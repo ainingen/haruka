@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import {
   OVERRIDE, clampFactor, hasOverride, overridePart, applyOverrides, packOverrides,
   runAttack, WARMUP_LAPS, readFree, writeFree, putBest, emptyFree, FREE_SLOT, NOTE_MAX,
-  harukaLine, mainParts, pushNote, NOTE_PARTS, NOTE_LINE_MAX,
+  harukaLine, mainParts, pushNote, NOTE_PARTS, NOTE_LINE_MAX, FREE_RADIO, freeRadioFor,
 } from './free.js';
 import { buildPerformance } from './race.js';
 import { encode, decode, newGame, LOCAL_KEY, SAVE_KEY } from './save.js';
@@ -23,6 +23,7 @@ const CHASSIS = load('chassis.json');
 const COURSES = load('courses.json');
 const DRIVERS = load('drivers.json');
 const ECONOMY = load('economy.json');
+const RADIO = load('radio.json');
 const part = (id) => PARTS.find((p) => p.id === id);
 
 test('F1. 上書きは ±50% に収まる。素のままの倍率は記録に残さない', () => {
@@ -216,4 +217,49 @@ test('F5. ハルカのノート：ベストの一行と、プレイヤーの一�
   assert.equal(encode(g).length, before);
   assert.ok(NOTE_LINE_MAX === 40, 'プレイヤーの一行は40字');
   console.log(`  ノート：「${line}」　${NOTE_MAX} 行で古い順に消える`);
+});
+
+test('F6. 自由設定の無線：5つの発火が条件どおりに出て、台本の6本に当たる', () => {
+  const lines = RADIO.class5.free_setup.lines;
+  assert.equal(lines.length, 6, '台本の6本');
+
+  // --- どの行を出すか。**台本の並びに当たっているか**を文言で確かめる ---------
+  const textOf = (id) => FREE_RADIO[id].map((i) => lines[i].text).join(' ');
+  assert.match(textOf('fragile_start'), /それ壊れるよ/);
+  assert.match(textOf('fragile_retire'), /壊れるって言った/);
+  assert.match(textOf('fragile_retire'), /これは壊れる/);
+  assert.match(textOf('fast_but_fragile'), /壊れるけど速い/);
+  assert.match(textOf('solid_but_slow'), /つまんないけど持つ/);
+  assert.match(textOf('best'), /親父、これ知らないやつ/);
+  // 6本を使い切り、重ならない
+  const used = Object.values(FREE_RADIO).flat().sort((a, b) => a - b);
+  assert.deepEqual(used, [0, 1, 2, 3, 4, 5], '使っていない行か、二度使っている行がある');
+  for (const l of lines) assert.equal(l.speaker, 'haruka', 'すべてハルカ');
+
+  // --- 発火の条件 -----------------------------------------------------------
+  const at = (o) => freeRadioFor(o);
+  // 走り出す：信頼性が負のときだけ
+  assert.equal(at({ phase: 'start', reliability: -3 }), 'fragile_start');
+  assert.equal(at({ phase: 'start', reliability: 0 }), null, '信頼性0は「負」ではない');
+  assert.equal(at({ phase: 'start', reliability: 5 }), null);
+  // 壊れた：その構成（信頼性が負）のときだけ「言った」が出る
+  assert.equal(at({ phase: 'done', reliability: -3, retired: true }), 'fragile_retire');
+  assert.equal(at({ phase: 'done', reliability: 2, retired: true }), null, '信頼性が正で壊れても「言った」は言えない');
+  // 速いが壊れる構成でベスト更新
+  assert.equal(at({ phase: 'done', reliability: -3, updated: true }), 'fast_but_fragile');
+  // ふつうのベスト更新
+  assert.equal(at({ phase: 'done', reliability: 4, updated: true }), 'best');
+  assert.equal(at({ phase: 'done', reliability: 0, updated: true }), 'best');
+  // 走り切ったが届かない：信頼性を取った構成にだけ
+  assert.equal(at({ phase: 'done', reliability: 4 }), 'solid_but_slow');
+  assert.equal(at({ phase: 'done', reliability: -3 }), null, '壊れる構成で届かないときは黙る');
+  // 壊れたときはベスト更新の判定より先
+  assert.equal(at({ phase: 'done', reliability: -3, retired: true, updated: true }), 'fragile_retire');
+  assert.equal(at({ phase: 'まだ' }), null);
+
+  // --- 画面がこれを引いているか --------------------------------------------
+  const setup = readFileSync(join(ROOT, 'src', 'ui', 'setup.html'), 'utf8');
+  assert.match(setup, /freeRadioFor/, 'setup.html が無線を引いていない');
+  assert.match(setup, /free_setup/, 'setup.html が class5.free_setup を見ていない');
+  console.log(`  自由設定の無線：${Object.keys(FREE_RADIO).length} の発火 / ${lines.length} 本`);
 });

@@ -208,3 +208,47 @@ export function pushNote(free, entry) {
   const note = [...free.note, { who: entry.who === 'player' ? 'player' : 'haruka', text, at: entry.at ?? 0 }];
   return { ...free, note: note.slice(-NOTE_MAX) };
 }
+
+// ---------------------------------------------------------------------------
+// 自由設定での無線（data/radio.json の class5.free_setup、6本）
+//
+// 台本（docs/シナリオ/クラス5台本.md 第8場）から build-scenes.mjs が作ったもの。
+// **台詞は持たない。** どの行を出すかだけを決める。
+// ---------------------------------------------------------------------------
+
+/**
+ * 発火 → free_setup.lines の何本目か。台本の並び順に対応する。
+ *
+ *   fragile_start     信頼性が負の構成で走り出す        「それ壊れるよ。」
+ *   fragile_retire    その構成でリタイア                「壊れるって言った。」→「……書いとく。」
+ *   fast_but_fragile  速いが信頼性が負でベスト更新      「速い。壊れるけど速い。書いとく。」
+ *   solid_but_slow    信頼性が正で走り切り、届かない    「持つな、これ。つまんないけど持つ。」
+ *   best              ベスト更新                        「……書いた。親父、これ知らないやつ。」
+ */
+export const FREE_RADIO = {
+  fragile_start: [0],
+  fragile_retire: [1, 2],
+  fast_but_fragile: [3],
+  solid_but_slow: [4],
+  best: [5],
+};
+
+/**
+ * いま出す無線。無ければ null。
+ *
+ * @param {object} at
+ *   phase        'start'（走り出す）／'done'（走り終えた）
+ *   reliability  その構成の信頼性
+ *   retired      壊れたか
+ *   updated      ベストを更新したか
+ */
+export function freeRadioFor({ phase, reliability = 0, retired = false, updated = false }) {
+  const fragile = reliability < 0;
+  if (phase === 'start') return fragile ? 'fragile_start' : null;
+  if (phase !== 'done') return null;
+  // 壊れたときが先。**言ったとおりになった**、が最優先
+  if (retired) return fragile ? 'fragile_retire' : null;
+  if (updated) return fragile ? 'fast_but_fragile' : 'best';
+  // 走り切ったが届かない。**信頼性を取った構成にだけ言う**（つまらないが持つ）
+  return fragile ? null : 'solid_but_slow';
+}
