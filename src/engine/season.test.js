@@ -418,9 +418,13 @@ test('S10. エンディングの一行と既読が進行に残り、保存文字
 
 test('S11. 台本の台詞が、そのまま scenes.json と radio.json に入っている', async () => {
   // 台本はリポジトリに入っている。**無ければ落ちる**（生成物だけが残る事故を防ぐ）
-  const script = join(ROOT, 'docs', 'シナリオ', 'クラス5台本.md');
-  const { build } = await import('../../tools/build-scenes.mjs');
-  const { scenes, class5, seasonNote } = build(readFileSync(script, 'utf8'));
+  // **クラス5とプロローグの両方**を読み直して、生成物と突き合わせる
+  const { build, SCRIPTS } = await import('../../tools/build-scenes.mjs');
+  const texts = Object.fromEntries(SCRIPTS.map((sc) => [
+    sc.file, readFileSync(join(ROOT, 'docs', 'シナリオ', sc.file), 'utf8'),
+  ]));
+  assert.equal(Object.keys(texts).length, 2, '読む台本は2本（クラス5とプロローグ）');
+  const { scenes, class5, seasonNote } = build(texts);
 
   // 場面：台本から抜いたものと data/scenes.json が一字一句同じ
   assert.deepEqual(load('scenes.json').scenes, scenes, 'data/scenes.json が台本と合っていない（--write で作り直す）');
@@ -570,4 +574,39 @@ test('S15. 立ち絵：決めた場所に image の手が入り、絵のファ�
   assert.equal(images[0].src, 'scene/haruka_walk.jpg');
   assert.ok(win.steps.findIndex((s) => s.do === 'image') > win.steps.length / 2, '第6場の絵は終わりのほう');
   console.log(`  立ち絵 ${IMAGES.length} 箇所：${rows.join('／')}`);
+});
+
+test('S16. 選択の手は選択として出る。say を持つ第4場の3択も台詞に流れない', async () => {
+  // 場面エンジンは UI だが、手の読み分けだけは純粋な関数にしてある
+  const { stepKind } = await import('../ui/scene.js');
+  const SCENES = load('scenes.json').scenes;
+  const byId = Object.fromEntries(SCENES.map((s) => [s.id, s]));
+
+  // **第4場の3択は「主人公：（選択肢）」から来るので say を持つ。**
+  // say を先に見ると台詞として流れ、A/B/C が出ないまま分岐が死ぬ
+  const greet = byId.p4.steps.find((s) => s.key === 'greet');
+  assert.ok(greet, '第4場に3択がある');
+  assert.equal(greet.say, '主人公', '3択は主人公の台詞として出る');
+  assert.equal(stepKind(greet), 'choose', 'say を持っていても選択として出す');
+
+  // ふつうの台詞とノートの文字は、これまでどおり
+  assert.equal(stepKind({ say: 'ハルカ', text: '……。' }), 'say');
+  assert.equal(stepKind({ note: 'かざはや　クラス5' }), 'note');
+  assert.equal(stepKind({ stage: '【フェードアウト】' }), 'stage');
+
+  // すべての場面で、分岐（when）の答えを出す手が必ず選択として出る。**pos は走行の結果**
+  for (const scene of SCENES) {
+    for (const step of scene.steps) {
+      for (const key of Object.keys(step.when ?? {})) {
+        if (key === 'pos') continue;
+        const src = scene.steps.find((x) => x.key === key);
+        assert.ok(src, `${scene.id}：${key} を決める手が無い`);
+        assert.equal(stepKind(src), 'choose', `${scene.id}：${key} が選択として出ない`);
+        assert.ok(src.options.some((o) => o.id === step.when[key]),
+          `${scene.id}：${key}=${step.when[key]} という選択肢が無い`);
+      }
+    }
+  }
+  const chooses = SCENES.flatMap((s) => s.steps.filter((x) => stepKind(x) === 'choose'));
+  console.log(`  選択 ${chooses.length} 箇所：${chooses.map((c) => `${c.key}(${c.options.length})`).join(' ')}`);
 });

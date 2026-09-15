@@ -50,6 +50,18 @@ export function fill(text, vars = {}) {
 /** 台詞だけを抜く（テストと、長さの見積もりに使う）。 */
 export const linesOf = (scene) => scene.steps.filter((s) => s.say).map((s) => `${s.say}：${s.text}`);
 
+/**
+ * その手が何か。**`do` を先に見る。**
+ * 第4場の A/B/C は「主人公：（選択肢）」から来るので `say` と `do:'choose'` の両方を持つ。
+ * `say` を先に見ると台詞として流れてしまい、選択肢が出ないまま分岐が死ぬ。
+ */
+export function stepKind(step) {
+  if (step.do) return step.do;
+  if (step.say) return 'say';
+  if (step.note) return 'note';
+  return 'stage';
+}
+
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 
 /** 【間】の長さと、字が出る速さ。 */
@@ -175,14 +187,15 @@ export async function playScene(scene, host, opts = {}) {
   try {
     for (const step of scene.steps) {
       if (!shows(step)) continue;
-      if (step.say) {
+      const kind = stepKind(step);
+      if (kind === 'say') {
         const who = speakerLabel(step.say);
         add('scene-say', `<span class="who">${esc(who)}</span><span class="line">${esc(fill(step.text, vars))}</span>`);
         hint.hidden = false;
         await nextClick();
         continue;
       }
-      if (step.note) {
+      if (kind === 'note') {
         add('scene-note', esc(fill(step.note, vars)));
         hint.hidden = false;
         await nextClick();
@@ -191,7 +204,7 @@ export async function playScene(scene, host, opts = {}) {
       // 【 】は画面に出さない。することだけする
       onStage?.(step);
       hint.hidden = true;
-      switch (step.do) {
+      switch (kind) {
         case 'cue': cue(step.cue, { scene: scene.id }); await wait(SCENE.turnMs); break;
         case 'beat': await wait(SCENE.beatMs); break;
         case 'note': cue('note.turn', { scene: scene.id }); await wait(SCENE.turnMs); break;
