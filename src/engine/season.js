@@ -4,7 +4,7 @@
  * 6戦、ポイント制、昇降格、オフシーズンのノート、スポンサー段階。
  * state を受け取る関数は新しい state を返し、元は変えない。数値は data/economy.json。
  */
-import { createRng, createRunner, runField, simulateQualifying, START, ENDURANCE } from './race.js';
+import { createRng, createRunner, runField, simulateQualifying, START, ENDURANCE, setupEndurance, canRunLap } from './race.js';
 import { rivalSpec, fieldEntries, seasonRivalPlan, rivalLoadout } from './rivals.js';
 
 /** そのクラスで走れるコース。classes が無いデータは全クラス可とみなす。 */
@@ -225,7 +225,7 @@ export function buildField({ myPerf, driver, chassis, course, rivals, parts, not
   for (const [i, entry] of entries.entries()) {
     const loadout = rivalLoadout(entry, i, plan, parts, notes, course, cls);
     const spec = rivalSpec(entry, i, { loadout, driver, chassis, rng });
-    field.push({ id: spec.id, name: spec.name, perf: spec.perf, driver: spec.driver, partIds: spec.partIds });
+    field.push({ id: spec.id, name: spec.name, perf: spec.perf, driver: spec.driver, partIds: spec.partIds, radio: spec.radio });
   }
   return field;
 }
@@ -237,11 +237,15 @@ export function buildField({ myPerf, driver, chassis, course, rivals, parts, not
  * （race.js の runField）。スタートの遅れと混雑がそのまま入るので、ここで出る順位は
  * 画面で見る順位と同じ性質を持つ。
  *
- * @param {object} args { myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed, rivalSeed }
- * @returns {Array<{ id, name, pos, retired, total, best, gridPos, partIds }>}
+ * 耐久戦（`endurance`）なら、全車に耐久のタンクを積んで AI に入り方を配る。自車が積む量は
+ * `fuel`（full / margin / tight）、`saving` で「燃料、節約」を押しっぱなしにする。
+ *
+ * @param {object} args { myPerf, driver, chassis, course, laps, rivals, parts, notes, cls, seed, rivalSeed,
+ *                        endurance, fuel, saving, pitAt }
+ * @returns {Array<{ id, name, pos, retired, total, best, gridPos, partIds, pits, pitLoss }>}
  */
 export function simulateField(args) {
-  const { course, laps, seed = 1 } = args;
+  const { course, laps, seed = 1, endurance = false, fuel = 'full', saving = false, pitAt = null } = args;
   const field = buildField(args);
 
   // --- 予選。ベストラップの順にグリッドが決まる（画面の流れと同じ） ---------
@@ -261,9 +265,22 @@ export function simulateField(args) {
     r.gridPos = i + 1;
     r.delay = i * START.slotDelay;
   });
-  const order = runField(runners, { course, laps, grid: true });
+  if (endurance) {
+    setupEndurance(runners, laps, { fuel, seed: seed + 303 });
+    runners.find((r) => r.id === 'me').saving = saving;
+  }
+  /**
+   * 自車のピット。画面では合図で入るが、通しで走らせるときは指示どおりに入れる。
+   * **pitAt を渡さなければ「走れなくなる直前」**＝満タンまで入れるぶんを一番活かす入り方。
+   */
+  const wantsPit = (car, total) => {
+    if (!endurance || car.id !== 'me' || car.pits > 0 || car.lap >= total) return false;
+    return pitAt ? car.lap >= pitAt : !canRunLap(car.fuel, car.perf.stats, car.saving);
+  };
+  const order = runField(runners, { course, laps, grid: true }, endurance ? { wantsPit } : {});
   return order.map((r, i) => ({
     id: r.id, name: r.name, pos: i + 1, retired: r.retired, retireReason: r.retireReason,
     total: r.raceTime, best: r.best, laps: r.lapTimes.length, gridPos: r.gridPos, partIds: r.partIds,
+    pits: r.pits, pitLoss: r.pitLoss, pitLaps: r.pitLaps,
   }));
 }

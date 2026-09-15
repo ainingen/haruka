@@ -15,7 +15,11 @@ import {
   seasonEvents, SEASON_EVENTS, titleClinched, winSceneDue,
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
-import { ENDURANCE, PIT, enduranceTank, enduranceFuel, fuelPerLap, canRunLap, advanceFuel, refuel } from './race.js';
+import {
+  ENDURANCE, PIT, enduranceTank, enduranceFuel, fuelPerLap, canRunLap, advanceFuel, refuel,
+  setupEndurance, pitStop, pitStopSeconds, createPitCall, pressPitCall, lapsePitCall,
+  createRunner, runField, planLap, stepField, rankRunners, createClock, courseLoad, progress,
+} from './race.js';
 import {
   newGame, encode, decode, markScene, trimTo,
   LINE_MAX, NAME_MAX, DEFAULT_LINE, DEFAULT_NAME, PROLOGUE_CHOICES,
@@ -708,4 +712,124 @@ test('S18. 画面の中の module が構文として通る（ビルドが無い�
     rows.push(`${page.split('/').pop()} ${body.split('\n').length}行`);
   }
   console.log(`  構文 OK：${rows.join('、')}`);
+});
+
+test('S19. ピットイン：二段の合図、AI は全車一度、停止時間は式どおり、止まっている間に抜かれる', () => {
+  const COURSE = COURSES.find((c) => c.id === 'misaki');
+  const chassisData = load('chassis.json');
+  const driver = load('drivers.json')[0];
+  const laps = ECONOMY.laps[1] * ENDURANCE.lapFactor;
+
+  // --- 二段の合図。**押し切らなければ入らない** -----------------------------
+  const call = createPitCall();
+  assert.equal(pressPitCall(call, 5), 'ask', '1回目はただの合図（ハルカが抵抗する）');
+  assert.equal(call.confirmed, false, '1回押しただけでは決まらない');
+  assert.equal(pressPitCall(call, 5), 'confirm', '同じ周にもう一度で決定');
+  assert.equal(pressPitCall(call, 5), 'already', '3回目は何も起きない');
+
+  // 1回押して放っておくと、周が変わったところで流れる
+  const lapsed = createPitCall();
+  pressPitCall(lapsed, 5);
+  assert.equal(lapsePitCall(lapsed, 5), false, '同じ周のうちは流れない');
+  assert.equal(lapsePitCall(lapsed, 6), true, '周が変わったら流れる');
+  assert.equal(lapsed.asked, null);
+  assert.equal(lapsed.confirmed, false, '流れたら入らない');
+  // 決めたあとは周が変わっても流れない
+  const fixed = createPitCall();
+  pressPitCall(fixed, 3); pressPitCall(fixed, 3);
+  assert.equal(lapsePitCall(fixed, 4), false);
+
+  // --- 停止時間の式 ---------------------------------------------------------
+  const S = PIT.stop;
+  const tank = { level: 0, tank: 100 };
+  const full = { level: 100, tank: 100 };
+  assert.equal(pitStopSeconds(tank, false), S.lane + S.still + S.fuelMax, '空なら給油は最長');
+  assert.equal(pitStopSeconds(full, false), S.lane + S.still + S.fuelMin, '満タンなら給油は最短');
+  assert.equal(pitStopSeconds(tank, true) - pitStopSeconds(tank, false), S.tyre, 'タイヤ交換は +8秒');
+  assert.equal(pitStopSeconds({ level: 50, tank: 100 }, false), S.lane + S.still + (S.fuelMax + S.fuelMin) / 2, '半分なら中間');
+
+  // --- 場を走らせる。**AI が全車一度は入る** --------------------------------
+  const perf = buildPerformance([], driver, chassisData.hatchback, {});
+  const radios = ['straight', 'corner', 'slow', 'aggressive'];
+  const cars = Array.from({ length: 8 }, (_, i) => ({
+    id: i === 0 ? 'me' : `ai${i}`,
+    isPlayer: i === 0,
+    radio: radios[i % radios.length],
+    ...createRunner({ perf: buildPerformance([], driver, chassisData.hatchback, {}), driver, seed: 11 + i * 977, laps }),
+  }));
+  setupEndurance(cars, laps, { fuel: 'full', seed: 5 });
+  for (const car of cars.slice(1)) {
+    assert.ok(['attack', 'steady', 'other'].includes(car.pitStyle), 'AI に入り方がある');
+    assert.equal(car.fuel.level, car.fuel.tank, 'AI は満タンで出る');
+  }
+  assert.equal(cars[0].pitStyle, null, '自車は合図で入る（性格で勝手に入らない）');
+
+  // 自車は「走れなくなる直前」に入る
+  const wantsPit = (car, total) => car.id === 'me' && car.pits === 0 && car.lap < total
+    && !canRunLap(car.fuel, car.perf.stats, car.saving);
+  const order = runField(cars, { course: COURSE, laps, grid: false }, { wantsPit });
+
+  for (const car of cars) {
+    assert.equal(car.retired, false, `${car.id} が止まっている（${car.retireReason}）`);
+    // **全車が必ず一度は入る。** 早く入った車は二度目が要ることがある（早入りの代償）
+    assert.ok(car.pits >= 1, `${car.id} が一度も入っていない`);
+    assert.equal(car.pitLaps.length, car.pits);
+    assert.ok(car.pitLoss >= PIT.stop.lane + PIT.stop.still + PIT.stop.fuelMin, `${car.id} の停止時間`);
+  }
+  // 引っぱる型ほど回数が少ない。攻め型は必ず1回で足りる
+  for (const car of cars.slice(1).filter((c) => c.pitStyle === 'attack')) {
+    assert.equal(car.pits, 1, '攻め型（残り15%）は1回で足りる');
+  }
+  // 入る周は性格で散る（全車が同じ周に来ない）
+  const pitLaps = cars.slice(1).map((c) => c.pitLaps[0]);
+  assert.ok(new Set(pitLaps).size >= 3, `AI の入る周が散っていない：${pitLaps.join(',')}`);
+  // 攻め型は引っぱり、堅実は早く入る
+  const byStyle = (st) => cars.slice(1).filter((c) => c.pitStyle === st).map((c) => c.pitLaps[0]);
+  const attack = byStyle('attack'); const steady = byStyle('steady');
+  if (attack.length && steady.length) {
+    assert.ok(Math.min(...attack) > Math.max(...steady), `攻め型 ${attack} は堅実 ${steady} より遅く入る`);
+  }
+  // 攻め型はタイヤを替えない＝停止時間が短い
+  const attackCar = cars.find((c) => c.pitStyle === 'attack');
+  const steadyCar = cars.find((c) => c.pitStyle === 'steady');
+  assert.ok(attackCar.pitLoss < steadyCar.pitLoss, '攻め型はタイヤを替えないぶん短い');
+
+  console.log(`  ${laps}周・8台：${cars.map((c) => `${c.id}${c.pitStyle ? `(${c.pitStyle})` : ''}:${c.pitLaps.join('/')}周 ${c.pitLoss.toFixed(0)}s`).join('　')}`
+    + `　勝者 ${order[0].id}`);
+});
+
+test('S20. ピットで止まっている間も場は進む＝その場で順位が動く', () => {
+  const COURSE = COURSES.find((c) => c.id === 'misaki');
+  const chassisData = load('chassis.json');
+  const driver = load('drivers.json')[0];
+  const laps = 6;
+  const make = (id) => ({
+    id, isPlayer: id === 'me', radio: 'corner',
+    ...createRunner({ perf: buildPerformance([], driver, chassisData.hatchback, {}), driver, seed: 4242, laps }),
+  });
+  // **まったく同じ車2台。** 片方だけピットに入れる
+  const cars = [make('me'), make('ai1')];
+  const ctx = { course: COURSE, load: courseLoad(COURSE), totalLaps: laps, courseLen: COURSE.length, grid: false, clock: createClock() };
+  for (const car of cars) planLap(car, COURSE);
+  // 同じ車なので、入れるまでは並んでいる
+  stepField(cars, 30, ctx);
+  const before = rankRunners(cars, COURSE.length).map((c) => c.id);
+  assert.deepEqual(before, ['me', 'ai1'], '同じ車ならスタート順のまま');
+
+  // 自車をボックスに入れる（20秒止める）
+  cars[0].fuel = { level: 5, filled: 50, tank: 50 };
+  const stop = pitStop(cars[0]);
+  assert.ok(stop.seconds > 0);
+  assert.ok(cars[0].hold > 0, '止まっている');
+  const myDist = progress(cars[0], COURSE.length);
+  stepField(cars, stop.seconds - 1, ctx);
+  assert.equal(progress(cars[0], COURSE.length), myDist, 'ピット中は1メートルも進まない');
+  stepField(cars, 1, ctx);
+  assert.ok(progress(cars[1], COURSE.length) > myDist, '相手は進んでいる');
+  assert.deepEqual(rankRunners(cars, COURSE.length).map((c) => c.id), ['ai1', 'me'], 'ピット中に抜かれる');
+  assert.equal(cars[0].hold, 0, '止まる時間を使い切ったら出る');
+  // 止まっていた時間はラップタイムに入る（出た周が遅くなる）
+  stepField(cars, 400, ctx);
+  assert.ok(cars[0].raceTime > cars[1].raceTime, `止まったぶんだけ遅い：${cars[0].raceTime.toFixed(1)} vs ${cars[1].raceTime.toFixed(1)}`);
+  console.log(`  ピット ${stop.seconds.toFixed(1)}秒で ${(cars[0].raceTime - cars[1].raceTime).toFixed(1)}秒の損`);
 });

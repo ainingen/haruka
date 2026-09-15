@@ -638,7 +638,59 @@ export const PIT = {
   ai: { attack: 0.15, steady: 0.35, other: 0.25, jitter: 1 },
   /** AI の性格（rivals.js の radio）→ 入り方 */
   aiStyle: { aggressive: 'attack', slow: 'steady', straight: 'other', corner: 'other' },
+  /** AI がタイヤを替えるか。**性格で固定**（攻め型は8秒を惜しんで替えない） */
+  aiTyre: { attack: false, steady: true, other: true },
 };
+
+/**
+ * 「次の周、入れ」の二段の合図（docs/設計/ピットストップ.md）。
+ * **押し切らなければ入らない。** ハルカは一度は抵抗する。
+ */
+export const createPitCall = () => ({ asked: null, confirmed: false });
+
+/**
+ * 合図を押した。1回目はただの合図（ハルカが抵抗する）、**同じ周にもう一度押すと決定**。
+ * @returns {'ask'|'confirm'|'already'} 画面はこれで台詞を選ぶ
+ */
+export function pressPitCall(call, lap) {
+  if (call.confirmed) return 'already';
+  if (call.asked === lap) { call.confirmed = true; return 'confirm'; }
+  call.asked = lap;
+  return 'ask';
+}
+
+/**
+ * 周が変わった。**押し切っていない合図はここで流れる**（入らない＝ハルカは走り続ける）。
+ * @returns {boolean} 流れたか
+ */
+export function lapsePitCall(call, lap) {
+  if (call.confirmed || call.asked === null || call.asked === lap) return false;
+  call.asked = null;
+  return true;
+}
+
+/**
+ * AI がこの周の終わりにピットへ入るか。
+ *
+ * 残り燃料が性格ごとの割合を切ったら入る（種で ±jitter 周ぶん散らす）。**性格で入るのは1回だけ。**
+ * ただし入らなければ次の周を走れないときは、何度でも入る。これが
+ * 「全車が必ず一度は入る」と「AI は燃料切れで止まらない」の両方の担保になる。
+ *
+ * **早く入ると一度で足りない。** 満タンまで入れるので、残して入ったぶんはそのまま捨てる。
+ * 満タンが全周回の6割しかない以上、残り35%で入る堅実型は二度目が要ることがある
+ * （早入りの代償。プレイヤーの「必要分＋余裕」で早く入ったときと同じ理屈）。
+ */
+export function aiWantsPit(car, totalLaps) {
+  if (!car.pitStyle || car.lap >= totalLaps) return false;
+  const tank = car.fuel?.tank;
+  if (!tank) return false;
+  // 入らなければ止まる。ここだけは回数を問わない
+  if (!canRunLap(car.fuel, car.perf.stats, car.saving)) return true;
+  if (car.pits > 0) return false;
+  const share = PIT.ai[car.pitStyle] ?? PIT.ai.other;
+  const jitter = (car.pitJitter ?? 0) * fuelPerLap(car.perf.stats, car.saving);
+  return car.fuel.level < tank * share + jitter;
+}
 
 /**
  * ピットの停止時間（秒）。静止 ＋ 給油（残量に応じて）＋ タイヤ交換 ＋ ピットロードの通過。
@@ -1116,6 +1168,13 @@ export function createRunner({ perf, driver, seed, laps, fuel = null }) {
     lastWear: 0, lastTemp: 0, lastFade: 0,
     // グリッドの後ろほどスタートが遅れる。混雑ぶんの速度係数は毎フレーム引き直す
     delay: 0, gridPos: null, blockFactor: 1,
+    // ピット（docs/設計/ピットストップ.md）。hold はボックスで止まっている残り秒数。
+    // **止まっている間も場は進む**ので、順位はここで動く
+    hold: 0, pitRequest: false, pitTyre: false, pits: 0, pitLaps: [], pitLoss: 0,
+    /** AI の入り方（attack / steady / other）。自車は null＝合図で入る */
+    pitStyle: null,
+    /** 入る周の散らし（±PIT.ai.jitter 周ぶん）。種から決まる */
+    pitJitter: 0,
   };
 }
 
@@ -1188,9 +1247,53 @@ export function completeLap(car, course, load, totalLaps, hooks = {}) {
   // 残り周回も渡す。足りるかどうかは、残量だけでは決まらない
   event.fuel = car.fuel;
   event.lapsToGo = totalLaps - car.lap;
+  // ピット。**燃料を見たあと**に入る（無線は入る前のメーターを読む）。
+  // 自車は合図（pitRequest）か、呼ぶ側の指示（hooks.wantsPit）。AI は性格で決める
+  const wantsPit = car.pitRequest || hooks.wantsPit?.(car, totalLaps) || aiWantsPit(car, totalLaps);
+  if (car.lap < totalLaps && wantsPit) event.pit = pitStop(car);
   hooks.onLap?.(car, event);
   if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
   planLap(car, course, hooks.options);
+}
+
+/**
+ * 耐久戦の支度。**全車に耐久のタンクを積み、AI に入り方を持たせる。**
+ * 走り出す前（planLap の前）に一度だけ呼ぶ。
+ *
+ * @param {object[]} cars createRunner で作った走行状態（`radio` に性格、自車は isPlayer）
+ * @param {number} totalLaps
+ * @param {object} [opts] { fuel 自車が積む量のキー, seed 入る周を散らす種 }
+ */
+export function setupEndurance(cars, totalLaps, { fuel = 'full', seed = 1 } = {}) {
+  const rng = createRng(seed);
+  for (const car of cars) {
+    const mine = car.isPlayer || car.id === 'me';
+    car.fuel = enduranceFuel(car.perf.stats, totalLaps, mine ? fuel : 'full');
+    if (mine) continue;
+    // AI は満タンで出て、性格の割合で入る。種で ±1周ぶん散らすので全車が同じ周に来ない
+    car.pitStyle = PIT.aiStyle[car.radio] ?? 'other';
+    car.pitJitter = (rng() * 2 - 1) * PIT.ai.jitter;
+  }
+  return cars;
+}
+
+/**
+ * ピットに入れる。**満タンまで給油**し、替えるならタイヤを新品に戻す（冷えた状態で出る）。
+ * 止まっている秒数は `hold` に積む。走らずに時間だけ進むので、その間に抜かれる。
+ * @returns {object} 画面と実況に渡す記録
+ */
+export function pitStop(car) {
+  const tyre = car.pitStyle ? (PIT.aiTyre[car.pitStyle] ?? true) : !!car.pitTyre;
+  const seconds = pitStopSeconds(car.fuel, tyre);
+  const before = car.fuel.level;
+  car.fuel = refuel(car.fuel);
+  if (tyre) car.tire = createTireState();
+  car.hold += seconds;
+  car.pitLoss += seconds;
+  car.pits += 1;
+  car.pitLaps.push(car.lap);
+  car.pitRequest = false;
+  return { lap: car.lap, seconds, tyre, before, after: car.fuel.level };
 }
 
 /**
@@ -1203,6 +1306,13 @@ export function advance(car, dt, course, load, totalLaps, hooks = {}) {
   if (car.delay > 0) {
     const d = Math.min(car.delay, rest);
     car.delay -= d;
+    rest -= d;
+    car.segElapsed += d;
+  }
+  // ピットで止まっている。**進まないが時間は進む**＝その間に抜かれる
+  if (car.hold > 0) {
+    const d = Math.min(car.hold, rest);
+    car.hold -= d;
     rest -= d;
     car.segElapsed += d;
   }
@@ -1302,10 +1412,10 @@ export function stepField(cars, dt, { course, load, totalLaps, courseLen, grid =
  * tools/simulate-season.mjs から使う）。
  * @returns {object[]} 着順に並べた cars（渡した配列の要素そのもの）
  */
-export function runField(cars, { course, laps, grid = true, quali = false }) {
+export function runField(cars, { course, laps, grid = true, quali = false }, extraHooks = {}) {
   const load = courseLoad(course);
   const courseLen = course.length;
-  const hooks = { options: { quali } };
+  const hooks = { ...extraHooks, options: { quali } };
   for (const car of cars) planLap(car, course, hooks.options);
   const ctx = { course, load, totalLaps: laps, courseLen, grid, clock: createClock() };
   let guard = 0;

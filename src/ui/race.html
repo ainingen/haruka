@@ -191,6 +191,17 @@ h3.cap {
 .controls a { font-family: var(--jp-font); font-size: var(--fs-small); color: var(--mon-dim); text-decoration: none; border-bottom: 1px solid var(--mon-line); }
 .controls a.btn { font-size: var(--fs-body); padding: 7px 12px; border: 1px solid var(--mon-line); color: var(--mon-text); letter-spacing: .06em; }
 .controls a.btn.primary { color: var(--mon-green); border-color: var(--mon-green); font-weight: 700; }
+/* --- ピット（耐久戦） ------------------------------------------------------ */
+.controls.pit { position: static; border-top: 1px solid var(--mon-line); border-bottom: none; }
+.controls.pit[hidden] { display: none; }
+.controls.pit .k {
+  font-family: var(--mon-font); font-size: var(--fs-label); letter-spacing: var(--ls-label);
+  color: var(--mon-dim); font-variant-numeric: tabular-nums;
+}
+.controls.pit .k.open { color: var(--mon-green); }
+.controls.pit .k.box { color: var(--mon-amber); }
+.controls.pit button:disabled { color: var(--mon-dim); border-color: var(--mon-line); cursor: default; }
+.controls.pit button.armed { color: var(--mon-amber); border-color: var(--mon-amber); }
 
 /* --- 結果 ----------------------------------------------------------------- */
 .result { border: 1px solid var(--mon-line); }
@@ -297,6 +308,16 @@ h3.cap {
     </div>
   </div>
 
+  <!-- 5a. ピット（耐久戦だけ。窓が開くまで押せない） -->
+  <div class="controls pit" id="pitBar" hidden>
+    <span class="k" id="pitState">PIT</span>
+    <button type="button" id="btnPitCall" disabled>次の周、入れ</button>
+    <button type="button" id="btnPitTyre">給油のみ</button>
+    <button type="button" id="btnSave">燃料、節約</button>
+    <span class="spacer"></span>
+    <span class="k" id="pitFuel"></span>
+  </div>
+
   <!-- 5. 操作（両カラムの下） -->
   <div class="controls">
     <button type="button" id="btn1" class="on">1倍</button>
@@ -315,7 +336,8 @@ h3.cap {
 import {
   buildPerformance, courseLoad, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
   RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor, analystExtra,
-  ENDURANCE, PIT, enduranceFuel, pitStopSeconds, refuel, fuelPerLap,
+  ENDURANCE, PIT, setupEndurance, pitStopSeconds, fuelPerLap,
+  createPitCall, pressPitCall, lapsePitCall,
   brakeThreshold, tireWearSplit, fuelLevel, fuelLapsLeft, brakeFadeLoss,
   QUALI, START,
   // 走行そのものは engine の「場の走行」。ツール（tools/simulate-season.mjs）と同じ経路を通る
@@ -489,14 +511,10 @@ function makeRival(entry, i, ctx) {
 }
 
 function makeCar({ id, name, short = name, number = null, color, perf, driver, seed, isPlayer = false, radio = null }) {
-  // 耐久戦は満タンでも走り切れない量しか積めない。自車の積む量はセッティング画面の選択、
-  // AI は満タン（docs/設計/ピットストップ.md）
-  const fuel = S.endurance
-    ? enduranceFuel(perf.stats, S.totalLaps, isPlayer ? S.fuelChoice : 'full')
-    : null;
   return {
     // 走行の状態は engine が持つ（タイヤ・ブレーキ・燃料・計画・周回・リタイア）
-    ...createRunner({ perf, driver, seed, laps: S.totalLaps, fuel }),
+    // 耐久戦の燃料と AI の入り方は、全車そろってから setupEndurance が入れる
+    ...createRunner({ perf, driver, seed, laps: S.totalLaps }),
     id, name, short, number, color, isPlayer, radio,
     sectorBest: [], announcedRetire: false,
     lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
@@ -975,6 +993,89 @@ function analystOnLap(lap) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// ピット（docs/設計/ピットストップ.md）。耐久戦だけ。
+//   窓（残り30%）が開く → 「次の周、入れ」を2回押す → 次の周に入る。
+//   **押し切らなければ入らない。** 放っておけば燃料が尽きる
+// ---------------------------------------------------------------------------
+
+/**
+ * ピットまわりで出す台詞と実況。**文言は data/radio.json / commentary.json**（段階3）。
+ * ここは「いつ出すか」だけを持つ。
+ */
+function onPitWindow() {}
+function onPitCall() {}
+function onPitLapse() {}
+function onFuelSave() {}
+function onPitStop(pit) {
+  commentary('pit', 'announcer', { ...baseVars(), car: S.cars[0].name });
+  if (S.lineRng() < 0.6) commentary('pit', 'analyst', baseVars());
+}
+
+/** ピットの操作列を描く。 */
+function renderPit() {
+  if (!S.endurance) return;
+  const me = S.cars[0];
+  const box = me.hold > 0;
+  const call = S.pitCall;
+  el('btnPitCall').disabled = !S.pitWindow || box || me.finished || me.retired;
+  el('btnPitCall').classList.toggle('armed', !!call.asked && !call.confirmed);
+  el('btnPitCall').textContent = call.confirmed ? '入る（決定）' : call.asked ? 'もう一度：入れ' : '次の周、入れ';
+  el('btnPitTyre').textContent = S.pitTyre ? '給油＋タイヤ' : '給油のみ';
+  el('btnPitTyre').classList.toggle('on', S.pitTyre);
+  el('btnPitTyre').disabled = box;
+  el('btnSave').classList.toggle('on', me.saving);
+  // ボックスを出た瞬間の順位。**止まっている間に動いたぶん**がこれで分かる
+  if (!box && S.pitRanks && S.pitRanks.out === null) S.pitRanks.out = ranked().indexOf(me) + 1;
+  const state = el('pitState');
+  state.classList.toggle('open', S.pitWindow && !box);
+  state.classList.toggle('box', box);
+  state.textContent = box ? `IN BOX ${me.hold.toFixed(1)}s` : S.pitWindow ? 'PIT OPEN' : 'PIT';
+  const left = fuelLapsLeft(me.fuel, me.perf.stats, me.saving);
+  el('pitFuel').textContent = `燃料 あと ${left.toFixed(1)} 周ぶん / 残り ${S.totalLaps - me.lap} 周`
+    + `${me.pits ? `・ピット ${me.pits} 回` : ''}`;
+}
+
+/** 「次の周、入れ」。1回目は合図、同じ周にもう一度で決定（ハルカは一度抵抗する）。 */
+function pressPit() {
+  const me = S.cars[0];
+  if (!S.pitWindow || me.hold > 0) return;
+  const what = pressPitCall(S.pitCall, me.lap);
+  if (what === 'confirm') me.pitRequest = true;
+  if (what !== 'already') cue(what === 'confirm' ? 'pit.confirm' : 'pit.ask', { lap: me.lap });
+  onPitCall(what);
+  renderPit();
+}
+
+/** 「燃料、節約」。押している間だけ燃費が落ちてタイムが落ちる。 */
+function toggleSave() {
+  const me = S.cars[0];
+  me.saving = !me.saving;
+  cue(me.saving ? 'pit.save_on' : 'pit.save_off');
+  onFuelSave(me.saving);
+  renderPit();
+}
+
+/** 周が変わったときのピットまわり。窓の開閉と、押し切らなかった合図を流す。 */
+function pitOnLap(ev) {
+  const me = ev.car;
+  if (!S.endurance || !me.isPlayer) return;
+  // 窓（残り30%）。開いた周に一度だけ知らせる
+  const open = me.fuel.level < me.fuel.tank * PIT.window;
+  if (open && !S.pitWindow) { S.pitWindow = true; onPitWindow(); }
+  // 押し切らなかった合図はここで流れる＝入らない
+  if (lapsePitCall(S.pitCall, me.lap)) onPitLapse();
+  if (ev.pit) {
+    S.pitLog.push(ev.pit);
+    // 入った時の順位。出た時の順位は renderPit が拾う（止まっている間に何人に抜かれたか）
+    S.pitRanks = { in: ranked().indexOf(me) + 1, out: null };
+    S.pitCall = createPitCall();
+    S.pitWindow = false;
+    onPitStop(ev.pit);
+  }
+  renderPit();
+}
+
 /** 終わった周ぶんの無線と実況を処理する。 */
 function lapTick() {
   if (!S.lapEvents.length) return;
@@ -997,6 +1098,7 @@ function lapTick() {
         } else sayInfo(call);
       }
     }
+    if (ev.car.isPlayer) pitOnLap(ev);
     if (IS_QUALI) qualiLapCommentary(ev);
     else lapCommentary(ev, traffic);
   }
@@ -1115,6 +1217,11 @@ const S = {
   saidAnalyst: {},   // コースの解説・クラス5の解説を出したか（1レースに1本ずつ）
   // 耐久戦（docs/設計/ピットストップ.md）。ふつうの戦では endurance が false のまま
   endurance: false, fuelChoice: 'full',
+  pitCall: null,        // 二段の合図（createPitCall）
+  pitWindow: false,     // 窓が開いたか
+  pitTyre: false,       // 給油のみ / ＋タイヤ交換
+  pitLog: [],           // 自車のピット記録（結果に出す）
+  pitRanks: null,       // { in, out } ボックスに入った時と出た時の順位
   checkeredClass: '',
 };
 
@@ -1212,6 +1319,16 @@ async function boot() {
   S.radioRng = createRng(baseSeed + 101);   // 出す／出さないの判断
   S.lineRng = createRng(baseSeed + 202);    // どの台詞を引くか
 
+  // 耐久戦：全車に耐久のタンクを積み、AI に入り方を配る。**走り出す前に一度だけ**
+  if (S.endurance) {
+    setupEndurance(S.cars, S.totalLaps, { fuel: S.fuelChoice, seed: baseSeed + 303 });
+    S.pitCall = createPitCall();
+    el('pitBar').hidden = false;
+    el('btnPitCall').addEventListener('click', pressPit);
+    el('btnSave').addEventListener('click', toggleSave);
+    el('btnPitTyre').addEventListener('click', () => { S.pitTyre = !S.pitTyre; S.cars[0].pitTyre = S.pitTyre; renderPit(); });
+    renderPit();
+  }
   for (const car of S.cars) planLap(car, course, HOOKS.options);
   const vars = baseVars();
   if (IS_QUALI) {
@@ -1254,6 +1371,7 @@ function tick(now) {
     if (S.panelClock > 0.25 || rolling) { S.panelClock = 0; renderPanel(); }
   }
   renderLog();
+  if (S.endurance) renderPit();
   draw();
   S.raf = requestAnimationFrame(tick);
 }
@@ -1552,6 +1670,26 @@ function finish() {
 
   const yen = (n) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n)).toLocaleString('ja-JP')}`;
   const line = (k, v, cls = '') => `<div class="brow ${cls}"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+
+  /**
+   * 耐久戦の一行。**ピットで失った秒数と、止まっている間の順位の入れ替わり。**
+   * 入らずに走り切ったときは、その旨を出す（ぎりぎり＋節約の結末）。
+   */
+  function pitSummary(order) {
+    const mine = S.pitLog;
+    if (!mine.length) {
+      return line('ピット', `入らずに走り切った（${S.cars[0].saving ? '節約あり' : '節約なし'}）`, 'up');
+    }
+    const lost = mine.reduce((a, p) => a + p.seconds, 0);
+    const what = mine.map((p) => `${p.lap}周目 ${p.seconds.toFixed(1)}秒${p.tyre ? '（タイヤ交換）' : '（給油のみ）'}`).join(' / ');
+    const r = S.pitRanks;
+    const moved = r && r.out != null ? r.out - r.in : null;
+    return line('ピット', `${mine.length} 回・合計 ${lost.toFixed(1)} 秒<small><br>${what}</small>`, 'down')
+      + (moved === null ? '' : line('止まっている間', moved === 0
+        ? `順位は変わらず（${r.in}位のまま）`
+        : moved > 0 ? `${r.in}位 → ${r.out}位（${moved} 人に抜かれた）` : `${r.in}位 → ${r.out}位（${-moved} 人を抜いた）`,
+        moved > 0 ? 'down' : 'up'));
+  }
   el('resultWrap').innerHTML = `<div class="result"><h3 class="cap">収支</h3>
     <div class="balance">
       ${line('賞金', yen(balance.prize) + (me.retired ? '（リタイア）' : `（${myPos}位）`))}
@@ -1565,6 +1703,7 @@ function finish() {
       }).join('<br>'), 'wear') : ''}
       ${balance.repair ? line('修理の見積もり', `${yen(-balance.repair)}<small>（払うかどうかはセッティング画面で）</small>`, 'down') : ''}
     </div>
+    ${S.endurance ? `<div class="balance">${pitSummary(list)}</div>` : ''}
     <div class="controls" style="padding:8px"><a class="btn primary" href="${nextHref}">${inSeason ? 'シーズンへ（結果を反映）' : 'セッティングへ（収支を反映）'}</a></div>
   </div>` + `<div class="result"><h3 class="cap">結果</h3>${list.map((car, i) => {
     const wear = (car.lastWear * 100).toFixed(0);
