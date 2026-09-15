@@ -19,6 +19,7 @@ import {
   ENDURANCE, PIT, enduranceTank, enduranceFuel, fuelPerLap, canRunLap, advanceFuel, refuel,
   setupEndurance, pitStop, pitStopSeconds, createPitCall, pressPitCall, lapsePitCall,
   createRunner, runField, planLap, stepField, rankRunners, createClock, courseLoad, progress,
+  occupiedSlots,
 } from './race.js';
 import {
   newGame, encode, decode, markScene, trimTo,
@@ -35,6 +36,7 @@ const PARTS = load('parts.json');
 const CHASSIS = load('chassis.json');
 const RIVALS = load('rivals.json');
 const RADIO = load('radio.json');
+const CLASS_CHASSIS = { 1: 'hatchback', 2: 'hatchback', 3: 'sedan', 4: 'gt', 5: 'formula' };
 const NOTES = load('notes.json');
 const BASELINE = load('ai-baseline.json');
 const haruka = load('drivers.json')[0];
@@ -654,7 +656,7 @@ test('S17. 耐久戦の燃料：満タンでも走り切れず、ぎりぎりは
     const laps = ECONOMY.laps[cls] * ENDURANCE.lapFactor;
     const perf = buildPerformance([], driver, chassisData[CLASS_CHASSIS[cls]], {});
     // **満タン＝全周回の6割。** 基準の車（fuel_consumption 0）でちょうど tankShare
-    const tankLaps = enduranceTank(laps) / fuelPerLap(perf.stats);
+    const tankLaps = enduranceTank(laps, perf.stats) / fuelPerLap(perf.stats);
     assert.ok(Math.abs(tankLaps / laps - ENDURANCE.tankShare) < 1e-9, `クラス${cls}の満タンが6割でない`);
 
     // ピット無しなら、満タンでも燃料切れ（fuel_out に届く）
@@ -704,6 +706,64 @@ test('S17. 耐久戦の燃料：満タンでも走り切れず、ぎりぎりは
   const perf1 = buildPerformance([], driver, chassisData.hatchback, {});
   assert.ok(Math.abs(fuelPerLap(perf1.stats, true) / fuelPerLap(perf1.stats) - ENDURANCE.save.fuel) < 1e-12);
   for (const r of rows) console.log(`  ${r}`);
+
+  // --- 燃費は「積む量」に出る。**周ぶん（距離）は車が変わっても同じ** ---------
+  //
+  // タンクは車ごとに測る（enduranceTank(laps, stats)）ので、どの車も満タンで
+  // 全周回の 65% を走る。燃費の悪い車は同じ距離を走るのに多く積む＝そのぶん重い。
+  const cls5 = 5;
+  const laps5 = ECONOMY.laps[cls5] * ENDURANCE.lapFactor;
+  const season5 = newSeason(cls5, COURSES, ECONOMY, createRng(7));
+  const course5 = COURSES.find((c) => c.id === season5.rounds[ENDURANCE.round - 1].course);
+  const note5 = baselineFor(NOTES, PARTS, course5, cls5);
+  const works = PARTS.find((p) => p.id === 'engine_works_01');
+  assert.ok(note5.parts.length && works, 'ノートとワークスエンジンが引けている');
+  const builds = [
+    { label: '純正', parts: [] },
+    { label: 'ノート通り', parts: note5.parts },
+    // ワークスエンジンはユニット部品で複数スロットを埋めるので、当たるものを外して置き換える
+    { label: '＋ワークスエンジン', parts: [
+      ...note5.parts.filter((p) => !occupiedSlots(p).some((sl) => occupiedSlots(works).includes(sl))),
+      works,
+    ] },
+  ];
+
+  const shown = [];
+  let lastLaps = null;
+  for (const build of builds) {
+    const bp = buildPerformance(build.parts, driver, chassisData[CLASS_CHASSIS[cls5]], note5.settings);
+    const fc = bp.stats.fuel_consumption;
+    const per = fuelPerLap(bp.stats);
+    const cell = ['full', 'margin', 'tight'].map((k) => {
+      const f = enduranceFuel(bp.stats, laps5, k);
+      return { laps: f.level / per, units: f.level };
+    });
+    // **周ぶんは車によらず同じ。** 変わるのは積む量（＝重さ）
+    const lapsOf = cell.map((c) => c.laps);
+    if (lastLaps) {
+      lapsOf.forEach((v, i) => assert.ok(Math.abs(v - lastLaps[i]) < 1e-9,
+        `${build.label}：周ぶんが変わっている（${v.toFixed(2)} ≠ ${lastLaps[i].toFixed(2)}）`));
+    }
+    lastLaps = lapsOf;
+    assert.ok(Math.abs(cell[0].laps / laps5 - ENDURANCE.tankShare) < 1e-9, `${build.label}：満タンが65%でない`);
+    shown.push(`  ${build.label.padEnd(9)} 燃費${fc.toFixed(1).padStart(5)}`
+      + `　周ぶん ${cell.map((c) => c.laps.toFixed(1)).join(' / ')}`
+      + `　積む量 ${cell.map((c) => c.units.toFixed(1)).join(' / ')}`);
+  }
+  // 燃費が悪いほど多く積む（＝重い）。ここが耐久での fuel_consumption の効き方
+  const units = builds.map((b) => {
+    const bp = buildPerformance(b.parts, driver, chassisData[CLASS_CHASSIS[cls5]], note5.settings);
+    return { fc: bp.stats.fuel_consumption, u: enduranceFuel(bp.stats, laps5, 'full').level };
+  });
+  for (let i = 1; i < units.length; i += 1) {
+    const dFc = Math.sign(units[i].fc - units[i - 1].fc);
+    const dU = Math.sign(units[i].u - units[i - 1].u);
+    assert.equal(dU, dFc, `積む量が燃費と同じ向きに動いていない（燃費 ${units[i - 1].fc}→${units[i].fc}）`);
+  }
+  // 純正とノート通りの差は、そのまま重さの差（weightPerUnit ぶん）
+  assert.ok(units[1].u > units[0].u * 1.2, 'ノート通りは純正よりはっきり多く積む');
+  console.log(`  クラス5 ${laps5}周 ${course5.name}：燃費は距離ではなく積む量（重さ）に出る`);
+  for (const l of shown) console.log(l);
 });
 
 test('S18. 画面の中の module が構文として通る（ビルドが無いので、開くまで気づけない）', () => {

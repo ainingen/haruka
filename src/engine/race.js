@@ -590,9 +590,11 @@ export function refuel(fuel) {
 /**
  * 耐久戦（docs/設計/ピットストップ.md）。シーズン6戦のうち第4戦だけ、周回数を2倍にする。
  *
- * **満タンでも走り切れない。** 満タンの量は「基準の車（fuel_consumption 0）が
- * 全周回の tankShare だけ走れる量」。燃費の悪い車はこれより短くなるので、
- * fuel_consumption はここでいちばん効く。
+ * **満タンでも走り切れない。** 満タンの量は「その車が全周回の tankShare だけ走れる量」で、
+ * **車ごとに測る**（`enduranceTank`）。どの車も満タンで走れる距離は同じ割合になる。
+ *
+ * **`fuel_consumption` は耐久でも重さとして効く。距離は変えない。**
+ * 燃費の悪い車は同じ距離を走るのに多く積むので、そのぶん重い。
  */
 export const ENDURANCE = {
   /** シーズンの何戦目が耐久か（1始まり） */
@@ -600,7 +602,7 @@ export const ENDURANCE = {
   /** 通常の周回数の何倍か */
   lapFactor: 2,
   /**
-   * 満タンで走れる距離＝全周回のこの割合（基準の車）。
+   * 満タンで走れる距離＝全周回のこの割合。**どの車も同じ割合**（車ごとに量を測る）。
    * **0.65 なのは、残り35%で入る堅実型の AI が一度の給油で届くため**（docs/設計/ピットストップ.md）。
    */
   tankShare: 0.65,
@@ -715,13 +717,19 @@ export function pitStopSeconds(fuel, tyre = false) {
   return S.lane + S.still + fill + (tyre ? S.tyre : 0);
 }
 
-/** 耐久戦の満タンの量。基準の車が totalLaps の tankShare だけ走れる量。 */
-export const enduranceTank = (totalLaps) =>
-  WEIGHTS.fuel.perLapBase * totalLaps * ENDURANCE.tankShare;
+/**
+ * 耐久戦の満タンの量。**その車が totalLaps の tankShare だけ走れる量。**
+ * 自車も AI も同じ式で測るので、どの車も満タンで走れる距離は全周回の 65%。
+ *
+ * **`fuel_consumption` は距離ではなく重さに効く**（docs/設計/ピットストップ.md）。
+ * 燃費の悪い車は、同じ距離を走るのに多く積む＝そのぶん重い。
+ */
+export const enduranceTank = (totalLaps, stats) =>
+  fuelPerLap(stats) * totalLaps * ENDURANCE.tankShare;
 
 /** 耐久戦で積んで出る量。key は ENDURANCE.load のキー。 */
 export function enduranceFuel(stats, totalLaps, key = 'full') {
-  const tank = enduranceTank(totalLaps);
+  const tank = enduranceTank(totalLaps, stats);
   const share = ENDURANCE.load[key] ?? ENDURANCE.load.full;
   return createFuelState(stats, totalLaps, { tank, level: tank * share });
 }
