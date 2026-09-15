@@ -358,6 +358,7 @@ h2 {
 .free-lead[hidden] { display: none; }
 .free-lead b { color: var(--ink); }
 .tabs[hidden] { display: none; }
+.calcbar[hidden] { display: none; }
 
 /* --- 効果値の上書き（自由設定） ------------------------------------------- */
 #overWrap[hidden], #attackWrap[hidden] { display: none; }
@@ -626,7 +627,7 @@ button.attack:disabled { background: var(--ink-3); cursor: default; }
 
 </div></div>
 
-<div class="calcbar">
+<div class="calcbar" id="calcBar">
   <a class="ghost" id="seasonLink" href="season.html" hidden>シーズンへ</a>
   <button id="calcBtn" class="ghost" type="button">ラップ計算</button>
   <button id="qualiBtn" class="ghost" type="button">予選へ</button>
@@ -760,6 +761,8 @@ const MODE = {
   persist: !FREE,
   /** 予選タブ・シーズンの行・出走の並びを出すか */
   session: !FREE,
+  /** 下の「ラップ計算／予選へ／決勝開始」を出すか（自由設定は「走る」だけ） */
+  raceBar: !FREE,
 };
 
 // ---------------------------------------------------------------------------
@@ -2237,6 +2240,8 @@ function applyMode() {
   el('freeLead').hidden = !MODE.free;
   // 予選／決勝のタブとシーズンへの導線は本編だけ
   el('sessionTabs').hidden = !MODE.session;
+  // 本編の出走ボタンは出さない。自由設定で走るのはタイムアタックの「走る」だけ
+  el('calcBar').hidden = !MODE.raceBar;
   if (MODE.laps) {
     const sel = el('selLaps');
     sel.textContent = '';
