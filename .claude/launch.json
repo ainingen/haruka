@@ -4,7 +4,7 @@
     {
       "name": "haruka",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8123"],
+      "runtimeArgs": [".claude/serve.py", "8123"],
       "port": 8123
     }
   ]

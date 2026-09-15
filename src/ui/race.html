@@ -315,6 +315,7 @@ h3.cap {
 import {
   buildPerformance, courseLoad, createRng, formatTime, WEIGHTS, SETTINGS, isSettingUnlocked,
   RADIO, createRadioState, radioForLap, radioSymptoms, reactionFor, analystExtra,
+  ENDURANCE, PIT, enduranceFuel, pitStopSeconds, refuel, fuelPerLap,
   brakeThreshold, tireWearSplit, fuelLevel, fuelLapsLeft, brakeFadeLoss,
   QUALI, START,
   // 走行そのものは engine の「場の走行」。ツール（tools/simulate-season.mjs）と同じ経路を通る
@@ -488,9 +489,14 @@ function makeRival(entry, i, ctx) {
 }
 
 function makeCar({ id, name, short = name, number = null, color, perf, driver, seed, isPlayer = false, radio = null }) {
+  // 耐久戦は満タンでも走り切れない量しか積めない。自車の積む量はセッティング画面の選択、
+  // AI は満タン（docs/設計/ピットストップ.md）
+  const fuel = S.endurance
+    ? enduranceFuel(perf.stats, S.totalLaps, isPlayer ? S.fuelChoice : 'full')
+    : null;
   return {
     // 走行の状態は engine が持つ（タイヤ・ブレーキ・燃料・計画・周回・リタイア）
-    ...createRunner({ perf, driver, seed, laps: S.totalLaps }),
+    ...createRunner({ perf, driver, seed, laps: S.totalLaps, fuel }),
     id, name, short, number, color, isPlayer, radio,
     sectorBest: [], announcedRetire: false,
     lastRank: null, lastGap: null, lastGapAhead: null, nearestId: null,
@@ -1107,6 +1113,8 @@ const S = {
   gaugeState: { tire: '', brake: '', fuel: '' }, gapShown: null, gapCue: null,
   symptoms: {},   // この戦で自車に出た情報系トリガー → 回数（シーズンのノート用）
   saidAnalyst: {},   // コースの解説・クラス5の解説を出したか（1レースに1本ずつ）
+  // 耐久戦（docs/設計/ピットストップ.md）。ふつうの戦では endurance が false のまま
+  endurance: false, fuelChoice: 'full',
   checkeredClass: '',
 };
 
@@ -1127,9 +1135,14 @@ async function boot() {
   const tier = clamp(Number(G.tier ?? 0), 0, 4);
   S.cls = cls;
   const chassis = chassisData[CLASS_CHASSIS[cls]];
-  S.totalLaps = clamp(Number(Q.get('laps') ?? 10), 1, 60);
+  S.totalLaps = clamp(Number(Q.get('laps') ?? 10), 1, 90);
   S.course = course;
   S.load = courseLoad(course);
+  // 耐久戦はシーズンの第4戦（season.js が印を付ける）。決勝だけ。予選はふつうの3周
+  const thisRound = G.season ? currentRound(G.season) : null;
+  S.endurance = !IS_QUALI && !!thisRound?.endurance
+    && thisRound.course === course.id && thisRound.laps === S.totalLaps;
+  S.fuelChoice = ENDURANCE.load[G.setup?.race?.fuel] ? G.setup.race.fuel : 'full';
 
   // 予選なら予選用のセッティング。無ければ決勝用と同じ。持っていない・規定外のパーツは落とす
   const setup = (IS_QUALI && G.setup?.quali) ? G.setup.quali : (G.setup?.race ?? { parts: [], settings: {} });

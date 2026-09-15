@@ -532,10 +532,14 @@ export function brakeFadeLoss(stats, brake) {
 // 途中で足せるのはピットだけ（refuel）。空になったら走れない。
 // ---------------------------------------------------------------------------
 
-/** 1周で使う量。fuel_consumption が高いほど増える。 */
-export function fuelPerLap(stats) {
+/**
+ * 1周で使う量。fuel_consumption が高いほど増える。
+ * @param {boolean} [saving] 「燃料、節約」の指示が出ている間（docs/設計/ピットストップ.md）
+ */
+export function fuelPerLap(stats, saving = false) {
   const F = WEIGHTS.fuel;
-  return F.perLapBase * (1 + F.perPoint * Math.max(0, stats.fuel_consumption));
+  const base = F.perLapBase * (1 + F.perPoint * Math.max(0, stats.fuel_consumption));
+  return saving ? base * ENDURANCE.save.fuel : base;
 }
 
 /** その距離を走るために積む量。余裕を足し、タンクの上限で頭打ちになる。 */
@@ -544,32 +548,119 @@ export function fuelForLaps(stats, laps) {
   return Math.min(F.tankMax, fuelPerLap(stats) * laps * (1 + F.margin));
 }
 
-/** 出走時の燃料。laps はそのセッションで走る予定の周回数。 */
-export function createFuelState(stats, laps) {
-  const level = fuelForLaps(stats, laps);
-  return { level, filled: level };
+/**
+ * 出走時の燃料。laps はそのセッションで走る予定の周回数。
+ *
+ * ふつうの戦は「走り切るぶん＋余裕」を積んで、タンクは上限（tankMax）。
+ * 耐久戦は `tank` を渡す。**満タンでも走り切れない**ので、必ず一度はピットに入る。
+ *
+ * @param {object} [opts] { tank 満タンの量, level 出るときの量（既定は満タン） }
+ */
+export function createFuelState(stats, laps, opts = {}) {
+  const tank = opts.tank ?? WEIGHTS.fuel.tankMax;
+  const level = Math.min(tank, opts.level ?? fuelForLaps(stats, laps));
+  return { level, filled: level, tank };
 }
 
 /** いま積んでいる燃料が weight に足すポイント数。 */
 export const fuelWeight = (fuel) => (fuel ? fuel.level * WEIGHTS.fuel.weightPerUnit : 0);
 
 /** あと何周ぶん残っているか（表示用）。 */
-export const fuelLapsLeft = (fuel, stats) => (fuel ? fuel.level / fuelPerLap(stats) : Infinity);
+export const fuelLapsLeft = (fuel, stats, saving = false) =>
+  (fuel ? fuel.level / fuelPerLap(stats, saving) : Infinity);
 
 /** 1周ぶん減らす。0 未満にはしない。 */
-export function advanceFuel(fuel, stats) {
-  return { ...fuel, level: Math.max(0, fuel.level - fuelPerLap(stats)) };
+export function advanceFuel(fuel, stats, saving = false) {
+  return { ...fuel, level: Math.max(0, fuel.level - fuelPerLap(stats, saving)) };
 }
 
 /** この周を走り切れるか。走り切れないまま周に入ると燃料切れでリタイアになる。 */
-export const canRunLap = (fuel, stats) => !fuel || fuel.level >= fuelPerLap(stats);
+export const canRunLap = (fuel, stats, saving = false) =>
+  !fuel || fuel.level >= fuelPerLap(stats, saving);
 
 /**
  * 給油。**ピットでのみ呼ぶ。** 走行中に燃料が増える経路は他に無い。
- * ピットストップ自体はまだ実装していないので、いまこれを呼ぶのは将来の耐久レースだけ。
+ * 入れる量は「満タンまで」で固定（docs/設計/ピットストップ.md）。
  */
-export function refuel(fuel, stats, laps) {
-  return { ...fuel, level: fuelForLaps(stats, laps), filled: fuelForLaps(stats, laps) };
+export function refuel(fuel) {
+  const tank = fuel.tank ?? WEIGHTS.fuel.tankMax;
+  return { ...fuel, level: tank, filled: tank };
+}
+
+/**
+ * 耐久戦（docs/設計/ピットストップ.md）。シーズン6戦のうち第4戦だけ、周回数を2倍にする。
+ *
+ * **満タンでも走り切れない。** 満タンの量は「基準の車（fuel_consumption 0）が
+ * 全周回の tankShare だけ走れる量」。燃費の悪い車はこれより短くなるので、
+ * fuel_consumption はここでいちばん効く。
+ */
+export const ENDURANCE = {
+  /** シーズンの何戦目が耐久か（1始まり） */
+  round: 4,
+  /** 通常の周回数の何倍か */
+  lapFactor: 2,
+  /** 満タンで走れる距離＝全周回のこの割合（基準の車） */
+  tankShare: 0.6,
+  /**
+   * 積んで出る量（満タンに対する割合）。**ピットで入れるのは常に満タンまで。**
+   *   full   満タン。重いが、1回のピットで確実に届く
+   *   margin 必要分＋余裕。1回で届くが、ピットの周を遅らせる余裕は少ない
+   *   tight  ぎりぎり。軽くて速いが、**節約と組まなければ1回のピットでは届かない**
+   */
+  load: { full: 1, margin: 0.8, tight: 0.58 },
+  /** 「燃料、節約」の指示：燃費 −10%、周のタイム +0.3% */
+  save: { fuel: 0.9, lap: 1.003 },
+};
+
+/**
+ * ピットストップ（docs/設計/ピットストップ.md）。**数値はここだけ。**
+ * 判断（入るか、タイヤを替えるか）は画面と AI、時間の計算はこの表。
+ */
+export const PIT = {
+  /** 燃料が満タンのこの割合を切ったらピット窓が開く */
+  window: 0.3,
+  /** 停止時間（秒） */
+  stop: {
+    /** 静止しているぶん */
+    still: 20,
+    /** 給油。空に近いほど長い（残量0で fuelMax、満タンで fuelMin） */
+    fuelMin: 4,
+    fuelMax: 10,
+    /** タイヤ交換を足すと何秒増えるか */
+    tyre: 8,
+    /** ピットロードの通過（入って出るまで） */
+    lane: 15,
+  },
+  /**
+   * AI が入る周。**残り燃料がこの割合を切ったら次の周で入る。**
+   * 攻め型は引っぱり、堅実は早めに入る。種で ±jitter 周ぶん散らす。
+   */
+  ai: { attack: 0.15, steady: 0.35, other: 0.25, jitter: 1 },
+  /** AI の性格（rivals.js の radio）→ 入り方 */
+  aiStyle: { aggressive: 'attack', slow: 'steady', straight: 'other', corner: 'other' },
+};
+
+/**
+ * ピットの停止時間（秒）。静止 ＋ 給油（残量に応じて）＋ タイヤ交換 ＋ ピットロードの通過。
+ * @param {object} fuel 入る時点の燃料
+ * @param {boolean} tyre タイヤを替えるか
+ */
+export function pitStopSeconds(fuel, tyre = false) {
+  const S = PIT.stop;
+  const left = fuel?.tank > 0 ? Math.min(1, Math.max(0, fuel.level / fuel.tank)) : 0;
+  const fill = S.fuelMax - (S.fuelMax - S.fuelMin) * left;
+  return S.lane + S.still + fill + (tyre ? S.tyre : 0);
+}
+
+/** 耐久戦の満タンの量。基準の車が totalLaps の tankShare だけ走れる量。 */
+export const enduranceTank = (totalLaps) =>
+  WEIGHTS.fuel.perLapBase * totalLaps * ENDURANCE.tankShare;
+
+/** 耐久戦で積んで出る量。key は ENDURANCE.load のキー。 */
+export function enduranceFuel(stats, totalLaps, key = 'full') {
+  const tank = enduranceTank(totalLaps);
+  const share = ENDURANCE.load[key] ?? ENDURANCE.load.full;
+  return createFuelState(stats, totalLaps, { tank, level: tank * share });
 }
 
 // ---------------------------------------------------------------------------
@@ -1003,15 +1094,18 @@ export const createClock = () => ({ carry: 0 });
  * 走行状態を1台ぶん作る。画面はこの上に描画用の状態（色・点・数字回転）を足す。
  * @param {object} args { perf, driver, seed, laps }
  */
-export function createRunner({ perf, driver, seed, laps }) {
+export function createRunner({ perf, driver, seed, laps, fuel = null }) {
   return {
     perf,
     driver,
     rng: createRng(seed),
     tire: createTireState(),
     brake: createBrakeState(),
-    // 燃料は「このセッションを走り切るぶん＋余裕」を積んで出る。減りながら軽くなる
-    fuel: createFuelState(perf.stats, laps),
+    // 燃料は「このセッションを走り切るぶん＋余裕」を積んで出る。減りながら軽くなる。
+    // 耐久戦だけは積む量をプレイヤーが決めるので、作ったものを渡してもらう
+    fuel: fuel ?? createFuelState(perf.stats, laps),
+    /** 「燃料、節約」の指示が出ている間だけ true（耐久戦。画面が切り替える） */
+    saving: false,
     lap: 0, lapDist: 0, segIdx: 0, segStart: 0,
     raceTime: 0, lapTimes: [], best: Infinity,
     // 実際にかかった時間。計画（plannedLap）と違って、スタートの遅れと混雑ぶんが入る。
@@ -1032,7 +1126,7 @@ export function createRunner({ perf, driver, seed, laps }) {
  */
 export function planLap(car, course, options = {}) {
   // 燃料切れが先。運ではないので、この周に入れないなら止まる
-  if (!canRunLap(car.fuel, car.perf.stats)) {
+  if (!canRunLap(car.fuel, car.perf.stats, car.saving)) {
     car.retired = true;
     car.retiredLap = car.lap + 1;
     car.retireReason = 'fuel';
@@ -1056,9 +1150,11 @@ export function planLap(car, course, options = {}) {
   const lapNo = car.lap + 1;
   const quali = !options.quali ? 1
     : lapNo < QUALI.attackLap ? QUALI.outLapFactor : lapNo > QUALI.attackLap ? QUALI.inLapFactor : 1;
+  // 「燃料、節約」の間は回転を抑える＝そのぶん遅い
+  const save = car.saving ? ENDURANCE.save.lap : 1;
   car.plan = course.sectors.map((s) => ({
     len: s.length,
-    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise * quali,
+    speed: sectorSpeed(s.type, eff, car.perf.baseSpeed) / factor / noise * quali / save,
   }));
   car.plannedLap = car.plan.reduce((a, s) => a + s.len / s.speed, 0);
   car.lastWear = car.tire.wear;
@@ -1087,7 +1183,7 @@ export function completeLap(car, course, load, totalLaps, hooks = {}) {
   car.lap += 1;
   car.tire = advanceTire(car.tire, car.perf.stats);
   car.brake = advanceBrakes(car.brake, car.perf.stats, load);
-  car.fuel = advanceFuel(car.fuel, car.perf.stats);
+  car.fuel = advanceFuel(car.fuel, car.perf.stats, car.saving);
   // 燃料だけは「走り終えた時点」の量を渡す。周の終わりにメーターを見るのと同じ。
   // 残り周回も渡す。足りるかどうかは、残量だけでは決まらない
   event.fuel = car.fuel;

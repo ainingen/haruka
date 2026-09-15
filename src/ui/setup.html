@@ -344,6 +344,9 @@ h2 {
 .entry.season { margin-bottom: 6px; }
 .entry.season .k { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); }
 .entry.season span:last-child { font-weight: 700; }
+/* 燃料は耐久戦のときだけ出る。ふつうの戦では自動（走り切るぶん＋余裕） */
+.entry.fuel[hidden] { display: none; }
+.entry.fuel { margin-bottom: 6px; }
 .entry select:disabled { color: var(--ink); opacity: 1; border-color: transparent; background: transparent; appearance: none; padding-left: 0; }
 .notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
 .notes .cap { font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--ink-2); padding: 4px 8px; border-bottom: 1px solid var(--ink-3); background: var(--lock-bg); }
@@ -481,6 +484,14 @@ h2 {
   <div class="entry season" id="seasonLine" hidden>
     <span class="k">SEASON</span><span id="seasonText">—</span>
   </div>
+  <div class="entry fuel" id="fuelLine" hidden>
+    <label>燃料 <select id="selFuel">
+      <option value="full">満タン</option>
+      <option value="margin">必要分＋余裕</option>
+      <option value="tight">ぎりぎり</option>
+    </select></label>
+    <span class="note" id="fuelNote"></span>
+  </div>
   <div class="entry">
     <label>コース <select id="selCourse"></select></label>
     <label>周回 <select id="selLaps">
@@ -542,6 +553,7 @@ h2 {
 import {
   buildPerformance, simulateRace, formatTime,
   SETTINGS, isSettingUnlocked, SLOTS, occupiedSlots, pitComment, simulateQualifying,
+  ENDURANCE, enduranceFuel, fuelPerLap,
 } from '../engine/race.js';
 import { loadState, save, newGame, searchWithState, sawScene, markScene } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
@@ -678,6 +690,8 @@ const state = {
   session: 'race',
   /** 表示していない側のセッションの { equipped, settings }。null なら未作成 */
   stash: { quali: null, race: null },
+  /** 耐久戦で積んで出る量（ENDURANCE.load のキー）。ふつうの戦では使わない */
+  fuel: 'full',
 };
 
 /** 予選用セッティングの初期値：決勝用の写し＋空気圧を高め（一発なら高くていい） */
@@ -703,6 +717,7 @@ function switchSession(to) {
   }
   loadSetup(next);
   state.session = to;
+  drawFuel(G.season ? currentRound(G.season) : null);
   closePicker();
   el('tabQuali').classList.toggle('on', to === 'quali');
   el('tabRace').classList.toggle('on', to === 'race');
@@ -744,7 +759,10 @@ function syncG() {
   const cur = snapshotSetup();
   const race = state.session === 'race' ? cur : state.stash.race;
   const quali = state.session === 'quali' ? cur : state.stash.quali;
-  G = { ...G, cls: state.cls, tier: state.tier, setup: { race: pack(race) ?? { parts: [], settings: {} }, quali: pack(quali) } };
+  const packedRace = pack(race) ?? { parts: [], settings: {} };
+  // 燃料は決勝だけ（予選は3周で足りる）。耐久戦のときしか意味を持たない
+  packedRace.fuel = state.fuel;
+  G = { ...G, cls: state.cls, tier: state.tier, setup: { race: packedRace, quali: pack(quali) } };
   save(G);   // 買い物もセッティングもここで畳まれる。保存先が使えれば書く
   return G;
 }
@@ -1959,6 +1977,24 @@ function raceUrl(session) {
 /** 予選結果として受け取ったグリッド。無ければ最後尾スタート。 */
 let gridParam = null;
 
+/**
+ * 燃料の行（耐久戦だけ）。**満タンでも走り切れない**ので、何周ぶん積むのかを出す。
+ * 予選のタブでは出さない（3周に燃料の選択は要らない）。
+ */
+function drawFuel(round) {
+  const show = !!round?.endurance && state.session === 'race';
+  el('fuelLine').hidden = !show;
+  if (!show) return;
+  const stats = perf().stats;
+  const laps = round.laps;
+  const carry = enduranceFuel(stats, laps, state.fuel);
+  const canDo = carry.level / fuelPerLap(stats);
+  const tankLaps = carry.tank / fuelPerLap(stats);
+  el('fuelNote').textContent = `${laps} 周の耐久。満タンでも ${tankLaps.toFixed(1)} 周ぶんしか入らない`
+    + `（必ず一度はピットに入る）。いまの選択は ${canDo.toFixed(1)} 周ぶん。`
+    + `ピットでは満タンまで入れるので、引っぱるほど遠くまで行ける。`;
+}
+
 function drawRaceButton() {
   const btn = el('raceBtn');
   if (gridParam && gridParam !== 'last') {
@@ -2036,8 +2072,18 @@ try {
   if (back.get('grid')) gridParam = back.get('grid');
   drawRaceButton();
 
+  // 耐久戦だけ、積む量をプレイヤーが決める（docs/設計/ピットストップ.md）
+  const enduranceRound = G.season ? currentRound(G.season) : null;
+  state.fuel = ENDURANCE.load[G.setup?.race?.fuel] ? G.setup.race.fuel : 'full';
+  el('selFuel').value = state.fuel;
+  el('selFuel').addEventListener('change', () => {
+    state.fuel = el('selFuel').value;
+    drawFuel(enduranceRound);
+  });
+  drawFuel(enduranceRound);
+
   // シーズン中なら、その戦のコースと周回に固定する。デバッグの切り替えは隠す
-  const round = G.season ? currentRound(G.season) : null;
+  const round = enduranceRound;
   if (round) {
     wanted.course = round.course;
     const laps = el('selLaps');

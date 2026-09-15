@@ -32,10 +32,10 @@ const KEYS = {
   // 順位は result と同じ短いキー（pos: 'a'）を使う。下の「result」に定義がある
   line: 'x', pressure: 'u', sprocket: 'e', sidebar: 'k',
   // setup
-  race: 'r', quali: 'q', parts: 'P', settings: 'S',
+  race: 'r', quali: 'q', parts: 'P', settings: 'S', fuel: 'F',
   // season
   year: 'y', rounds: 'R', next: 'n', points: 'K', symptoms: 'Y', note: 'N', rivalSeed: 'V',
-  course: 'C', laps: 'L', result: 'E',
+  course: 'C', laps: 'L', result: 'E', endurance: 'X',
   // result
   pos: 'a', prize: 'b', fee: 'f', sponsorFee: 'g', repair: 'h', retired: 'i', best: 'j',
   // sponsor

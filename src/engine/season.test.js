@@ -4,7 +4,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -13,6 +15,7 @@ import {
   seasonEvents, SEASON_EVENTS, titleClinched, winSceneDue,
 } from './season.js';
 import { rivalSpec, fieldEntries, AI_PROFILES, AI_STRENGTH, aiLegal, baselineFor, seasonRivalPlan, rivalLoadout, notePortion, aiNotes } from './rivals.js';
+import { ENDURANCE, PIT, enduranceTank, enduranceFuel, fuelPerLap, canRunLap, advanceFuel, refuel } from './race.js';
 import {
   newGame, encode, decode, markScene, trimTo,
   LINE_MAX, NAME_MAX, DEFAULT_LINE, DEFAULT_NAME, PROLOGUE_CHOICES,
@@ -39,11 +42,15 @@ test('S1. 新しいシーズン：6戦、そのクラスで走れるコースだ
     const season = newSeason(cls, COURSES, ECONOMY, rng);
     assert.equal(season.rounds.length, ECONOMY.rounds_per_season);
     const ok = new Set(coursesFor(COURSES, cls).map((c) => c.id));
-    for (const r of season.rounds) {
+    season.rounds.forEach((r, i) => {
       assert.ok(ok.has(r.course), `クラス${cls}で ${r.course} は走れない`);
-      assert.equal(r.laps, ECONOMY.laps[cls]);
+      // **第4戦だけ耐久戦。** 周回数が2倍になる（docs/設計/ピットストップ.md）
+      const endurance = i === ENDURANCE.round - 1;
+      assert.equal(!!r.endurance, endurance, `第${i + 1}戦の耐久の印`);
+      assert.equal(r.laps, ECONOMY.laps[cls] * (endurance ? ENDURANCE.lapFactor : 1));
       assert.equal(r.result, null);
-    }
+    });
+    assert.equal(season.rounds.filter((r) => r.endurance).length, 1, '耐久はシーズンに1戦だけ');
     assert.equal(season.next, 0);
     assert.ok(currentRound(season) && !seasonOver(season));
   }
@@ -609,4 +616,96 @@ test('S16. 選択の手は選択として出る。say を持つ第4場の3択も
   }
   const chooses = SCENES.flatMap((s) => s.steps.filter((x) => stepKind(x) === 'choose'));
   console.log(`  選択 ${chooses.length} 箇所：${chooses.map((c) => `${c.key}(${c.options.length})`).join(' ')}`);
+});
+
+test('S17. 耐久戦の燃料：満タンでも走り切れず、ぎりぎりは節約と組まないと届かない', () => {
+  const CLASS_CHASSIS = { 1: 'hatchback', 2: 'hatchback', 3: 'sedan', 4: 'gt', 5: 'formula' };
+  const chassisData = load('chassis.json');
+  const driver = load('drivers.json')[0];
+
+  /**
+   * 1回だけピットに入って走り切れるか。**満タンまで入れる**ので、残っているぶんは捨てる
+   * ＝引っぱるほど総距離は伸びる。when は入る周の決め方。
+   *   'never'   入らない
+   *   'window'  窓（残り30%）が開いた最初の周で入る
+   *   'late'    走れなくなる直前まで引っぱる
+   */
+  const run = (perf, laps, key, { saving = false, when = 'late' } = {}) => {
+    let fuel = enduranceFuel(perf.stats, laps, key);
+    let pitLap = null;
+    let windowLap = null;
+    for (let lap = 1; lap <= laps; lap += 1) {
+      if (!canRunLap(fuel, perf.stats, saving)) return { ok: false, out: lap, pitLap, windowLap };
+      fuel = advanceFuel(fuel, perf.stats, saving);
+      const open = fuel.level < fuel.tank * PIT.window;
+      if (windowLap === null && open) windowLap = lap;
+      if (pitLap !== null || lap >= laps || when === 'never' || !open) continue;
+      if (when === 'window' || !canRunLap(fuel, perf.stats, saving)) { fuel = refuel(fuel); pitLap = lap; }
+    }
+    return { ok: true, pitLap, windowLap };
+  };
+
+  const rows = [];
+  for (const cls of [1, 2, 3, 4, 5]) {
+    const laps = ECONOMY.laps[cls] * ENDURANCE.lapFactor;
+    const perf = buildPerformance([], driver, chassisData[CLASS_CHASSIS[cls]], {});
+    // **満タン＝全周回の6割。** 基準の車（fuel_consumption 0）でちょうど tankShare
+    const tankLaps = enduranceTank(laps) / fuelPerLap(perf.stats);
+    assert.ok(Math.abs(tankLaps / laps - ENDURANCE.tankShare) < 1e-9, `クラス${cls}の満タンが6割でない`);
+
+    // ピット無しなら、満タンでも燃料切れ（fuel_out に届く）
+    const noStop = run(perf, laps, 'full', { when: 'never' });
+    assert.equal(noStop.ok, false, `クラス${cls}：満タンでピット無しでも走り切れてしまう`);
+    assert.ok(noStop.out <= Math.ceil(laps * ENDURANCE.tankShare) + 1, `クラス${cls}：切れるのが遅すぎる`);
+    // 節約しても、ピット無しでは届かない（必ず一度は入る）
+    assert.equal(run(perf, laps, 'full', { when: 'never', saving: true }).ok, false, `クラス${cls}：節約だけで走り切れてしまう`);
+
+    // 満タンは1回のピットで届く。**窓が開いてすぐ入っても届く**（余裕がある）
+    assert.ok(run(perf, laps, 'full').ok, `クラス${cls}：満タンが1回のピットで届かない`);
+    assert.ok(run(perf, laps, 'full', { when: 'window' }).ok, `クラス${cls}：満タンで早入りすると届かない`);
+    // 必要分＋余裕は届くが、**早く入ると届かない**＝入る周を選ぶ必要がある
+    assert.ok(run(perf, laps, 'margin').ok, `クラス${cls}：余裕ありが届かない`);
+    assert.equal(run(perf, laps, 'margin', { when: 'window' }).ok, false, `クラス${cls}：余裕ありは早入りでも届いてしまう`);
+
+    // **ぎりぎり：節約なしでは届かず、節約と組めば1回のピットで届く**
+    const tight = run(perf, laps, 'tight');
+    const tightSave = run(perf, laps, 'tight', { saving: true });
+    assert.equal(tight.ok, false, `クラス${cls}：ぎりぎりが節約なしで届いてしまう`);
+    assert.equal(tightSave.ok, true, `クラス${cls}：ぎりぎり＋節約で届かない`);
+    assert.equal(tightSave.pitLap !== null, true, 'ぎりぎり＋節約でも一度は入る');
+
+    // 積む量の順（軽いほど速い）。ぎりぎり < 余裕 < 満タン
+    const level = (k) => enduranceFuel(perf.stats, laps, k).level;
+    assert.ok(level('tight') < level('margin') && level('margin') < level('full'), '積む量の順');
+    rows.push(`クラス${cls} ${laps}周：満タン${tankLaps.toFixed(1)}周ぶん・窓${tight.windowLap}周目・ぎりぎり＋節約はpit${tightSave.pitLap}`);
+  }
+  // 節約は燃費 −10%、周のタイム +0.3%
+  const perf1 = buildPerformance([], driver, chassisData.hatchback, {});
+  assert.ok(Math.abs(fuelPerLap(perf1.stats, true) / fuelPerLap(perf1.stats) - ENDURANCE.save.fuel) < 1e-12);
+  for (const r of rows) console.log(`  ${r}`);
+});
+
+test('S18. 画面の中の module が構文として通る（ビルドが無いので、開くまで気づけない）', () => {
+  // **ビルドもバンドルも無い。** 画面の module は開くまで誰も構文を見ない。
+  // 2,000 行の中の閉じ忘れが、テストを全部通したまま画面だけ真っ白にする
+  const dir = mkdtempSync(join(tmpdir(), 'haruka-'));
+  const pages = ['index.html', 'src/ui/setup.html', 'src/ui/race.html', 'src/ui/season.html', 'src/ui/prologue.html'];
+  const rows = [];
+  for (const page of pages) {
+    const html = readFileSync(join(ROOT, page), 'utf8');
+    const head = '<script type="module">';
+    const open = html.indexOf(head);
+    assert.ok(open >= 0, `${page} に module が無い`);
+    const body = html.slice(open + head.length, html.indexOf('</script>', open));
+    const file = join(dir, `${page.replace(/[\/]/g, '_')}.mjs`);
+    writeFileSync(file, body);
+    try {
+      execFileSync(process.execPath, ['--check', file], { stdio: ['ignore', 'ignore', 'pipe'] });
+    } catch (err) {
+      const where = String(err.stderr ?? '').split('\n').slice(0, 4).join(' / ');
+      assert.fail(`${page} の module が構文エラー：${where}`);
+    }
+    rows.push(`${page.split('/').pop()} ${body.split('\n').length}行`);
+  }
+  console.log(`  構文 OK：${rows.join('、')}`);
 });

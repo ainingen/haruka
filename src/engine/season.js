@@ -4,7 +4,7 @@
  * 6戦、ポイント制、昇降格、オフシーズンのノート、スポンサー段階。
  * state を受け取る関数は新しい state を返し、元は変えない。数値は data/economy.json。
  */
-import { createRng, createRunner, runField, simulateQualifying, START } from './race.js';
+import { createRng, createRunner, runField, simulateQualifying, START, ENDURANCE } from './race.js';
 import { rivalSpec, fieldEntries, seasonRivalPlan, rivalLoadout } from './rivals.js';
 
 /** そのクラスで走れるコース。classes が無いデータは全クラス可とみなす。 */
@@ -12,6 +12,10 @@ export const coursesFor = (courses, cls) => courses.filter((c) => !c.classes || 
 
 /**
  * 新しいシーズンを組む。走れるコースから rounds_per_season 戦を引く（同じコースが2回入ることもある）。
+ *
+ * **第4戦だけ耐久戦**（docs/設計/ピットストップ.md）。周回数が2倍になり、満タンでも
+ * 走り切れないので必ず一度はピットに入る。コースは通常の巡り順のまま。
+ *
  * @param {function} rng 0〜1 の乱数
  */
 export function newSeason(cls, courses, economy, rng = Math.random, year = 1, note = null) {
@@ -23,7 +27,9 @@ export function newSeason(cls, courses, economy, rng = Math.random, year = 1, no
     // 直前と同じコースが続くのは避ける（2回入ること自体はある）
     let c = pool[Math.floor(rng() * pool.length)];
     if (rounds.length && pool.length > 1 && c.id === rounds.at(-1).course) c = pool[(pool.indexOf(c) + 1) % pool.length];
-    rounds.push({ course: c.id, laps: economy.laps[cls], result: null });
+    const endurance = i === ENDURANCE.round - 1;
+    const laps = economy.laps[cls] * (endurance ? ENDURANCE.lapFactor : 1);
+    rounds.push({ course: c.id, laps, result: null, ...(endurance ? { endurance: true } : {}) });
   }
   // AI の構成（速いが足すパーツ、遅いの安物）はこの種から決まり、シーズン中は固定（rivals.js）
   const rivalSeed = Math.floor(rng() * 1e9);
