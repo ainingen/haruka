@@ -948,8 +948,11 @@ function lapCommentary(ev, traffic) {
 
   if (!car.isPlayer || !traffic) return;
   if (traffic.overtook || traffic.overtaken) {
-    commentary('position_change', 'announcer', { ...vars, car: car.name, pos: traffic.rank });
-    if (S.lineRng() < 0.5) commentary('position_change', 'analyst', vars);
+    // **ピットを挟んだ順位変動はアンダーカット。** 直近2周に誰かが入っていれば、そちらで言う
+    const pitted = S.lastPitLap != null && car.lap - S.lastPitLap <= 2;
+    const key = pitted ? 'undercut' : 'position_change';
+    commentary(key, 'announcer', { ...vars, car: car.name, pos: traffic.rank });
+    if (S.lineRng() < 0.5) commentary(key, 'analyst', vars);
   } else if (traffic.gapAheadDelta != null && Math.abs(traffic.gapAheadDelta) >= 0.8
              && !car.finished && traffic.aheadCar && !traffic.aheadCar.finished) {
     const key = traffic.gapAheadDelta < 0 ? 'gap_shrink' : 'gap_grow';
@@ -1000,16 +1003,54 @@ function analystOnLap(lap) {
 // ---------------------------------------------------------------------------
 
 /**
- * ピットまわりで出す台詞と実況。**文言は data/radio.json / commentary.json**（段階3）。
- * ここは「いつ出すか」だけを持つ。
+ * ピットの無線を1本。**話者は台詞データが持っている**（data/radio.json の pit_stop）。
+ * 発火点は docs/設計/ピットストップ.md の表どおり。
  */
-function onPitWindow() {}
-function onPitCall() {}
-function onPitLapse() {}
-function onFuelSave() {}
+function pitSay(key, vars = {}) {
+  const def = S.radioData.pit_stop?.[key];
+  if (!def?.lines?.length) return;
+  say(def.speaker, fill(textOf(pickUnique(`pit_stop/${key}`, def.lines)), vars));
+}
+
+/** 窓が開いた。ピットから一言。 */
+function onPitWindow() { pitSay('window_open'); }
+
+/** 合図。1回目はハルカが抵抗し、2回目で折れる。 */
+function onPitCall(what) {
+  if (what === 'ask') { pitSay('call'); pitSay('resist'); }
+  else if (what === 'confirm') { pitSay('insist'); pitSay('comply'); }
+}
+
+/** 押し切らなかった＝入らない。ハルカは走り続ける。 */
+function onPitLapse() { pitSay('stay_out'); }
+
+/** 「燃料、節約」。ハルカは嫌がる。実況も気づく。 */
+function onFuelSave(on) {
+  if (!on) return;
+  pitSay('save_fuel');
+  pitSay('save_fuel_reply');
+  commentary('fuel_save', 'announcer', baseVars());
+  if (S.lineRng() < 0.7) commentary('fuel_save', 'analyst', baseVars());
+}
+
+/** ピットロードに入る。止まっている間の独り言を2〜3本、秒数で割り振る。 */
 function onPitStop(pit) {
-  commentary('pit', 'announcer', { ...baseVars(), car: S.cars[0].name });
-  if (S.lineRng() < 0.6) commentary('pit', 'analyst', baseVars());
+  pitSay('in_lane');
+  const n = 2 + Math.floor(S.lineRng() * 2);
+  S.boxAt = Array.from({ length: n }, (_, i) => (pit.seconds * (i + 1)) / (n + 1)).reverse();
+}
+
+/** ボックスを出た。冷えたタイヤと満タンの重さ。順位が動いていれば、そのことも言う。 */
+function onPitOut(pit, moved) {
+  const me = S.cars[0];
+  const ahead = ranked()[Math.max(0, ranked().indexOf(me) - 1)];
+  const gap = ahead && ahead !== me ? `${gapSeconds(ahead, me).toFixed(1)}秒` : '—';
+  pitSay('out');
+  pitSay('out_player', { gap, pos: ranked().indexOf(me) + 1 });
+  if (moved > 0) pitSay('lost_in_pit');
+  else if (moved < 0) pitSay('gained_in_pit');
+  // ここから先は燃料が足りる＝最後のスティント
+  if (fuelLapsLeft(me.fuel, me.perf.stats, me.saving) >= S.totalLaps - me.lap) pitSay('final_stint');
 }
 
 /** ピットの操作列を描く。 */
@@ -1025,8 +1066,14 @@ function renderPit() {
   el('btnPitTyre').classList.toggle('on', S.pitTyre);
   el('btnPitTyre').disabled = box;
   el('btnSave').classList.toggle('on', me.saving);
+  // 止まっている間の独り言（in_box）。秒数で割り振ってある
+  while (box && S.boxAt?.length && me.hold <= S.boxAt[0]) { S.boxAt.shift(); pitSay('in_box'); }
   // ボックスを出た瞬間の順位。**止まっている間に動いたぶん**がこれで分かる
-  if (!box && S.pitRanks && S.pitRanks.out === null) S.pitRanks.out = ranked().indexOf(me) + 1;
+  if (!box && S.pitRanks && S.pitRanks.out === null) {
+    S.pitRanks.out = ranked().indexOf(me) + 1;
+    S.boxAt = null;
+    onPitOut(S.pitLog.at(-1), S.pitRanks.out - S.pitRanks.in);
+  }
   const state = el('pitState');
   state.classList.toggle('open', S.pitWindow && !box);
   state.classList.toggle('box', box);
@@ -1097,6 +1144,13 @@ function lapTick() {
           });
         } else sayInfo(call);
       }
+    }
+    // ピットは自車も AI も実況する。undercut の判定にも使う
+    if (ev.pit) {
+      S.lastPitLap = ev.car.lap;
+      S.symptoms.pit = (S.symptoms.pit ?? 0) + (ev.car.isPlayer ? 1 : 0);
+      commentary('pit', 'announcer', { ...baseVars(), car: ev.car.name, pos: ranked().indexOf(ev.car) + 1 });
+      if (S.lineRng() < 0.5) commentary('pit', 'analyst', baseVars());
     }
     if (ev.car.isPlayer) pitOnLap(ev);
     if (IS_QUALI) qualiLapCommentary(ev);
@@ -1222,6 +1276,8 @@ const S = {
   pitTyre: false,       // 給油のみ / ＋タイヤ交換
   pitLog: [],           // 自車のピット記録（結果に出す）
   pitRanks: null,       // { in, out } ボックスに入った時と出た時の順位
+  boxAt: null,          // 止まっている間の独り言を出す残り秒数
+  lastPitLap: null,     // 誰かが最後にピットに入った周（undercut の判定）
   checkeredClass: '',
 };
 
@@ -1336,7 +1392,8 @@ async function boot() {
     commentary('quali_start', 'analyst', vars);
     say('haruka', textOf(pickUnique('quali/out', radioData.quali.out)));
   } else {
-    commentary('race_start', 'announcer', vars);
+    // 耐久戦は専用の入り（docs/設計/ピットストップ.md）。ふつうの戦の race_start の代わり
+    commentary(S.endurance ? 'endurance_start' : 'race_start', 'announcer', vars);
     say('announcer', textOf(pickUnique('profile', commentaryData.profile)));
     // スポンサーが付いていれば、その名前で紹介する（段階0のあいだは何も言わない）
     const sponsor = G.sponsor && sponsors.find((sp) => sp.id === G.sponsor.id);
@@ -1344,7 +1401,7 @@ async function boot() {
       commentary('sponsor_intro', 'announcer', { ...vars, sponsor: sponsor.name });
       if (S.lineRng() < 0.5) commentary('sponsor_intro', 'analyst', { ...vars, sponsor: sponsor.name });
     }
-    commentary('race_start', 'analyst', vars);
+    commentary(S.endurance ? 'endurance_start' : 'race_start', 'analyst', vars);
     const intro = radioData.chat.course_start[course.id];
     if (intro) say('haruka', textOf(pick(intro)));
   }
@@ -1623,6 +1680,12 @@ function finish() {
   renderStandings();
   commentary('checkered', 'announcer', { ...vars, pos: myPos }, [myPos === 1 ? 'win' : 'notwin']);
   commentary('checkered', 'analyst', vars);
+  // **耐久を無給油で走り切った。** ぎりぎり＋節約の結末（docs/設計/ピットストップ.md）
+  if (S.endurance && !S.cars[0].retired && S.cars[0].pits === 0) {
+    pitSay('no_stop_success');
+    commentary('no_stop_finish', 'announcer', vars);
+    commentary('no_stop_finish', 'analyst', vars);
+  }
   renderPanel();
 
   // --- 収支。賞金は順位別（リタイアは 0）。参加費は決勝で1回。スポンサー料は段階ごとに固定 ------

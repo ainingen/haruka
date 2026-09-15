@@ -1783,6 +1783,19 @@ const isWorks = (p) => p && p.class_required === 5 && p.category !== 'reinforce'
 /** 判定より優先して1回だけ出す一言（ノートを写した直後の「親父ならこうしてた」など）。 */
 let pitOverride = null;
 
+/**
+ * 耐久戦で燃料を選んだときのハルカの一言（data/radio.json の pit_stop.fuel_*）。
+ * ピットでの一言と同じ吹き出しに出す。次にセッティングを触るまで残る。
+ */
+function sayFuel(key) {
+  const def = DATA.radio.pit_stop?.[`fuel_${key}`];
+  if (!def?.lines?.length) return;
+  const line = def.lines[Math.floor(Math.random() * def.lines.length)];
+  el('pitlineText').textContent = typeof line === 'string' ? line : line.text;
+  el('pitline').hidden = false;
+  pitShown = `fuel_${key}`;
+}
+
 function drawPitLine() {
   let id = pitComment(perf(), DATA.driver, { parts: activeParts(), settings: activeSettings(), session: state.session });
   if (pitOverride) { id = pitOverride; pitOverride = null; pitShown = null; }
@@ -2079,6 +2092,8 @@ try {
   el('selFuel').addEventListener('change', () => {
     state.fuel = el('selFuel').value;
     drawFuel(enduranceRound);
+    // 選んだらハルカが一言（data/radio.json の pit_stop.fuel_*）
+    sayFuel(state.fuel);
   });
   drawFuel(enduranceRound);
 

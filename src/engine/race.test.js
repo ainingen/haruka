@@ -385,7 +385,10 @@ test('13. radio.json: 4層それぞれの本数、sound_cue、禁則', () => {
     assert.ok(!e.text.includes('ハルノート'), `禁則「ハルノート」: ${e.text}`);
   }
   // ハルカの台詞は計器を読まない＝数字を言わない（テンプレートの主人公側は除く）
-  const haruka = [...collectEntries(R.info), ...collectEntries(R.reaction), ...collectEntries(R.constant.haruka), ...collectEntries(R.chat)];
+  const pitHaruka = Object.entries(R.pit_stop ?? {})
+    .filter(([k, d]) => k !== '_comment' && d.speaker === 'haruka')
+    .flatMap(([, d]) => collectEntries(d.lines));
+  const haruka = [...collectEntries(R.info), ...collectEntries(R.reaction), ...collectEntries(R.constant.haruka), ...collectEntries(R.chat), ...pitHaruka];
   for (const e of haruka) assert.ok(!/[0-9０-９]/.test(e.text) || /3周ちょうだい/.test(e.text), `ハルカが数字を言っている: ${e.text}`);
 });
 
@@ -1036,4 +1039,61 @@ test('29. 解説の差し込み：コースは5つ全部、クラス5はクラ�
 
   const n = (o) => Object.entries(o).filter(([k]) => k !== '_comment').map(([, v]) => v.length).reduce((a, b) => a + b, 0);
   console.log(`  コースの解説 ${n(C.analyst_course)} 本 / 5コース、クラス5の解説 ${n(C.analyst_class5)} 本（general・works・braced）`);
+});
+
+test('30. ピットの台詞：設計書の発火点がぜんぶ揃い、話者が正しく、画面が引いている', () => {
+  const R = RADIO_DATA;
+  const C = COMMENTARY;
+  // docs/設計/ピットストップ.md の発火点。**足りなければ画面で無言になる**
+  const WHO = {
+    fuel_full: 'haruka', fuel_margin: 'haruka', fuel_tight: 'haruka',   // 燃料を選んだとき
+    window_open: 'player',                                             // 窓が開いた
+    call: 'player', resist: 'haruka',                                  // 合図（1回目）
+    insist: 'player', comply: 'haruka',                                // 合図（2回目）
+    stay_out: 'haruka',                                                // 押し切らなかった
+    save_fuel: 'player', save_fuel_reply: 'haruka',                    // 燃料、節約
+    in_lane: 'haruka', in_box: 'haruka',                               // 入る／止まっている
+    out: 'haruka', out_player: 'player',                               // 出た
+    lost_in_pit: 'haruka', gained_in_pit: 'haruka',                    // 止まっている間の順位
+    final_stint: 'haruka', no_stop_success: 'haruka',                  // 最後のスティント／無給油
+  };
+  assert.ok(R.pit_stop, 'radio.json に pit_stop 節が無い');
+  for (const [key, speaker] of Object.entries(WHO)) {
+    const def = R.pit_stop[key];
+    assert.ok(def, `pit_stop.${key} が無い`);
+    assert.equal(def.speaker, speaker, `pit_stop.${key} の話者`);
+    assert.ok(def.lines.length >= 3, `pit_stop.${key} は3本以上（${def.lines.length}）`);
+    assert.ok(R.speakers[speaker], `speakers に ${speaker} が無い`);
+  }
+  // 止まっている間の独り言は長めに引く（2〜3本が毎回同じにならないように）
+  assert.ok(R.pit_stop.in_box.lines.length >= 6, '止まっている間の独り言は6本以上');
+  assert.ok(R.pit_stop.resist.lines.length >= 5, 'ハルカの抵抗は5本以上（毎回同じだと飽きる）');
+  // 燃料切れに「言ったよね」が足されている（押し切らずに走り続けた結末）
+  assert.ok(R.info.fuel_out.lines.some((l) => /まだ走れる/.test(l.text)), '燃料切れに合図を断った結末が無い');
+  // シーズンの一行
+  assert.ok(R.season_note.pit?.length >= 3, 'season_note.pit が3本以上');
+
+  // 実況・解説の新設
+  for (const id of ['endurance_start', 'undercut', 'fuel_save', 'no_stop_finish']) {
+    const t = C.triggers[id];
+    assert.ok(t, `commentary.json に ${id} が無い`);
+    assert.ok(t.announcer.length >= 2 && t.analyst.length >= 2, `${id} は実況・解説それぞれ2本以上`);
+  }
+  assert.ok(C.triggers.pit.announcer.length >= 9 && C.triggers.pit.analyst.length >= 9, 'pit に追加が入っている');
+
+  // **画面がこれを引いているか。** 引いていないキーがあれば、台詞はあるのに出ない
+  const html = readFileSync(join(ROOT, 'src', 'ui', 'race.html'), 'utf8');
+  const setup = readFileSync(join(ROOT, 'src', 'ui', 'setup.html'), 'utf8');
+  for (const key of Object.keys(WHO)) {
+    if (key.startsWith('fuel_')) {
+      assert.match(setup, /pit_stop\?\.\[`fuel_\$\{key\}`\]/, 'セッティング画面が燃料の一言を引いていない');
+      continue;
+    }
+    assert.ok(html.includes(`pitSay('${key}'`), `race.html が pit_stop.${key} を引いていない`);
+  }
+  for (const id of ['endurance_start', 'undercut', 'fuel_save', 'no_stop_finish']) {
+    assert.ok(html.includes(`'${id}'`), `race.html が ${id} を出していない`);
+  }
+  const n = Object.values(R.pit_stop).filter((d) => d.lines).reduce((a, d) => a + d.lines.length, 0);
+  console.log(`  ピットの無線 ${n} 本 / ${Object.keys(WHO).length} 箇所、実況・解説の新設4トリガー`);
 });

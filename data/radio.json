@@ -33,6 +33,14 @@
         {
           "text": "燃料。ねえ、燃料",
           "sound_cue": ""
+        },
+        {
+          "text": "……言ったよね。まだ走れるって。走れなかった",
+          "sound_cue": ""
+        },
+        {
+          "text": "止まった。次はアンタの言うこと聞く。……たぶん",
+          "sound_cue": ""
         }
       ],
       "replies": [
@@ -2400,6 +2408,24 @@
         "text": "かざはや。親父の走ったところと、ウチの走ったところ、もう同じじゃない",
         "sound_cue": ""
       }
+    ],
+    "pit": [
+      {
+        "text": "耐久で入るタイミング、一回で合った。……アンタが決めたけど",
+        "sound_cue": ""
+      },
+      {
+        "text": "止まってる時間が一番長く感じた年",
+        "sound_cue": ""
+      },
+      {
+        "text": "「まだ走れる」って言って、走れなかった。書いとく",
+        "sound_cue": ""
+      },
+      {
+        "text": "耐久は嫌い。止まるから。でも届いたときは、ちょっと好き",
+        "sound_cue": ""
+      }
     ]
   },
   "season_event": {
@@ -2537,6 +2563,388 @@
         {
           "speaker": "haruka",
           "text": "（新記録）……書いた。親父、これ知らないやつ。",
+          "sound_cue": ""
+        }
+      ]
+    }
+  },
+  "pit_stop": {
+    "_comment": "ピットストップ・耐久戦の無線（docs/設計/ピットストップ.md）。speaker は radio.json の speakers のキー。",
+    "fuel_full": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "重い。最初の周、鈍いよ",
+          "sound_cue": ""
+        },
+        {
+          "text": "満タン。……まあ、止まるよりいい",
+          "sound_cue": ""
+        },
+        {
+          "text": "重い車で走るの、久しぶり",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "fuel_margin": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "ちょうどいい。……たぶん",
+          "sound_cue": ""
+        },
+        {
+          "text": "余裕あり。アンタの計算、信じる",
+          "sound_cue": ""
+        },
+        {
+          "text": "普通。普通が一番怖い",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "fuel_tight": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "ぎりぎり？　止まったらアンタのせいだからね",
+          "sound_cue": ""
+        },
+        {
+          "text": "軽い。速いけど、帰ってこれる？",
+          "sound_cue": ""
+        },
+        {
+          "text": "その量で届くって、誰が言った",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "window_open": {
+      "speaker": "player",
+      "lines": [
+        {
+          "text": "ピット、入れる。いつでも言え",
+          "sound_cue": ""
+        },
+        {
+          "text": "窓、開いた。次の周でも、その次でも",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃料、残り3割。入る周を決める",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "call": {
+      "speaker": "player",
+      "lines": [
+        {
+          "text": "次の周、入れ",
+          "sound_cue": ""
+        },
+        {
+          "text": "ピットイン。次だ",
+          "sound_cue": ""
+        },
+        {
+          "text": "入れ。燃料だ",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "resist": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "まだ走れる",
+          "sound_cue": ""
+        },
+        {
+          "text": "あと一周。前、見えてるから",
+          "sound_cue": ""
+        },
+        {
+          "text": "今入ったら順位落ちる。あと一周",
+          "sound_cue": ""
+        },
+        {
+          "text": "やだ。今いいとこ",
+          "sound_cue": ""
+        },
+        {
+          "text": "まだある。ゲージ見て",
+          "sound_cue": ""
+        },
+        {
+          "text": "……聞こえなかった",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "insist": {
+      "speaker": "player",
+      "lines": [
+        {
+          "text": "入れ。決定だ",
+          "sound_cue": ""
+        },
+        {
+          "text": "言い直さない。入れ",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃料が持たない。入れ",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "comply": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "……はいはい",
+          "sound_cue": ""
+        },
+        {
+          "text": "分かった。入る",
+          "sound_cue": ""
+        },
+        {
+          "text": "了解。次で入る。文句は後で言う",
+          "sound_cue": ""
+        },
+        {
+          "text": "入る。……覚えとく",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "stay_out": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "行けるって言ったじゃん",
+          "sound_cue": ""
+        },
+        {
+          "text": "まだある。走る",
+          "sound_cue": ""
+        },
+        {
+          "text": "入れって言わないなら、走る",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "save_fuel": {
+      "speaker": "player",
+      "lines": [
+        {
+          "text": "燃料、節約。回転抑えろ",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃費走行。抑えて走れ",
+          "sound_cue": ""
+        },
+        {
+          "text": "回転、落とせ。届かせる",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "save_fuel_reply": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "抑えて走るって、遅く走れってこと？",
+          "sound_cue": ""
+        },
+        {
+          "text": "……はいはい。つまんない",
+          "sound_cue": ""
+        },
+        {
+          "text": "抑える。抑えたら文句言うくせに",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃費。……分かった。退屈",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "in_lane": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "入る。速度落とす",
+          "sound_cue": ""
+        },
+        {
+          "text": "ピットロード。長い",
+          "sound_cue": ""
+        },
+        {
+          "text": "ここ、遅いのが法律",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "in_box": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "……早く",
+          "sound_cue": ""
+        },
+        {
+          "text": "止まってる時間、一番嫌い",
+          "sound_cue": ""
+        },
+        {
+          "text": "給油、まだ？",
+          "sound_cue": ""
+        },
+        {
+          "text": "タイヤ、替えてる？　替えてるね",
+          "sound_cue": ""
+        },
+        {
+          "text": "エンジンの音がしない。落ち着かない",
+          "sound_cue": ""
+        },
+        {
+          "text": "この数秒で何台行った？　言わなくていい",
+          "sound_cue": ""
+        },
+        {
+          "text": "……まだ？　……まだ？",
+          "sound_cue": ""
+        },
+        {
+          "text": "手が暇。ハンドル握ってるだけ",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "out": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "出た。冷えてる",
+          "sound_cue": ""
+        },
+        {
+          "text": "重い。満タンの重さ",
+          "sound_cue": ""
+        },
+        {
+          "text": "タイヤ、起きてない。一周ちょうだい",
+          "sound_cue": ""
+        },
+        {
+          "text": "ピットロード、長すぎ",
+          "sound_cue": ""
+        },
+        {
+          "text": "戻った。何番手？",
+          "sound_cue": ""
+        },
+        {
+          "text": "新しいタイヤ。……まだ固い",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "out_player": {
+      "speaker": "player",
+      "lines": [
+        {
+          "text": "出た。前の車、{gap}",
+          "sound_cue": ""
+        },
+        {
+          "text": "順位{pos}。ここから取り返す",
+          "sound_cue": ""
+        },
+        {
+          "text": "タイヤ、新しい。慣らせ",
+          "sound_cue": ""
+        },
+        {
+          "text": "燃料、満タン。もう入らない",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "lost_in_pit": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "ピットで抜かれた。走って抜かれたんじゃない",
+          "sound_cue": ""
+        },
+        {
+          "text": "止まってる間に前に出られた。……悔しいの、これ",
+          "sound_cue": ""
+        },
+        {
+          "text": "入る前は前にいた。今、後ろ",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "gained_in_pit": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "向こうが入った。前、空いた",
+          "sound_cue": ""
+        },
+        {
+          "text": "止まってる間に前に出た。……ずるい気がする",
+          "sound_cue": ""
+        },
+        {
+          "text": "あいつ、入った。今のうち",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "final_stint": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "ここからは減っても関係ない",
+          "sound_cue": ""
+        },
+        {
+          "text": "残りのタイヤ、全部使う",
+          "sound_cue": ""
+        },
+        {
+          "text": "もう入らない。あとは走るだけ",
+          "sound_cue": ""
+        }
+      ]
+    },
+    "no_stop_success": {
+      "speaker": "haruka",
+      "lines": [
+        {
+          "text": "入らなかった。届いた",
+          "sound_cue": ""
+        },
+        {
+          "text": "ほら。走れたじゃん",
+          "sound_cue": ""
+        },
+        {
+          "text": "アンタの計算、合ってた。……悔しい",
           "sound_cue": ""
         }
       ]
