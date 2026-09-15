@@ -11,6 +11,7 @@ import { dirname, join } from 'node:path';
 import {
   OVERRIDE, clampFactor, hasOverride, overridePart, applyOverrides, packOverrides,
   runAttack, WARMUP_LAPS, readFree, writeFree, putBest, emptyFree, FREE_SLOT, NOTE_MAX,
+  harukaLine, mainParts, pushNote, NOTE_PARTS, NOTE_LINE_MAX,
 } from './free.js';
 import { buildPerformance } from './race.js';
 import { encode, decode, newGame, LOCAL_KEY, SAVE_KEY } from './save.js';
@@ -168,4 +169,51 @@ test('F4. ベストは速くなったときだけ差し替わる。記録は loc
   // 進行を通しても記録は付いてこない
   assert.equal(decode(encode(g)).free, undefined);
   console.log(`  ベスト ${Object.keys(free.best).length} 件を積んでも保存文字列は ${before} 字のまま　ノート上限 ${NOTE_MAX} 行`);
+});
+
+test('F5. ハルカのノート：ベストの一行と、プレイヤーの一行。50行で止まる', () => {
+  const works = part('engine_works_01');
+  const tyre = part('tire_compound_02');
+  const bias = part('brake_bias_01');
+
+  // **形式は「コース　タイム　主な部品」。数字を出してよい**（ノートの字。無線ではない）
+  const line = harukaLine('ながさわ高速周回路', 74.3628, [tyre, works, bias]);
+  assert.match(line, /^ながさわ高速周回路　1:14\.363　/);
+  assert.ok(line.includes(works.name), '効きの大きい部品が入っていない');
+  assert.ok(/[0-9]/.test(line), 'ノートの一行に数字が無い');
+  // 部品が無ければ「素のまま」
+  assert.equal(harukaLine('みさき山道コース', 60, []), 'みさき山道コース　1:00.000　素のまま');
+  // 並べるのは多くても3点
+  const many = PARTS.filter((p) => p.class_required <= 2).slice(0, 8);
+  assert.ok(mainParts(many).length <= NOTE_PARTS);
+  // 効きの大きい順
+  const ordered = mainParts([bias, works], 2);
+  assert.equal(ordered[0], works.name, '効きの大きいほうが先');
+
+  // --- 足し方と上限 --------------------------------------------------------
+  let free = emptyFree();
+  free = pushNote(free, { who: 'haruka', text: line, at: 1 });
+  free = pushNote(free, { who: 'player', text: '  タイヤは 前を1段 柔らかく  ', at: 2 });
+  assert.equal(free.note.length, 2);
+  assert.deepEqual(free.note.map((n) => n.who), ['haruka', 'player']);
+  assert.equal(free.note[1].text, 'タイヤは 前を1段 柔らかく', '前後の空白を落として1つに畳む');
+  // 空の行は足さない
+  assert.equal(pushNote(free, { who: 'player', text: '   ' }).note.length, 2);
+  assert.equal(pushNote(free, { who: 'player', text: null }).note.length, 2);
+  // 知らない who はハルカ扱いにしない（player 以外はハルカ）
+  assert.equal(pushNote(free, { who: 'だれか', text: 'x' }).note.at(-1).who, 'haruka');
+
+  // **50行で止まり、古い順に消える**
+  let big = emptyFree();
+  for (let i = 1; i <= NOTE_MAX + 20; i += 1) big = pushNote(big, { who: 'haruka', text: `${i}行目`, at: i });
+  assert.equal(big.note.length, NOTE_MAX, `${NOTE_MAX} 行で止まっていない`);
+  assert.equal(big.note[0].text, `${20 + 1}行目`, '古いほうから消えていない');
+  assert.equal(big.note.at(-1).text, `${NOTE_MAX + 20}行目`, '新しい行が末尾');
+  // 上限まで積んでも進行には入らない
+  const g = newGame(ECONOMY);
+  const before = encode(g).length;
+  writeFree(null, big);
+  assert.equal(encode(g).length, before);
+  assert.ok(NOTE_LINE_MAX === 40, 'プレイヤーの一行は40字');
+  console.log(`  ノート：「${line}」　${NOTE_MAX} 行で古い順に消える`);
 });

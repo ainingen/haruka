@@ -394,6 +394,31 @@ button.attack:disabled { background: var(--ink-3); cursor: default; }
 .attack-out .lap .sec { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .attack-out .best { color: var(--good); font-weight: 700; }
 .attack-out .dnf { color: var(--bad); font-weight: 700; }
+
+/* --- ハルカのノート（白紙のページ） --------------------------------------- */
+.notes.hnote[hidden] { display: none; }
+.hnote .lines { display: flex; flex-direction: column; gap: 2px; flex-basis: 100%; }
+.hnote .lines .empty { color: var(--ink-3); font-size: var(--fs-small); }
+/* ハルカの字と、あとから足した字。**別の手で書いたと分かるように変える** */
+.hnote .hl {
+  font-family: var(--hand-font); font-size: var(--fs-small); color: var(--ink);
+  border-bottom: 1px dotted var(--rule); padding: 2px 0;
+}
+.hnote .hl.player {
+  font-family: var(--jp-font); font-size: var(--fs-sub); color: var(--ink-2);
+  padding-left: 14px; border-bottom: 0;
+}
+.hnote .hl.player::before { content: '└ '; color: var(--ink-3); }
+.hnote .add { display: flex; gap: 6px; align-items: center; flex-basis: 100%; margin-top: 6px; }
+.hnote .add input {
+  flex: 1; min-width: 0; font: inherit; font-family: var(--jp-font); font-size: var(--fs-sub);
+  padding: 5px 7px; background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3);
+}
+.hnote .add button {
+  font: inherit; font-family: var(--jp-font); font-size: var(--fs-sub); padding: 5px 12px;
+  cursor: pointer; background: none; color: var(--ink); border: 1px solid var(--ink-3);
+}
+.hnote .add .count { font-size: var(--fs-sub); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .entry.fuel { margin-bottom: 6px; }
 .entry select:disabled { color: var(--ink); opacity: 1; border-color: transparent; background: transparent; appearance: none; padding-left: 0; }
 .notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
@@ -573,6 +598,18 @@ button.attack:disabled { background: var(--ink-3); cursor: default; }
     <span class="note">いまの装着状態とセッティングを URL に載せてレース画面へ渡します（ブラウザ保存は使いません）。</span>
   </div>
 
+  <div class="notes hnote" id="hnote" hidden>
+    <div class="cap">ハルカのノート — 白紙のページ</div>
+    <div class="body">
+      <div class="lines" id="hnoteLines"></div>
+      <div class="add">
+        <input type="text" id="hnoteInput" maxlength="40" placeholder="一行足す（40字まで）" spellcheck="false">
+        <button type="button" id="hnoteBtn">書く</button>
+        <span class="count" id="hnoteCount">0 / 40</span>
+      </div>
+    </div>
+  </div>
+
   <div class="notes" id="notes">
     <div class="cap">親父のノート — <span id="notesWhere">—</span></div>
     <div class="body">
@@ -629,7 +666,7 @@ import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCos
 import { currentRound } from '../engine/season.js';
 import {
   OVERRIDE, clampFactor, applyOverrides, packOverrides, runAttack,
-  readFree, writeFree, putBest, emptyFree,
+  readFree, writeFree, putBest, emptyFree, harukaLine, pushNote, NOTE_LINE_MAX,
 } from '../engine/free.js';
 
 // ---------------------------------------------------------------------------
@@ -2290,7 +2327,11 @@ function runTimeAttack() {
     const put = putBest(state.free, course.id, entry);
     state.free = put.free;
     updated = put.updated;
-    if (updated) persistFree();
+    if (updated) {
+      // **ベストを更新したときだけ、ハルカが一行書く**（コース・タイム・主な部品）
+      addNote('haruka', harukaLine(course.name, r.best, activeParts()));
+      persistFree();
+    }
   }
   drawAttack(r, course, prevBest, updated);
   onAttackDone(r, course, prevBest, updated);   // 無線（段階4）
@@ -2316,6 +2357,28 @@ function drawAttack(r, course, prevBest, updated) {
   out.innerHTML = head + line + rows;
 }
 
+/**
+ * 白紙のページ。**ベストを更新するたび、ハルカの字で一行が増える。**
+ * プレイヤーの一行はその下に、別の字で。
+ */
+function drawHarukaNote() {
+  if (!MODE.harukaNote) return;
+  const box = el('hnoteLines');
+  const lines = state.free.note;
+  box.innerHTML = lines.length
+    ? lines.map((n) => `<div class="hl${n.who === 'player' ? ' player' : ''}">${esc(n.text)}</div>`).join('')
+    : '<div class="empty">まだ何も書いていない。ベストを出すと、ハルカが書く。</div>';
+  box.scrollTop = box.scrollHeight;
+}
+
+/** ノートに一行足して、書けるなら残す。 */
+function addNote(who, text) {
+  const before = state.free.note.length;
+  state.free = pushNote(state.free, { who, text, at: Date.now() });
+  if (state.free.note.length !== before || who === 'player') persistFree();
+  drawHarukaNote();
+}
+
 /** 記録を書く。**localStorage が使えないときは何もしない**（走れるが残らない）。 */
 function persistFree() {
   if (!canStore()) return false;
@@ -2332,6 +2395,24 @@ function startFree() {
   el('attackNote').textContent = canStore()
     ? 'この端末にだけ残る（保存文字列には乗らない）。'
     : 'この環境ではブラウザ保存が使えない。走れるが、タイムは残らない。';
+
+  // 白紙のページ
+  el('hnote').hidden = false;
+  const input = el('hnoteInput');
+  input.maxLength = NOTE_LINE_MAX;
+  el('hnoteCount').textContent = `0 / ${NOTE_LINE_MAX}`;
+  input.addEventListener('input', () => {
+    el('hnoteCount').textContent = `${[...input.value].length} / ${NOTE_LINE_MAX}`;
+  });
+  const write = () => {
+    if (!input.value.trim()) return;
+    addNote('player', input.value);
+    input.value = '';
+    el('hnoteCount').textContent = `0 / ${NOTE_LINE_MAX}`;
+  };
+  el('hnoteBtn').addEventListener('click', write);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); write(); } });
+  drawHarukaNote();
 }
 
 // ---------------------------------------------------------------------------

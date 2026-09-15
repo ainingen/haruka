@@ -11,7 +11,7 @@
  * ここは純関数だけ（I/O なし）。localStorage の読み書きは save.js の
  * `loadLocal` / `saveLocal` を呼ぶ側（画面）がやる。
  */
-import { simulateRace } from './race.js';
+import { simulateRace, formatTime } from './race.js';
 
 // ---------------------------------------------------------------------------
 // 効果値の上書き
@@ -161,4 +161,50 @@ export function putBest(free, courseId, entry) {
   const prev = free.best[courseId] ?? null;
   if (prev && !(entry.time < prev.time)) return { free, updated: false, prev };
   return { free: { ...free, best: { ...free.best, [courseId]: entry } }, updated: true, prev };
+}
+
+// ---------------------------------------------------------------------------
+// ハルカのノート（白紙のページ）
+//
+// **ここは数字を出してよい。** 無線ではなく、ノートに書かれた字だから
+// （ハルカが計器を読まないという禁則は、口に出す台詞にだけかかる）。
+// ---------------------------------------------------------------------------
+
+/** 一行に並べる部品の数。 */
+export const NOTE_PARTS = 3;
+
+/** プレイヤーが足せる一行の上限。 */
+export const NOTE_LINE_MAX = 40;
+
+/**
+ * 一行に出す「主な部品」。**効きの大きいものから**。
+ * 同じ大きさなら、上のクラスのものを先に（そのほうが構成の特徴を表す）。
+ */
+export function mainParts(parts, n = NOTE_PARTS) {
+  const weight = (p) => Object.values(p.effects ?? {}).reduce((a, v) => a + Math.abs(v), 0);
+  return [...parts]
+    .sort((a, b) => weight(b) - weight(a) || b.class_required - a.class_required || (a.id < b.id ? -1 : 1))
+    .slice(0, n)
+    .map((p) => p.name);
+}
+
+/**
+ * ハルカが書く一行。**形式は「コース　タイム　主な部品」。**
+ * 部品が1つも無ければ「素のまま」と書く（純正で出した記録も残る）。
+ */
+export function harukaLine(courseName, time, parts) {
+  const names = mainParts(parts);
+  return `${courseName}　${formatTime(time)}　${names.length ? names.join('・') : '素のまま'}`;
+}
+
+/**
+ * ノートに一行足す。**上限 NOTE_MAX。超えたら古い順に消す。**
+ * @param {object} free 記録
+ * @param {object} entry { who: 'haruka' | 'player', text, at }
+ */
+export function pushNote(free, entry) {
+  const text = String(entry.text ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return free;
+  const note = [...free.note, { who: entry.who === 'player' ? 'player' : 'haruka', text, at: entry.at ?? 0 }];
+  return { ...free, note: note.slice(-NOTE_MAX) };
 }
