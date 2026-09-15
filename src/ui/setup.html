@@ -358,6 +358,42 @@ h2 {
 .free-lead[hidden] { display: none; }
 .free-lead b { color: var(--ink); }
 .tabs[hidden] { display: none; }
+
+/* --- 効果値の上書き（自由設定） ------------------------------------------- */
+#overWrap[hidden], #attackWrap[hidden] { display: none; }
+.over-cap { font-size: var(--fs-sub); color: var(--ink-2); font-weight: 400; letter-spacing: 0; }
+.over .part { border-top: 1px dashed var(--rule); padding: 6px 0; }
+.over .part > .nm { font-size: var(--fs-small); font-weight: 700; }
+.over .part > .nm .cat { font-weight: 400; color: var(--ink-2); margin-left: 6px; font-size: var(--fs-sub); }
+.over .row {
+  display: grid; grid-template-columns: minmax(0, 110px) minmax(0, 1fr) minmax(0, 116px); gap: 8px;
+  align-items: center; font-size: var(--fs-sub); padding: 1px 0;
+}
+.over .row > * { min-width: 0; }
+.over .row.side .key { color: var(--bad); }
+.over .row .key { color: var(--ink-2); }
+.over .row input[type=range] { width: 100%; min-width: 0; accent-color: var(--accent); }
+.over .row .val { font-variant-numeric: tabular-nums; text-align: right; }
+.over .row .val .was { color: var(--ink-3); }
+.over .row .val .now { font-weight: 700; }
+.over .row .val .now.up { color: var(--good); }
+.over .row .val .now.down { color: var(--bad); }
+.over .none { font-size: var(--fs-small); color: var(--ink-3); padding: 6px 0; }
+button.attack {
+  font: inherit; font-family: var(--jp-font); font-size: var(--fs-body); font-weight: 700;
+  padding: 7px 18px; cursor: pointer; background: var(--accent); color: var(--paper); border: 0;
+}
+button.attack:disabled { background: var(--ink-3); cursor: default; }
+.attack-out { font-size: var(--fs-small); }
+.attack-out .lap {
+  display: grid; grid-template-columns: minmax(0, 54px) minmax(0, 92px) minmax(0, 1fr);
+  gap: 8px; padding: 2px 0; align-items: baseline;
+}
+.attack-out .lap > * { min-width: 0; }
+.attack-out .lap .t { font-variant-numeric: tabular-nums; font-weight: 700; }
+.attack-out .lap .sec { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.attack-out .best { color: var(--good); font-weight: 700; }
+.attack-out .dnf { color: var(--bad); font-weight: 700; }
 .entry.fuel { margin-bottom: 6px; }
 .entry select:disabled { color: var(--ink); opacity: 1; border-color: transparent; background: transparent; appearance: none; padding-left: 0; }
 .notes { margin-top: 10px; border: 1px solid var(--rule); background: var(--field); }
@@ -478,6 +514,20 @@ h2 {
   <h2>セッティング / 連続値</h2>
   <div id="sliders"></div>
 
+  <div id="overWrap" hidden>
+    <h2>効果値の上書き <span class="over-cap">±50%。元の値は薄い字</span></h2>
+    <div class="over" id="over"></div>
+  </div>
+
+  <div id="attackWrap" hidden>
+    <h2>タイムアタック</h2>
+    <div class="entry">
+      <button type="button" id="attackBtn" class="attack">走る</button>
+      <span class="note" id="attackNote"></span>
+    </div>
+    <div class="attack-out" id="attackOut"></div>
+  </div>
+
   <div class="pitline" id="pitline" hidden>
     <span class="k">PIT — ハルカ</span>
     <span id="pitlineText"></span>
@@ -577,6 +627,10 @@ import {
 import { loadState, save, newGame, searchWithState, sawScene, markScene, canFreeSetup, loadLocal, saveLocal, canStore } from '../engine/save.js';
 import { owns, buyBlocker, buy, sell, sellPrice, condition, applyWear, repairCost, repair, effectScale } from '../engine/economy.js';
 import { currentRound } from '../engine/season.js';
+import {
+  OVERRIDE, clampFactor, applyOverrides, packOverrides, runAttack,
+  readFree, writeFree, putBest, emptyFree,
+} from '../engine/free.js';
 
 // ---------------------------------------------------------------------------
 // 表示用の語彙（data/README.md のキー → 日本語）
@@ -748,6 +802,10 @@ const state = {
   stash: { quali: null, race: null },
   /** 耐久戦で積んで出る量（ENDURANCE.load のキー）。ふつうの戦では使わない */
   fuel: 'full',
+  /** 自由設定：効果値の上書き { [partId]: { effects, side_effects } } */
+  over: {},
+  /** 自由設定：この端末の記録（localStorage）。使えない環境では書かれないまま */
+  free: emptyFree(),
 };
 
 /** 予選用セッティングの初期値：決勝用の写し＋空気圧を高め（一発なら高くていい） */
@@ -908,8 +966,16 @@ function loadoutOf(equipped, allowId = null) {
   for (const [slot, id] of Object.entries(equipped)) {
     if (!id) continue;
     const p = partById(id);
-    // ホームスロットの分だけ入れる。耐久が減っていれば効果を縮めた写し（economy.js applyWear）
-    if ((isLegal(p) || p.id === allowId) && p.slot === slot) map[slot] = applyWear(DATA.economy, p, condition(G, p));
+    // ホームスロットの分だけ入れる。耐久が減っていれば効果を縮めた写し（economy.js applyWear）。
+    // 自由設定は消耗を見ない（全部新品）
+    if ((isLegal(p) || p.id === allowId) && p.slot === slot) {
+      map[slot] = MODE.shop ? applyWear(DATA.economy, p, condition(G, p)) : p;
+    }
+  }
+  // **効果値の上書きはここだけ。** buildPerformance に渡る前に当てる（race.js は触らない）
+  if (MODE.overrides) {
+    const bent = applyOverrides(Object.values(map), state.over);
+    Object.keys(map).forEach((slot, i) => { map[slot] = bent[i]; });
   }
   return map;
 }
@@ -1634,25 +1700,26 @@ function drawModal() {
   };
 
   if (!cand) return;
-  // 自由設定に買い物は無い（全部持っている扱い。消耗も見ない）
-  if (!MODE.shop) return;
-  if (!owned) {
-    // 購入と装着は別。買っただけでは付かない
-    button(`購入 ${yen(cand.price)}`, () => buyFromModal(cand), { primary: true, disabled: !!blocker });
-    return;
-  }
-  const d = durInfo(cand);
-  if (d.pct < 100) {
-    const cost = repairCost(DATA.economy, cand, d.cur, G.cls);
-    // 修理は任意。閾値を切っていれば効果が落ちていることを先に言う
-    if (d.state !== 'ok') {
-      msg.classList.remove('ok');
-      msg.textContent = d.state === 'broken' ? '故障している。効果は出ない（副作用は残る）' : `耐久 ${d.pct}%。効果が ${Math.round(d.scale * 100)}% に落ちている`;
+  // 買う・直す・売るは本編だけ。自由設定は全部持っている扱いで、消耗も見ない
+  if (MODE.shop) {
+    if (!owned) {
+      // 購入と装着は別。買っただけでは付かない
+      button(`購入 ${yen(cand.price)}`, () => buyFromModal(cand), { primary: true, disabled: !!blocker });
+      return;
     }
-    button(`修理 ${yen(cost)}`, () => repairFromModal(cand), { disabled: cost > G.money });
+    const d = durInfo(cand);
+    if (d.pct < 100) {
+      const cost = repairCost(DATA.economy, cand, d.cur, G.cls);
+      // 修理は任意。閾値を切っていれば効果が落ちていることを先に言う
+      if (d.state !== 'ok') {
+        msg.classList.remove('ok');
+        msg.textContent = d.state === 'broken' ? '故障している。効果は出ない（副作用は残る）' : `耐久 ${d.pct}%。効果が ${Math.round(d.scale * 100)}% に落ちている`;
+      }
+      button(`修理 ${yen(cost)}`, () => repairFromModal(cand), { disabled: cost > G.money });
+    }
   }
   if (state.equipped[slot] === cand.id) button('外す', removeFromModal);
-  button(`売却 ${yen(sellPrice(DATA.economy, cand))}`, () => sellFromModal(cand));
+  if (MODE.shop) button(`売却 ${yen(sellPrice(DATA.economy, cand))}`, () => sellFromModal(cand));
   button(on ? '装着中' : legal ? '装着する' : '装着できない', () => equipFromModal(cand), { primary: true, disabled: !legal || on });
 }
 
@@ -2116,6 +2183,7 @@ function renderAll() {
   // ワークス部品を初めて装着したとき（クラス5の差し込み）。装着のたびに見る
   if (equippedParts().some(isWorks)) showClass5('class5_first_works');
   drawPitLine();
+  drawOverrides();
   drawMoney();
   if (el('selCourse').dataset.ready) drawCourses();
   clearLaps();
@@ -2141,6 +2209,132 @@ function applyMode() {
 }
 
 // ---------------------------------------------------------------------------
+// 自由設定：効果値の上書きと、タイムアタック（docs/設計/自由設定.md）
+//
+// 上書きは data/parts.json の effects / side_effects の**各数値に倍率を掛ける**。
+// 当てるのは loadoutOf の1箇所（buildPerformance の手前）。race.js は触らない。
+// ---------------------------------------------------------------------------
+
+/** 走り終えたときの無線（段階4で中身を入れる）。 */
+function onAttackDone() {}
+
+/** いまの倍率（未設定は 1）。 */
+const overOf = (id, table, key) => clampFactor(state.over[id]?.[table]?.[key]);
+
+/** 倍率を1つ入れる。1 に戻したら、その枠ごと捨てる（記録が太らないように）。 */
+function setOver(id, table, key, factor) {
+  const one = { ...(state.over[id] ?? {}) };
+  const t = { ...(one[table] ?? {}) };
+  if (clampFactor(factor) === 1) delete t[key]; else t[key] = clampFactor(factor);
+  if (Object.keys(t).length) one[table] = t; else delete one[table];
+  const next = { ...state.over };
+  if (Object.keys(one).length) next[id] = one; else delete next[id];
+  state.over = next;
+}
+
+const signed = (v) => `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10}`;
+
+/** 装着中の部品ごとに、効果と副作用の各数値をスライダーで曲げる欄。 */
+function drawOverrides() {
+  if (!MODE.overrides) return;
+  const wrap = el('over');
+  wrap.textContent = '';
+  const parts = activeParts();
+  if (!parts.length) {
+    wrap.innerHTML = '<div class="none">部品を付けると、その効果値をここで曲げられる。</div>';
+    return;
+  }
+  for (const p of parts) {
+    const box = document.createElement('div');
+    box.className = 'part';
+    const cat = CATEGORIES.find((c) => c.id === p.category);
+    box.innerHTML = `<div class="nm">${esc(p.name)}<span class="cat">${esc(cat?.label ?? p.category)}</span></div>`;
+    for (const table of ['effects', 'side_effects']) {
+      for (const [key, base] of Object.entries(p[table] ?? {})) {
+        const f = overOf(p.id, table, key);
+        const row = document.createElement('div');
+        row.className = `row${table === 'side_effects' ? ' side' : ''}`;
+        const dir = f > 1 ? ' up' : f < 1 ? ' down' : '';
+        row.innerHTML = `<span class="key">${esc(STAT_LABEL[key] ?? key)}</span>
+          <input type="range" min="${OVERRIDE.min}" max="${OVERRIDE.max}" step="${OVERRIDE.step}" value="${f}">
+          <span class="val"><span class="was">${signed(base)}</span> → <span class="now${dir}">${signed(base * f)}</span></span>`;
+        row.querySelector('input').addEventListener('input', (e) => {
+          setOver(p.id, table, key, Number(e.target.value));
+          // 触った行だけ数字を書き換え、あとは全体を組み直す（ステータスと図面に効く）
+          renderAll();
+        });
+        box.appendChild(row);
+      }
+    }
+    wrap.appendChild(box);
+  }
+}
+
+/** 1本走る。**計算は本編と同じ**（src/engine/free.js の runAttack）。 */
+let attackSeed = 1;
+function runTimeAttack() {
+  const course = DATA.courses.find((c) => c.id === el('selCourse').value);
+  const laps = Number(el('selLaps').value) || 1;
+  if (!course) return;
+  attackSeed += 1;
+  const r = runAttack(perf(), course, DATA.driver, { laps, seed: attackSeed });
+  const prevBest = state.free.best[course.id] ?? null;
+  let updated = false;
+  if (r.complete) {
+    const entry = {
+      time: r.best, laps, at: Date.now(),
+      parts: activeParts().map((p) => p.id),
+      over: packOverrides(state.over),
+      settings: { ...activeSettings() },
+    };
+    const put = putBest(state.free, course.id, entry);
+    state.free = put.free;
+    updated = put.updated;
+    if (updated) persistFree();
+  }
+  drawAttack(r, course, prevBest, updated);
+  onAttackDone(r, course, prevBest, updated);   // 無線（段階4）
+}
+
+/** 走行の結果。セクター別タイムとラップ、ベストとの差。 */
+function drawAttack(r, course, prevBest, updated) {
+  const out = el('attackOut');
+  const rows = r.laps.map((l) => `<div class="lap">
+    <span>${l.lap}周目</span>
+    <span class="t${l.time === r.best ? ' best' : ''}">${formatTime(l.time)}</span>
+    <span class="sec">${l.sectors.map((t, i) => `S${i + 1} ${t.toFixed(3)}`).join('　')}</span>
+  </div>`).join('');
+  const head = r.retired
+    ? `<div class="dnf">${r.retiredLap > 0 ? `計測${r.retiredLap}周目` : 'アウトラップ'}でリタイア`
+      + `（${r.retireReason === 'fuel' ? '燃料切れ' : '故障'}）</div>`
+    : `<div>${course.name}・${r.laps.length}周　ベスト <b>${formatTime(r.best)}</b>`
+      + `${updated ? ' <span class="best">ベスト更新</span>' : ''}</div>`;
+  const cur = state.free.best[course.id];
+  const line = !cur ? ''
+    : `<div>この端末のベスト <b>${formatTime(cur.time)}</b>`
+      + `${!updated && r.complete ? `（今回は +${(r.best - cur.time).toFixed(3)}）` : ''}</div>`;
+  out.innerHTML = head + line + rows;
+}
+
+/** 記録を書く。**localStorage が使えないときは何もしない**（走れるが残らない）。 */
+function persistFree() {
+  if (!canStore()) return false;
+  return saveLocal(writeFree(loadLocal(), state.free));
+}
+
+/** 自由設定の欄を出し、記録を読む。 */
+function startFree() {
+  if (!MODE.free) return;
+  el('overWrap').hidden = false;
+  el('attackWrap').hidden = false;
+  state.free = readFree(loadLocal());
+  el('attackBtn').addEventListener('click', runTimeAttack);
+  el('attackNote').textContent = canStore()
+    ? 'この端末にだけ残る（保存文字列には乗らない）。'
+    : 'この環境ではブラウザ保存が使えない。走れるが、タイムは残らない。';
+}
+
+// ---------------------------------------------------------------------------
 // 起動
 // ---------------------------------------------------------------------------
 try {
@@ -2154,6 +2348,7 @@ try {
     throw new Error('free: ending.done がない');
   }
   applyMode();
+  startFree();
   state.cls = Math.min(5, Math.max(1, G.cls));
   state.tier = Math.min(4, Math.max(0, G.tier));
   el('selClass').value = String(state.cls);
