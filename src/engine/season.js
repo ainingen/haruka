@@ -281,6 +281,6 @@ export function simulateField(args) {
   return order.map((r, i) => ({
     id: r.id, name: r.name, pos: i + 1, retired: r.retired, retireReason: r.retireReason,
     total: r.raceTime, best: r.best, laps: r.lapTimes.length, gridPos: r.gridPos, partIds: r.partIds,
-    pits: r.pits, pitLoss: r.pitLoss, pitLaps: r.pitLaps,
+    pits: r.pits, pitLoss: r.pitLoss, pitLaps: r.pitLaps, pitForced: r.pitForced, pitStyle: r.pitStyle,
   }));
 }

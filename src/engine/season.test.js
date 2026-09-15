@@ -664,12 +664,14 @@ test('S17. 耐久戦の燃料：満タンでも走り切れず、ぎりぎりは
     // 節約しても、ピット無しでは届かない（必ず一度は入る）
     assert.equal(run(perf, laps, 'full', { when: 'never', saving: true }).ok, false, `クラス${cls}：節約だけで走り切れてしまう`);
 
-    // 満タンは1回のピットで届く。**窓が開いてすぐ入っても届く**（余裕がある）
-    assert.ok(run(perf, laps, 'full').ok, `クラス${cls}：満タンが1回のピットで届かない`);
+    // 満タンと必要分＋余裕は1回のピットで届く
+    for (const key of ['full', 'margin']) {
+      assert.ok(run(perf, laps, key).ok, `クラス${cls}：${key} が1回のピットで届かない`);
+    }
+    // **満タンだけは、窓が開いてすぐ入っても届く。** 入る周を気にしなくていいのが重い代償の見返り
     assert.ok(run(perf, laps, 'full', { when: 'window' }).ok, `クラス${cls}：満タンで早入りすると届かない`);
-    // 必要分＋余裕は届くが、**早く入ると届かない**＝入る周を選ぶ必要がある
-    assert.ok(run(perf, laps, 'margin').ok, `クラス${cls}：余裕ありが届かない`);
-    assert.equal(run(perf, laps, 'margin', { when: 'window' }).ok, false, `クラス${cls}：余裕ありは早入りでも届いてしまう`);
+    // 余裕の早入りは**クラスによる**（周の粗さ次第で越えたり越えなかったりする）。決め打たずに控える
+    const earlyMargin = run(perf, laps, 'margin', { when: 'window' }).ok;
 
     // **ぎりぎり：節約なしでは届かず、節約と組めば1回のピットで届く**
     const tight = run(perf, laps, 'tight');
@@ -678,10 +680,25 @@ test('S17. 耐久戦の燃料：満タンでも走り切れず、ぎりぎりは
     assert.equal(tightSave.ok, true, `クラス${cls}：ぎりぎり＋節約で届かない`);
     assert.equal(tightSave.pitLap !== null, true, 'ぎりぎり＋節約でも一度は入る');
 
-    // 積む量の順（軽いほど速い）。ぎりぎり < 余裕 < 満タン
-    const level = (k) => enduranceFuel(perf.stats, laps, k).level;
-    assert.ok(level('tight') < level('margin') && level('margin') < level('full'), '積む量の順');
-    rows.push(`クラス${cls} ${laps}周：満タン${tankLaps.toFixed(1)}周ぶん・窓${tight.windowLap}周目・ぎりぎり＋節約はpit${tightSave.pitLap}`);
+    // --- 3択が何周ぶんになるか。**軽いほど速い**ので、ぎりぎり < 余裕 < 満タン ---------
+    const carry = (k) => enduranceFuel(perf.stats, laps, k).level / fuelPerLap(perf.stats);
+    const [t, m, f] = ['tight', 'margin', 'full'].map(carry);
+    assert.ok(t < m && m < f, `クラス${cls}：積む量の順が合っていない`);
+    assert.ok(Math.abs(f - tankLaps) < 1e-9, `クラス${cls}：満タンがタンクいっぱいでない`);
+    // 1回のピットで走れる距離＝積んだぶん ＋ 満タン1杯（**残して入ったぶんは捨てる**）
+    const reach = (k) => carry(k) + tankLaps;
+    assert.ok(reach('full') > laps && reach('margin') > laps, `クラス${cls}：満タン／余裕が届かない`);
+    assert.ok(reach('tight') < laps, `クラス${cls}：ぎりぎりが節約なしで届いてしまう`);
+    assert.ok(reach('tight') / ENDURANCE.save.fuel > laps, `クラス${cls}：ぎりぎりが節約しても届かない`);
+    // 窓は、いちばん軽いぎりぎりでも間に合う位置で開く
+    assert.ok(tight.windowLap != null && tight.windowLap < laps, `クラス${cls}：ぎりぎりで窓が開かない`);
+
+    rows.push(`クラス${cls} ${String(laps).padStart(2)}周：満タン ${f.toFixed(1)}周ぶん(${(f / laps * 100).toFixed(0)}%)`
+      + ` / 余裕 ${m.toFixed(1)} / ぎりぎり ${t.toFixed(1)}`
+      + `　1回のピットで ${reach('full').toFixed(1)} / ${reach('margin').toFixed(1)} / ${reach('tight').toFixed(1)}`
+      + `（節約で ${(reach('tight') / ENDURANCE.save.fuel).toFixed(1)}）`
+      + `　窓${tight.windowLap}周目・ぎりぎり＋節約はpit${tightSave.pitLap}`
+      + `　余裕の早入り${earlyMargin ? '○' : '×'}`);
   }
   // 節約は燃費 −10%、周のタイム +0.3%
   const perf1 = buildPerformance([], driver, chassisData.hatchback, {});

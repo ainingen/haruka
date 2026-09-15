@@ -599,15 +599,18 @@ export const ENDURANCE = {
   round: 4,
   /** 通常の周回数の何倍か */
   lapFactor: 2,
-  /** 満タンで走れる距離＝全周回のこの割合（基準の車） */
-  tankShare: 0.6,
+  /**
+   * 満タンで走れる距離＝全周回のこの割合（基準の車）。
+   * **0.65 なのは、残り35%で入る堅実型の AI が一度の給油で届くため**（docs/設計/ピットストップ.md）。
+   */
+  tankShare: 0.65,
   /**
    * 積んで出る量（満タンに対する割合）。**ピットで入れるのは常に満タンまで。**
    *   full   満タン。重いが、1回のピットで確実に届く
    *   margin 必要分＋余裕。1回で届くが、ピットの周を遅らせる余裕は少ない
    *   tight  ぎりぎり。軽くて速いが、**節約と組まなければ1回のピットでは届かない**
    */
-  load: { full: 1, margin: 0.8, tight: 0.58 },
+  load: { full: 1, margin: 0.8, tight: 0.46 },
   /** 「燃料、節約」の指示：燃費 −10%、周のタイム +0.3% */
   save: { fuel: 0.9, lap: 1.003 },
 };
@@ -670,22 +673,30 @@ export function lapsePitCall(call, lap) {
 }
 
 /**
+ * **保険**：この周に入らなければ、次の周に入れずに止まる。
+ * ここで入るのは性格の割合ではなく「止まらないため」なので、発火は数える（`car.pitForced`）。
+ * `tankShare` と `PIT.ai` の割り当てが噛み合っていれば、ほとんど発火しない。
+ */
+export const pitIsForced = (car) =>
+  !!car.pitStyle && !canRunLap(car.fuel, car.perf.stats, car.saving);
+
+/**
  * AI がこの周の終わりにピットへ入るか。
  *
  * 残り燃料が性格ごとの割合を切ったら入る（種で ±jitter 周ぶん散らす）。**性格で入るのは1回だけ。**
- * ただし入らなければ次の周を走れないときは、何度でも入る。これが
+ * ただし入らなければ次の周を走れないときは、何度でも入る（保険）。これが
  * 「全車が必ず一度は入る」と「AI は燃料切れで止まらない」の両方の担保になる。
  *
  * **早く入ると一度で足りない。** 満タンまで入れるので、残して入ったぶんはそのまま捨てる。
- * 満タンが全周回の6割しかない以上、残り35%で入る堅実型は二度目が要ることがある
- * （早入りの代償。プレイヤーの「必要分＋余裕」で早く入ったときと同じ理屈）。
+ * 満タンが全周回の tankShare しか無い以上、入る割合を大きくしすぎると二度目が要る。
+ * 0.65 と 15/25/35 の組み合わせは、そうならないように選んである。
  */
 export function aiWantsPit(car, totalLaps) {
   if (!car.pitStyle || car.lap >= totalLaps) return false;
   const tank = car.fuel?.tank;
   if (!tank) return false;
   // 入らなければ止まる。ここだけは回数を問わない
-  if (!canRunLap(car.fuel, car.perf.stats, car.saving)) return true;
+  if (pitIsForced(car)) return true;
   if (car.pits > 0) return false;
   const share = PIT.ai[car.pitStyle] ?? PIT.ai.other;
   const jitter = (car.pitJitter ?? 0) * fuelPerLap(car.perf.stats, car.saving);
@@ -1171,6 +1182,8 @@ export function createRunner({ perf, driver, seed, laps, fuel = null }) {
     // ピット（docs/設計/ピットストップ.md）。hold はボックスで止まっている残り秒数。
     // **止まっている間も場は進む**ので、順位はここで動く
     hold: 0, pitRequest: false, pitTyre: false, pits: 0, pitLaps: [], pitLoss: 0,
+    /** 保険（止まる直前）で入った回数。割り当てが噛み合っていれば 0 のまま */
+    pitForced: 0,
     /** AI の入り方（attack / steady / other）。自車は null＝合図で入る */
     pitStyle: null,
     /** 入る周の散らし（±PIT.ai.jitter 周ぶん）。種から決まる */
@@ -1249,8 +1262,13 @@ export function completeLap(car, course, load, totalLaps, hooks = {}) {
   event.lapsToGo = totalLaps - car.lap;
   // ピット。**燃料を見たあと**に入る（無線は入る前のメーターを読む）。
   // 自車は合図（pitRequest）か、呼ぶ側の指示（hooks.wantsPit）。AI は性格で決める
+  const forced = pitIsForced(car);
   const wantsPit = car.pitRequest || hooks.wantsPit?.(car, totalLaps) || aiWantsPit(car, totalLaps);
-  if (car.lap < totalLaps && wantsPit) event.pit = pitStop(car);
+  if (car.lap < totalLaps && wantsPit) {
+    event.pit = pitStop(car);
+    // 保険で入ったのか、性格で入ったのか。数えておく（設計の割り当てが噛み合っているかの目安）
+    if (forced) { car.pitForced += 1; event.pit.forced = true; }
+  }
   hooks.onLap?.(car, event);
   if (car.lap >= totalLaps) { car.finished = true; car.plan = null; return; }
   planLap(car, course, hooks.options);
